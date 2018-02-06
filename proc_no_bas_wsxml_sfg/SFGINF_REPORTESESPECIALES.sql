@@ -1702,7 +1702,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_MediosMagneticosFecha  
                                         )
  AS
  BEGIN
-   DECLARE @v_consulta VARCHAR(MAX);
+   DECLARE @v_consulta NVARCHAR(MAX);
 
   
  SET NOCOUNT ON;
@@ -1710,29 +1710,29 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_MediosMagneticosFecha  
 
 
   SET @v_consulta  = 'SELECT  ' +
-  '   COMPANIA.NOMCOMPANIA                             AS Compania                    ' +
-  '  ,RAZONSOCIAL.NOMRAZONSOCIAL                       AS Razon Social         ' +
-  '  ,TIPOCONTRATOPDV.NOMTIPOCONTRATOPDV               AS Tipo de Contrato       ' +
-  '  ,RAZONSOCIAL.TELEFONOCONTACTO                     AS Telefono           ' +
-  '  ,RAZONSOCIAL.DIRECCIONCONTACTO                     AS Direccion           ' +
-  '  ,RAZONSOCIAL.IDENTIFICACION ' + '-' + 'RAZONSOCIAL.DIGITOVERIFICACION AS Nit             ' +
-  '  ,REGIMEN.NOMREGIMEN                               AS Regimen           ' +
-  '  ,CIUDAD.NOMCIUDAD                                 AS Ciudad Domicilio Principal   ' +
-  '  ,CIUDAD.CIUDADDANE                                 AS Cod dane Municipio       ' +
-  '  ,DEPARTAMENTO.DEPARTAMENTODANE                     AS Cod dane Departamento     ' +
-  '  ,DEPARTAMENTO.NOMDEPARTAMENTO                     AS Departamento         ' +
-  '  ,SUM(ISNULL(PRE.INGRESOS, 0))                         AS Ventas             ' +
-  '  ,SUM(ISNULL(PRE.IVAPRODUCTO, 0))                     AS IVA producto         ' +
-  '  ,SUM(ISNULL(PRE.INGRESOSBRUTOS, 0))                   AS Ingresos Brutos       ' +
-  '  ,SUM(ISNULL(PRE.COMISION, 0))                         AS Comision           ' +
-  '  ,SUM(ISNULL(PRE.IVACOMISION, 0))                     AS IVA Comision         ' +
-  '  ,SUM(ISNULL(PRE.COMISIONBRUTA, 0))                   AS Comision Bruta         ' +
-  '  ,SUM(ISNULL(PRE.RETEFUENTE, 0))                       AS ReteFuente           ' +
-  '  ,SUM(ISNULL(PRE.RETEIVA, 0))                         AS ReteIVA           ' +
-  '  ,SUM(ISNULL(PRE.RETEICA, 0))                         AS ReteICA           ' +
-  '  ,SUM(ISNULL(PRE.COMISIONNETA, 0))                     AS Comision Neta         ' +
-  '  ,SUM(ISNULL(PRE.ANTICIPO, 0))                         AS Anticipo           ' +
-  'FROM RAZONSOCIAL   ' +
+  'COMPANIA.NOMCOMPANIA      AS Compania' +
+  ',RAZONSOCIAL.NOMRAZONSOCIAL     AS "Razon Social"' +
+  ',TIPOCONTRATOPDV.NOMTIPOCONTRATOPDV  AS "Tipo de Contrato"       ' +
+  ',RAZONSOCIAL.TELEFONOCONTACTO  AS Telefono           ' +
+  ',RAZONSOCIAL.DIRECCIONCONTACTO AS Direccion           ' +
+  ',RAZONSOCIAL.IDENTIFICACION ' + '-' + 'RAZONSOCIAL.DIGITOVERIFICACION AS Nit             ' +
+  ',REGIMEN.NOMREGIMEN  AS Regimen           ' +
+  ',CIUDAD.NOMCIUDAD    AS "Ciudad Domicilio Principal"   ' +
+  ',CIUDAD.CIUDADDANE   AS "Cod dane Municipio"       ' +
+  ',DEPARTAMENTO.DEPARTAMENTODANE  AS "Cod dane Departamento"     ' +
+  ',DEPARTAMENTO.NOMDEPARTAMENTO   AS Departamento ' +
+  ',SUM(ISNULL(PRE.INGRESOS, 0))   AS Ventas' +
+  ',SUM(ISNULL(PRE.IVAPRODUCTO, 0)) AS "IVA producto"' +
+  '  ,SUM(ISNULL(PRE.INGRESOSBRUTOS, 0))  AS "Ingresos Brutos"       ' +
+  '  ,SUM(ISNULL(PRE.COMISION, 0))   AS Comision           ' +
+  '  ,SUM(ISNULL(PRE.IVACOMISION, 0)) AS "IVA Comision"         ' +
+  '  ,SUM(ISNULL(PRE.COMISIONBRUTA, 0)) AS "Comision Bruta"         ' +
+  '  ,SUM(ISNULL(PRE.RETEFUENTE, 0))  AS ReteFuente           ' +
+  '  ,SUM(ISNULL(PRE.RETEIVA, 0))     AS ReteIVA           ' +
+  '  ,SUM(ISNULL(PRE.RETEICA, 0))     AS ReteICA           ' +
+  '  ,SUM(ISNULL(PRE.COMISIONNETA, 0)) AS "Comision Neta"         ' +
+  '  ,SUM(ISNULL(PRE.ANTICIPO, 0))     AS Anticipo           ' +
+  'FROM WSXML_SFG.RAZONSOCIAL   ' +
   'INNER JOIN    ' +
   '  (        ' +
   '    SELECT /*+ push_pred(PRF) */                 ' +
@@ -1757,34 +1757,34 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_MediosMagneticosFecha  
   '    ,SUM(PRF.RETEICA)                  AS RETEICA           ' +
   '    ,SUM(PRF.COMISIONNETA)             AS COMISIONNETA      ' +
   '    ,SUM(PRF.COMISIONANTICIPO)         AS ANTICIPO          ' +
-  '   FROM       VW_PREFACTURACION_DIARIA PRF                ' +
-  '   INNER JOIN   LINEADENEGOCIO ON PRF.CODLINEADENEGOCIO = LINEADENEGOCIO.ID_LINEADENEGOCIO  ' +
-  '   WHERE       PRF.FECHAARCHIVO BETWEEN TO_DATE(''' + isnull(@p_fechainicio, '')  +''',''dd/MM/yyyy'') AND  TO_DATE(''' + isnull(@p_fechafin, '') + ''',''dd/MM/yyyy'') ' +
+  '   FROM       WSXML_SFG.VW_PREFACTURACION_DIARIA PRF                ' +
+  '   INNER JOIN   WSXML_SFG.LINEADENEGOCIO ON PRF.CODLINEADENEGOCIO = LINEADENEGOCIO.ID_LINEADENEGOCIO  ' +
+  '   WHERE       PRF.FECHAARCHIVO BETWEEN CONVERT(VARCHAR,''' + isnull(@p_fechainicio, '')  +''',103) AND  CONVERT(VARCHAR,''' + isnull(@p_fechafin, '') + ''',103) ' +
   '   GROUP BY     CODRAZONSOCIAL,CODTIPOCONTRATOPDV,CODCOMPANIA  ' +
   '  ) PRE ON RAZONSOCIAL.ID_RAZONSOCIAL = PRE.CODRAZONSOCIAL  ' +
-  '  LEFT OUTER JOIN TIPOCONTRATOPDV ON PRE.CODTIPOCONTRATOPDV = TIPOCONTRATOPDV.ID_TIPOCONTRATOPDV ' +
-  '  LEFT OUTER JOIN COMPANIA ON PRE.CODCOMPANIA = COMPANIA.ID_COMPANIA ' +
-  '  LEFT OUTER JOIN REGIMEN ON RAZONSOCIAL.CODREGIMEN= REGIMEN.ID_REGIMEN  ' +
-  '  LEFT OUTER JOIN CIUDAD ON RAZONSOCIAL.CODCIUDAD = CIUDAD.ID_CIUDAD   ' +
-  '  LEFT OUTER JOIN DEPARTAMENTO ON CIUDAD.CODDEPARTAMENTO = DEPARTAMENTO.ID_DEPARTAMENTO ' +
+  '  LEFT OUTER JOIN WSXML_SFG.TIPOCONTRATOPDV ON PRE.CODTIPOCONTRATOPDV = TIPOCONTRATOPDV.ID_TIPOCONTRATOPDV ' +
+  '  LEFT OUTER JOIN WSXML_SFG.COMPANIA ON PRE.CODCOMPANIA = COMPANIA.ID_COMPANIA ' +
+  '  LEFT OUTER JOIN WSXML_SFG.REGIMEN ON RAZONSOCIAL.CODREGIMEN= REGIMEN.ID_REGIMEN  ' +
+  '  LEFT OUTER JOIN WSXML_SFG.CIUDAD ON RAZONSOCIAL.CODCIUDAD = CIUDAD.ID_CIUDAD   ' +
+  '  LEFT OUTER JOIN WSXML_SFG.DEPARTAMENTO ON CIUDAD.CODDEPARTAMENTO = DEPARTAMENTO.ID_DEPARTAMENTO ' +
   '  GROUP BY      COMPANIA.NOMCOMPANIA                  ' +
   '        ,RAZONSOCIAL.NOMRAZONSOCIAL            ' +
   '        ,TIPOCONTRATOPDV.NOMTIPOCONTRATOPDV    ' +
   '        ,RAZONSOCIAL.TELEFONOCONTACTO          ' +
   '        ,RAZONSOCIAL.DIRECCIONCONTACTO       ' +
-  '        ,RAZONSOCIAL.IDENTIFICACION ' + '-' + 'RAZONSOCIAL.DIGITOVERIFICACION ' +
+   '	   ,RAZONSOCIAL.IDENTIFICACION ' + '-' + 'RAZONSOCIAL.DIGITOVERIFICACION  ' +
   '        ,REGIMEN.NOMREGIMEN  ' +
   '        ,CIUDAD.NOMCIUDAD    ' +
   '        ,CIUDAD.CIUDADDANE   ' +
   '        ,DEPARTAMENTO.DEPARTAMENTODANE ' +
   '        ,DEPARTAMENTO.NOMDEPARTAMENTO   ';
 
-
-  EXECUTE (@v_consulta);
+  EXECUTE sp_executesql @v_consulta;
 
 
  END
 GO
+
 
 
 IF OBJECT_ID('WSXML_SFG.SFGINF_REPORTESESPECIALES_RecaudoBalotoDian', 'P') IS NOT NULL
