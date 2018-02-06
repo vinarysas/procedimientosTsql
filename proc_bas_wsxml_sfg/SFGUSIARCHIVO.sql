@@ -1,0 +1,175 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGUSIARCHIVO
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGUSIARCHIVO */ 
+
+-- Creates a new record in the TIPORANGO table
+IF OBJECT_ID('WSXML_SFG.SFGUSIARCHIVO_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGUSIARCHIVO_AddRecord;
+GO
+
+CREATE PROCEDURE WSXML_SFG.SFGUSIARCHIVO_AddRecord(
+    @p_CODUSITIPOARCHIVO NUMERIC(22,0),
+    @p_FECHAARCHIVO DATETIME,
+    @p_FECHAHORAINGRESO DATETIME,
+    @p_TOTALITEMS NUMERIC(22,0),
+    @p_NOMBREARCHIVO NVARCHAR(2000),
+    @p_UBICACIONARCHIVO NVARCHAR(2000),
+    @pk_ID_USIARCHIVO_out NUMERIC(22,0) OUT
+    )
+AS
+BEGIN
+SET NOCOUNT ON;
+    INSERT
+    INTO WSXML_SFG.USIARCHIVO
+        (
+            CODUSITIPOARCHIVO,
+            FECHAARCHIVO,
+            FECHAHORAINGRESO,
+            TOTALITEMS,
+            NOMBREARCHIVO,
+            UBICACIONARCHIVO
+        )
+    VALUES
+        (
+            @p_CODUSITIPOARCHIVO,
+            @p_FECHAARCHIVO, 
+            @p_FECHAHORAINGRESO,
+            @p_TOTALITEMS,
+            @p_NOMBREARCHIVO,
+            @p_UBICACIONARCHIVO
+        );
+       SET
+            @pk_ID_USIARCHIVO_out = SCOPE_IDENTITY();
+END;
+GO
+
+-- Updates a record in the TIPORANGO table.
+IF OBJECT_ID('WSXML_SFG.SFGUSIARCHIVO_UpdateRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGUSIARCHIVO_UpdateRecord;
+GO
+
+CREATE PROCEDURE WSXML_SFG.SFGUSIARCHIVO_UpdateRecord(
+    @pk_ID_USIARCHIVO NUMERIC(22,0),
+    @p_CODUSITIPOARCHIVO NUMERIC(22,0),
+    @p_FECHAARCHIVO DATETIME,
+    @p_FECHAHORAINGRESO DATETIME,
+    @p_TOTALITEMS NUMERIC(22,0),
+    @p_NOMBREARCHIVO NVARCHAR(2000),
+    @p_UBICACIONARCHIVO NVARCHAR(2000)
+    )
+AS
+BEGIN
+SET NOCOUNT ON;
+    -- Update the record with the passed parameters
+    UPDATE WSXML_SFG.USIARCHIVO
+    SET 
+            CODUSITIPOARCHIVO = @p_CODUSITIPOARCHIVO,
+            FECHAARCHIVO = @p_FECHAARCHIVO, 
+            FECHAHORAINGRESO = @p_FECHAHORAINGRESO,
+            TOTALITEMS = @p_TOTALITEMS,
+            NOMBREARCHIVO = @p_NOMBREARCHIVO,
+            UBICACIONARCHIVO = @p_UBICACIONARCHIVO
+    WHERE ID_USIARCHIVO = @pk_ID_USIARCHIVO;
+
+    -- Make sure only one record is affected
+    IF @@rowcount = 0
+    BEGIN
+        RAISERROR ('-20054 The record no longer exists.', 16, 1);
+    END 
+    IF @@rowcount > 1
+    BEGIN
+        RAISERROR ('-20053 Duplicate object instances.', 16, 1);
+    END 
+
+END;
+GO
+
+-- Deletes a record from the TIPORANGO table.
+IF OBJECT_ID('WSXML_SFG.SFGUSIARCHIVO_DeleteRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGUSIARCHIVO_DeleteRecord;
+GO
+
+CREATE PROCEDURE WSXML_SFG.SFGUSIARCHIVO_DeleteRecord(
+    @pk_ID_USIARCHIVO NUMERIC(22,0)
+    )
+AS
+BEGIN
+SET NOCOUNT ON;
+    DELETE WSXML_SFG.USIARCHIVO
+    WHERE ID_USIARCHIVO = @pk_ID_USIARCHIVO;
+END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGUSIARCHIVO_GetRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGUSIARCHIVO_GetRecord;
+GO
+
+CREATE PROCEDURE WSXML_SFG.SFGUSIARCHIVO_GetRecord(
+   @pk_ID_USIARCHIVO NUMERIC(22,0)
+
+    )
+AS
+BEGIN
+    DECLARE @l_count INTEGER;
+ 
+SET NOCOUNT ON;
+
+    -- Get the rowcount first and make sure 
+    -- only one row is returned
+  
+    SELECT @l_count = count(*)
+    FROM WSXML_SFG.USIARCHIVO
+    WHERE ID_USIARCHIVO = @pk_ID_USIARCHIVO;
+
+    IF @l_count = 0
+    BEGIN
+        RAISERROR ('-20054 The record no longer exists.', 16, 1);
+    END 
+
+    IF @l_count > 1
+    BEGIN
+        RAISERROR ('-20053 Duplicate object instances.', 16, 1);
+    END 
+
+    -- Get the row from the query.  Checksum value will be
+    -- returned along the row data to support concurrency.
+         SELECT 
+        ID_USIARCHIVO,
+        CODUSITIPOARCHIVO,
+        FECHAARCHIVO,
+        FECHAHORAINGRESO,
+        TOTALITEMS,
+        NOMBREARCHIVO,
+        UBICACIONARCHIVO
+    FROM WSXML_SFG.USIARCHIVO
+    WHERE ID_USIARCHIVO = @pk_ID_USIARCHIVO; 
+   
+END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGUSIARCHIVO_GetList', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGUSIARCHIVO_GetList;
+GO
+CREATE PROCEDURE WSXML_SFG.SFGUSIARCHIVO_GetList
+AS
+ BEGIN
+ SET NOCOUNT ON;
+                   select 
+           USIARCHIVO.ID_USIARCHIVO,
+            USIARCHIVO.CODUSITIPOARCHIVO,
+            USIARCHIVO.FECHAARCHIVO,
+            USIARCHIVO.FECHAHORAINGRESO,
+            USIARCHIVO.TOTALITEMS,
+            USIARCHIVO.NOMBREARCHIVO,
+            USIARCHIVO.UBICACIONARCHIVO
+            from WSXML_SFG.USIARCHIVO;
+END;
+GO
+
+
+
+
+
+

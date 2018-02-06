@@ -1,0 +1,116 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGCALIFICACIONGESTION
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGCALIFICACIONGESTION */ 
+
+IF OBJECT_ID('WSXML_SFG.SFGCALIFICACIONGESTION_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCALIFICACIONGESTION_AddRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCALIFICACIONGESTION_AddRecord(@p_DESCRIPCION                 VARCHAR,
+                      @p_FECHAHORAMODIFICACION       DATETIME,
+                      @p_CODUSUARIO                  NUMERIC(22,0),
+                      @p_ACTIVE                      NUMERIC(22,0),
+                      @p_ID_CALIFICACIONGESTION_out  NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    /* TODO implementation required */
+
+    INSERT INTO WSXML_SFG.CALIFICACIONGESTION (
+                                 DESCRIPCION,
+                                 FECHAHORAMODIFICACION,
+                                 CODUSUARIOMODIFICACION,
+                                 ACTIVE)
+    VALUES (
+            @p_DESCRIPCION,
+            @p_FECHAHORAMODIFICACION,
+            @p_CODUSUARIO,
+            @p_ACTIVE);
+    SET @p_ID_CALIFICACIONGESTION_out = SCOPE_IDENTITY();
+  END;
+GO
+
+
+IF OBJECT_ID('WSXML_SFG.SFGCALIFICACIONGESTION_UpdateRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCALIFICACIONGESTION_UpdateRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCALIFICACIONGESTION_UpdateRecord(@pk_ID_CALIFICACIONGESTION      NUMERIC(22,0),
+                          @p_DESCRIPCION                 VARCHAR,
+                          @p_FECHAHORAMODIFICACION       DATETIME,
+                          @p_CODUSUARIO                  NUMERIC(22,0),
+                          @p_ACTIVE                      NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+    UPDATE WSXML_SFG.CALIFICACIONGESTION
+       SET DESCRIPCION                = @p_DESCRIPCION,
+           FECHAHORAMODIFICACION      = @p_FECHAHORAMODIFICACION,
+           CODUSUARIOMODIFICACION     = @p_CODUSUARIO,
+           ACTIVE                     = @p_ACTIVE
+     WHERE ID_CALIFICACIONGESTION     = @pk_ID_CALIFICACIONGESTION;
+    -- Make sure only one record is affected
+    IF @@rowcount = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+    END 
+    IF @@rowcount > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+    END 
+END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGCALIFICACIONGESTION_GetRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCALIFICACIONGESTION_GetRecord;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGCALIFICACIONGESTION_GetRecord(@pk_ID_CALIFICACIONGESTION NUMERIC(22,0))AS
+BEGIN
+  DECLARE @l_count INTEGER;
+   
+  SET NOCOUNT ON;
+    /* TODO implementation required */
+    SELECT @l_count = count(*)
+    FROM WSXML_SFG.CALIFICACIONGESTION
+    WHERE ID_CALIFICACIONGESTION = @pk_ID_CALIFICACIONGESTION;
+
+    IF @l_count = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+    END 
+
+    IF @l_count > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+    END 
+
+      		
+      SELECT A.ID_CALIFICACIONGESTION,
+             A.DESCRIPCION,
+             A.FECHAHORAMODIFICACION,
+             A.ACTIVE
+      FROM WSXML_SFG.CALIFICACIONGESTION A
+      WHERE A.ID_CALIFICACIONGESTION = @pk_ID_CALIFICACIONGESTION;
+	
+END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGCALIFICACIONGESTION_GetList', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCALIFICACIONGESTION_GetList;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGCALIFICACIONGESTION_GetList(@p_ACTIVE NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+    /* TODO implementation required */
+	  	
+      SELECT A.ID_CALIFICACIONGESTION,
+             A.DESCRIPCION,
+             A.FECHAHORAMODIFICACION,
+             A.ACTIVE
+      FROM WSXML_SFG.CALIFICACIONGESTION A
+            WHERE A.ACTIVE = CASE WHEN @p_ACTIVE = -1 THEN A.ACTIVE ELSE @p_ACTIVE END;
+	
+END
+GO
+
+
+
+
+
+

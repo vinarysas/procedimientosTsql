@@ -1,0 +1,31 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGREGISTROREVENUEINCENTIVO
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGREGISTROREVENUEINCENTIVO */ 
+
+  IF OBJECT_ID('WSXML_SFG.SFGREGISTROREVENUEINCENTIVO_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGREGISTROREVENUEINCENTIVO_AddRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUEINCENTIVO_AddRecord(@p_CODREGISTROREVENUE         NUMERIC(22,0),
+                      @p_CODINCENTIVOCOMISIONGLOBAL NUMERIC(22,0),
+                      @p_REVENUE                    FLOAT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    INSERT INTO WSXML_SFG.REGISTROREVENUEINCENTIVO (
+                                          CODREGISTROREVENUE,
+                                          CODINCENTIVOCOMISIONGLOBAL,
+                                          REVENUE)
+    VALUES (
+            @p_CODREGISTROREVENUE,
+            @p_CODINCENTIVOCOMISIONGLOBAL,
+            @p_REVENUE);
+  END;
+GO
+
+
+
+
+
+

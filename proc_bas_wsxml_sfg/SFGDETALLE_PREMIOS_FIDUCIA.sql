@@ -1,0 +1,58 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGDETALLE_PREMIOS_FIDUCIA
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGDETALLE_PREMIOS_FIDUCIA */ 
+
+  --Add Record in the table CONTROL_L1LIAB01
+  IF OBJECT_ID('WSXML_SFG.SFGDETALLE_PREMIOS_FIDUCIA_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGDETALLE_PREMIOS_FIDUCIA_AddRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGDETALLE_PREMIOS_FIDUCIA_AddRecord(@p_CODCONTROL_PREMIOS_FIDUCIA   NUMERIC(22,0),
+                      @p_SORTEO                       NUMERIC(22,0),
+                      @p_FECHA_SORTEO                 DATETIME,
+                      @p_MONTO_PREMIO_NETO            NUMERIC(22,0),
+                      @p_FECHA_PAGO_PREMIO            DATETIME,
+                      @p_CODCATEGORIA_ACIERTOS_L1LIAB NUMERIC(22,0),
+                      @p_NOMPRODUCTO                  VARCHAR(4000),
+                      @p_FECHAHORAMODIFICACION        DATETIME,
+                      @p_CODUSUARIOMODIFICACION       NUMERIC(22,0),
+                      @p_ACTIVE                       NUMERIC(22,0),
+                      @p_ID_DETALLE_PREMIOS_FIDUC_out NUMERIC(22,0) OUT) AS
+
+  BEGIN
+  SET NOCOUNT ON;
+
+    INSERT INTO WSXML_SFG.DETALLE_PREMIOS_FIDUCIA
+      (CODCONTROL_PREMIOS_FIDUCIA,
+       SORTEO,
+       FECHA_SORTEO,
+       MONTO_PREMIO_NETO,
+       FECHA_PAGO_PREMIO,
+       CODCATEGORIA_ACIERTOS_L1LIAB01,
+       NOMPRODUCTO,
+       FECHAHORAMODIFICACION,
+       CODUSUARIOMODIFICACION,
+       ACTIVE)
+    VALUES
+      (@p_CODCONTROL_PREMIOS_FIDUCIA,
+       @p_SORTEO,
+       @p_FECHA_SORTEO,
+       @p_MONTO_PREMIO_NETO,
+       @p_FECHA_PAGO_PREMIO,
+       @p_CODCATEGORIA_ACIERTOS_L1LIAB,
+       @p_NOMPRODUCTO,
+       @p_FECHAHORAMODIFICACION,
+       @p_CODUSUARIOMODIFICACION,
+       @p_ACTIVE);
+
+    SET @p_ID_DETALLE_PREMIOS_FIDUC_out = SCOPE_IDENTITY();
+  END;
+GO
+
+
+
+
+
+

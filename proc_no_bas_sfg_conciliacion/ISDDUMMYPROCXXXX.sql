@@ -1,0 +1,13 @@
+USE SFGPRODU;
+--  DDL for Procedure ISDDUMMYPROCXXXX
+--------------------------------------------------------
+/* set define off; */
+
+  IF OBJECT_ID('SFG_CONCILIACION.ISDDUMMYPROCXXXX', 'P') IS NOT NULL
+    DROP PROCEDURE SFG_CONCILIACION.ISDDUMMYPROCXXXX;
+GO
+
+  CREATE PROCEDURE SFG_CONCILIACION.ISDDUMMYPROCXXXX as Begin
+ Set nocount on; SELECT null; End;
+
+

@@ -1,0 +1,67 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGMAESTROFACTURACIONTIRILLA
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGMAESTROFACTURACIONTIRILLA */ 
+
+  IF OBJECT_ID('WSXML_SFG.SFGMAESTROFACTURACIONTIRILLA_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONTIRILLA_AddRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONTIRILLA_AddRecord(
+                      @p_CODCICLOFACTURACIONPDV       NUMERIC(22,0),
+                      @p_CODPUNTODEVENTA              NUMERIC(22,0),
+                      @p_ID_MAESTROFACTURATIRILLA_out NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    SELECT @p_ID_MAESTROFACTURATIRILLA_out = ID_MAESTROFACTURACIONTIRILLA FROM WSXML_SFG.MAESTROFACTURACIONTIRILLA
+    WHERE CODCICLOFACTURACIONPDV = @p_CODCICLOFACTURACIONPDV AND CODPUNTODEVENTA = @p_CODPUNTODEVENTA;
+    /*
+    EXCEPTION WHEN NO_DATA_FOUND THEN
+    INSERT INTO WSXML_SFG.MAESTROFACTURACIONTIRILLA (
+                                           CODCICLOFACTURACIONPDV,
+                                           CODPUNTODEVENTA)
+    VALUES (
+            @p_CODCICLOFACTURACIONPDV,
+            @p_CODPUNTODEVENTA);
+    SET @p_ID_MAESTROFACTURATIRILLA_out = SCOPE_IDENTITY();
+	*/
+	IF(@@rowcount = 0)
+	  BEGIN
+	   INSERT INTO WSXML_SFG.MAESTROFACTURACIONTIRILLA (
+                                           CODCICLOFACTURACIONPDV,
+                                           CODPUNTODEVENTA)
+    VALUES (
+            @p_CODCICLOFACTURACIONPDV,
+            @p_CODPUNTODEVENTA);
+    SET @p_ID_MAESTROFACTURATIRILLA_out = SCOPE_IDENTITY();
+      END
+  END;
+GO
+
+
+  IF OBJECT_ID('WSXML_SFG.SFGMAESTROFACTURACIONTIRILLA_UpdateRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONTIRILLA_UpdateRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONTIRILLA_UpdateRecord(@p_id_maestrofacturaciontirilla  NUMERIC(22,0),
+                      @p_generado              NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+      UPDATE WSXML_SFG.maestrofacturaciontirilla
+           SET generado = @p_generado
+         WHERE ID_MAESTROFACTURACIONTIRILLA = @p_id_maestrofacturaciontirilla;
+
+        IF @@rowcount = 0 BEGIN
+          RAISERROR('-20054 The record no longer exists.', 16, 1);
+        END 
+        IF @@rowcount > 1 BEGIN
+          RAISERROR('-20053 Duplicate object instances.', 16, 1);
+        END 
+   END;
+GO
+
+
+
+
+

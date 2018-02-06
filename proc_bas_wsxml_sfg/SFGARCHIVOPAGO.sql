@@ -1,0 +1,270 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGARCHIVOPAGO
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGARCHIVOPAGO */ 
+
+IF OBJECT_ID('WSXML_SFG.SFGARCHIVOPAGO_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_AddRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_AddRecord(@p_CODCUENTA              NUMERIC(22,0),
+                      @p_TOTALTRANSACCION       NUMERIC(22,0),
+                      @p_TOTALREGISTROS         NUMERIC(22,0),
+                      @p_RUTA                   VARCHAR(4000),
+                      @p_NOMBREARCHIVO          VARCHAR(4000),
+                      @p_FECHAARCHIVO           DATETIME,
+                      @p_CODUSUARIOMODIFICACION NUMERIC(22,0),
+                      @p_ID_ARCHIVOPAGO_out     NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+     INSERT INTO WSXML_SFG.ARCHIVOPAGO (
+                              CODCUENTA,
+                              TOTALTRANSACCION,
+                              TOTALREGISTROS,
+                              RUTA,
+                              NOMBREARCHIVO,
+                              FECHAARCHIVO,
+                              CODUSUARIOMODIFICACION)
+      VALUES (
+              @p_CODCUENTA,
+              @p_TOTALTRANSACCION,
+              @p_TOTALREGISTROS,
+              @p_RUTA,
+              @p_NOMBREARCHIVO,
+              @p_FECHAARCHIVO,
+              @p_CODUSUARIOMODIFICACION);
+      SET @p_ID_ARCHIVOPAGO_out = SCOPE_IDENTITY();
+  END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGARCHIVOPAGO_UpdateRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_UpdateRecord;
+GO
+
+CREATE PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_UpdateRecord(
+		@pk_ID_ARCHIVOPAGO        NUMERIC(22,0),
+		@p_CODCUENTA              NUMERIC(22,0),
+		@p_TOTALTRANSACCION       NUMERIC(22,0),
+		@p_TOTALREGISTROS         NUMERIC(22,0),
+		@p_RUTA                   VARCHAR(4000),
+		@p_NOMBREARCHIVO          VARCHAR(4000),
+		@p_CODUSUARIOMODIFICACION NUMERIC(22,0),
+		@p_ACTIVE                 NUMERIC(22,0)
+) AS
+  BEGIN
+  SET NOCOUNT ON;
+     UPDATE WSXML_SFG.ARCHIVOPAGO
+       SET CODCUENTA              = @p_CODCUENTA,
+           TOTALTRANSACCION       = @p_TOTALTRANSACCION,
+           TOTALREGISTROS         = @p_TOTALREGISTROS,
+           RUTA                   = @p_RUTA,
+           NOMBREARCHIVO          = @p_NOMBREARCHIVO,
+           CODUSUARIOMODIFICACION = @p_CODUSUARIOMODIFICACION,
+           FECHAHORAMODIFICACION  = GETDATE(),
+           ACTIVE                 = @p_ACTIVE
+     WHERE ID_ARCHIVOPAGO = @pk_ID_ARCHIVOPAGO;
+  END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGARCHIVOPAGO_GetRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetRecord;
+GO
+CREATE PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetRecord(@pk_ID_ARCHIVOPAGO NUMERIC(22,0))  AS
+  BEGIN
+    DECLARE @l_count INTEGER;
+   
+  SET NOCOUNT ON;
+    SELECT @l_count = COUNT(*) FROM WSXML_SFG.ARCHIVOPAGO WHERE ID_ARCHIVOPAGO = @pk_ID_ARCHIVOPAGO;
+    IF @l_count = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+    END 
+    IF @l_count > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+    END 
+		
+      SELECT A.ID_ARCHIVOPAGO,
+             A.CODCUENTA,
+             A.TOTALTRANSACCION,
+             A.TOTALREGISTROS,
+             A.RUTA,
+             A.NOMBREARCHIVO,
+             A.ACTIVE
+      FROM WSXML_SFG.ARCHIVOPAGO A
+      WHERE A.ID_ARCHIVOPAGO = @pk_ID_ARCHIVOPAGO;
+	  
+  END;
+GO 
+
+  -- Lista que se obtiene para determinar si un archivo ya fue cargado o no.
+  -- Logica cambia a 1 archivo por cuenta / fecha
+IF OBJECT_ID('WSXML_SFG.SFGARCHIVOPAGO_GetList', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetList;
+GO
+CREATE PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetList(@p_REVERSADO NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+	
+      SELECT ARC.ID_ARCHIVOPAGO,
+             ARC.CODCUENTA,
+             ARC.TOTALTRANSACCION,
+             ARC.TOTALREGISTROS,
+             ARC.RUTA,
+             ARC.NOMBREARCHIVO,
+             ARC.ACTIVE,
+             ARC.REVERSADO,
+             ARC.FECHAARCHIVO
+      FROM WSXML_SFG.ARCHIVOPAGO ARC
+      WHERE ARC.REVERSADO = CASE WHEN @p_REVERSADO = -1 THEN ARC.REVERSADO ELSE @p_REVERSADO END;
+	  
+  END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGARCHIVOPAGO_ValidateExistingFile', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_ValidateExistingFile;
+GO
+
+CREATE PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_ValidateExistingFile(
+			@p_CODCUENTA     NUMERIC(22,0),
+			@p_FECHAARCHIVO  DATETIME,
+			@p_NOMBREARCHIVO NVARCHAR(2000),
+			@p_EXISTS_out    NUMERIC(22,0) OUT
+) AS
+  BEGIN
+  SET NOCOUNT ON;
+    -- Validacion mediante archivo por fecha
+    /*SELECT COUNT(1) INTO p_EXISTS_out FROM ARCHIVOPAGO
+    WHERE CODCUENTA = p_CODCUENTA
+      AND TRUNC(FECHAARCHIVO, 'DD') = TRUNC(p_FECHAARCHIVO, 'DD')
+      AND REVERSADO = 0
+      AND ACTIVE = 1;*/
+    -- Validacion mediante nombre de archivo
+    SELECT @p_EXISTS_out = COUNT(1) FROM WSXML_SFG.ARCHIVOPAGO
+    WHERE NOMBREARCHIVO = @p_NOMBREARCHIVO AND REVERSADO = 0;
+  END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGARCHIVOPAGO_GetListCodCuenta', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetListCodCuenta;
+GO
+CREATE PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetListCodCuenta(@p_CodCuenta NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+	
+		
+      SELECT ID_ARCHIVOPAGO,
+              A.CODCUENTA,
+              A.TOTALTRANSACCION,
+              A.TOTALREGISTROS,
+              A.NOMBREARCHIVO,
+              A.ACTIVE
+      FROM WSXML_SFG.ARCHIVOPAGO A
+      WHERE A.CODCUENTA = @p_CodCuenta;
+	  
+  END;
+GO
+
+
+IF OBJECT_ID('WSXML_SFG.SFGARCHIVOPAGO_ReversarArchivoPago', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_ReversarArchivoPago;
+GO
+
+CREATE PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_ReversarArchivoPago(@pk_ID_ARCHIVOPAGO NUMERIC(22,0), @p_CODUSUARIOMODIFICACION NUMERIC(22,0), @p_RETVALUE_out NUMERIC(22,0) OUT) AS
+ BEGIN
+    DECLARE @ListaPagosFromCTRL CURSOR;
+    DECLARE @VALORREVERSADO NUMERIC(22,0);
+	DECLARE @idDetalle INT;
+   
+	SET NOCOUNT ON;
+	SET  @ListaPagosFromCTRL = CURSOR FORWARD_ONLY STATIC FOR  
+		SELECT ID_DETALLEPAGO
+		FROM WSXML_SFG.CTRLPAGO
+			INNER JOIN WSXML_SFG.DETALLEPAGO ON (CODCTRLPAGO = ID_CTRLPAGO)
+		WHERE CODARCHIVOPAGO= @pk_ID_ARCHIVOPAGO;
+	OPEN @ListaPagosFromCTRL;
+	
+	
+
+    IF @@CURSOR_ROWS > 0 BEGIN
+		FETCH NEXT FROM @ListaPagosFromCTRL INTO @idDetalle
+        
+        WHILE (@@FETCH_STATUS = 0)
+        BEGIN
+			EXEC WSXML_SFG.SFGDETALLEPAGO_ReverseRecord @idDetalle, @p_CODUSUARIOMODIFICACION, @VALORREVERSADO
+		FETCH NEXT FROM @ListaPagosFromCTRL INTO @idDetalle
+		END
+        
+	CLOSE @ListaPagosFromCTRL
+    DEALLOCATE @ListaPagosFromCTRL;
+    END 
+
+    UPDATE WSXML_SFG.ARCHIVOPAGO SET REVERSADO = 1, FECHAHORAREVERSADO = GETDATE(), CODUSUARIOMODIFICACION = @p_CODUSUARIOMODIFICACION
+    WHERE ID_ARCHIVOPAGO = @pk_ID_ARCHIVOPAGO;
+    SET @p_RETVALUE_out = 3--SFGESTADOTAREAEJECUTADA.FINALIZADAOK;
+  END;
+GO
+
+
+  -- Obtiene el balance semanal del archivo en cuestion. Funciona para fiducia y sirve para realizar ajustes negativos
+IF OBJECT_ID('WSXML_SFG.SFGARCHIVOPAGO_GetBalanceArchivoAgrupado', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetBalanceArchivoAgrupado;
+GO
+
+CREATE PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetBalanceArchivoAgrupado(@p_CODCUENTA NUMERIC(22,0), @p_FECHAARCHIVO DATETIME) AS
+ BEGIN
+    DECLARE @PeriodicidadFuncion  VARCHAR(MAX);
+    DECLARE @FechaRenovacion      DATETIME = @p_FECHAARCHIVO;
+    DECLARE @RenovacionEncontrada VARCHAR(10) = 'FALSE';
+    DECLARE @ContadorRestas       NUMERIC(22,0) = 0;
+   
+  SET NOCOUNT ON;
+    BEGIN
+      SELECT @PeriodicidadFuncion = FUNCION FROM WSXML_SFG.CUENTAARCHIVOCONFIG CNF
+      INNER JOIN PERIODICIDADPAGO PRP ON (PRP.ID_PERIODICIDADPAGO = CNF.CODPERIODICIDADPAGO)
+      WHERE CNF.CODCUENTA = @p_CODCUENTA AND CNF.ARCHIVOACUMULADO = 1;
+	  
+	  IF @@ROWCOUNT = 0
+		RAISERROR('-20054 El archivo no esta configurado como acumulado o no se ha configurado periodicidad de renovacion', 16, 1);
+	END;
+
+    -- Restar dias hasta encontrar fecha de renovacion
+    WHILE @ContadorRestas < 10 BEGIN
+        DECLARE @flagRENOVACION VARCHAR(10) = 'FALSE';
+      BEGIN
+        EXECUTE sp_executesql @PeriodicidadFuncion, N'@flagRENOVACION output, @FechaRenovacion', @flagRENOVACION OUTPUT, @FechaRenovacion;
+
+        IF @flagRENOVACION = 'TRUE' BEGIN
+          SET @RenovacionEncontrada = 'TRUE';
+        END
+        ELSE BEGIN
+          SET @FechaRenovacion = SFG_PACKAGE.SUM_DIA_DATE(@FechaRenovacion, -1);
+          SET @ContadorRestas = @ContadorRestas + 1;
+        END 
+    END;
+END;
+
+    IF @RenovacionEncontrada = 'TRUE' BEGIN
+		
+		declare @REFERENCIADO  TINYINT,@NOREFRNCIADO TINYINT, @MVMNTMAJUSTE TINYINT
+		exec WSXML_SFG.SFGTIPOPAGO_CONSTANT @REFERENCIADO   OUT, @NOREFRNCIADO  OUT, @MVMNTMAJUSTE 	OUT
+
+      PRINT 'Se encontro la renovacion: ' + ISNULL(@FechaRenovacion, '');
+      -- Se abre el cursor reflejando el estado de pagos por punto de venta desde la fecha encontrada
+        SELECT MFC.REFERENCIAGTECH AS NUMEROREFERENCIA,
+               DPG.ID_DETALLEPAGO,
+               SUM(ISNULL(DPG.VALORPAGO, 0)) AS BALANCE
+        FROM WSXML_SFG.FACTURACIONPDV FPV
+        INNER JOIN WSXML_SFG.MAESTROFACTURACIONPDV MFP ON (MFP.ID_MAESTROFACTURACIONPDV = FPV.CODMAESTROFACTURACIONPDV)
+        INNER JOIN WSXML_SFG.MAESTROFACTURACIONCOMPCONSIG MFC ON (MFC.ID_MAESTROFACTCOMPCONSIG = MFP.CODMAESTROFACTURACIONCOMPCONSI)
+        INNER JOIN WSXML_SFG.PAGOFACTURACIONPDV PFP ON (PFP.CODMAESTROFACTURACIONPDV = FPV.CODMAESTROFACTURACIONPDV)
+        INNER JOIN WSXML_SFG.DETALLEPAGO DPG ON (DPG.ID_DETALLEPAGO = PFP.CODDETALLEPAGO)
+        INNER JOIN WSXML_SFG.CTRLPAGO CTR ON (CTR.ID_CTRLPAGO = DPG.CODCTRLPAGO AND CTR.CODTIPOPAGO = @REFERENCIADO )
+        INNER JOIN WSXML_SFG.ARCHIVOPAGO ARC ON (ARC.ID_ARCHIVOPAGO = CTR.CODARCHIVOPAGO)
+        WHERE CODCUENTA = @p_CODCUENTA AND ARC.FECHAARCHIVO >= CONVERT(DATETIME, CONVERT(DATE,@FechaRenovacion))
+        GROUP BY MFC.REFERENCIAGTECH, ID_DETALLEPAGO;
+    END
+    ELSE BEGIN
+      RAISERROR('-20054 No se pudo determinar la fecha de renovacion del archivo de pagos a partir de la funcion de periodicidad', 16, 1);
+    END 
+  END;
+

@@ -1,0 +1,220 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGPARAMETRO
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGPARAMETRO */ 
+
+  -- Creates a new record in the PARAMETRO table
+  IF OBJECT_ID('WSXML_SFG.SFGPARAMETRO_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGPARAMETRO_AddRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGPARAMETRO_AddRecord(@p_NOMPARAMETRO           NVARCHAR(2000),
+                      @p_DESCRIPCION            NVARCHAR(2000),
+                      @p_VALOR                  NVARCHAR(2000),
+                      @p_CODUSUARIOMODIFICACION NUMERIC(22,0),
+                      @p_ID_PARAMETRO_out       NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    INSERT INTO WSXML_SFG.PARAMETRO
+      (
+       NOMPARAMETRO,
+       DESCRIPCION,
+       VALOR,
+       CODUSUARIOMODIFICACION)
+    VALUES
+      (
+       @p_NOMPARAMETRO,
+       @p_DESCRIPCION,
+       @p_VALOR,
+       @p_CODUSUARIOMODIFICACION);
+    SET @p_ID_PARAMETRO_out = SCOPE_IDENTITY();
+
+  END;
+GO
+
+  -- Updates a record in the PARAMETRO table.
+  IF OBJECT_ID('WSXML_SFG.SFGPARAMETRO_UpdateRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGPARAMETRO_UpdateRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGPARAMETRO_UpdateRecord(@pk_ID_PARAMETRO          NUMERIC(22,0),
+                         @p_NOMPARAMETRO           NVARCHAR(2000),
+                         @p_DESCRIPCION            NVARCHAR(2000),
+                         @p_VALOR                  NVARCHAR(2000),
+                         @p_CODUSUARIOMODIFICACION NUMERIC(22,0),
+                         @p_ACTIVE                 NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+    -- Update the record with the passed parameters
+    UPDATE WSXML_SFG.PARAMETRO
+       SET NOMPARAMETRO           = @p_NOMPARAMETRO,
+           DESCRIPCION            = @p_DESCRIPCION,
+           VALOR                  = @p_VALOR,
+           CODUSUARIOMODIFICACION = @p_CODUSUARIOMODIFICACION,
+           ACTIVE                 = @p_ACTIVE
+     WHERE ID_PARAMETRO = @pk_ID_PARAMETRO;
+
+    -- Make sure only one record is affected
+    IF @@rowcount = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+    END 
+    IF @@rowcount > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+    END 
+
+  END;
+GO
+
+  -- Returns a specific record from the PARAMETRO table.
+IF OBJECT_ID('WSXML_SFG.SFGPARAMETRO_GetRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGPARAMETRO_GetRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGPARAMETRO_GetRecord(
+@pk_ID_PARAMETRO NUMERIC(22,0)
+    ) AS
+ BEGIN
+    DECLARE @l_count INTEGER;
+   
+  SET NOCOUNT ON;
+    -- Get the rowcount first and make sure
+    -- only one row is returned
+    SELECT @l_count = count(*)
+      FROM WSXML_SFG.PARAMETRO
+     WHERE ID_PARAMETRO = @pk_ID_PARAMETRO;
+
+    IF @l_count = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+    END 
+
+    IF @l_count > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+    END 
+
+    -- Get the row from the query.  Checksum value will be
+    -- returned along the row data to support concurrency.
+	  
+      SELECT ID_PARAMETRO,
+             NOMPARAMETRO,
+             DESCRIPCION,
+             VALOR,
+             FECHAHORAMODIFICACION,
+             CODUSUARIOMODIFICACION,
+             ACTIVE
+      FROM WSXML_SFG.PARAMETRO
+      WHERE ID_PARAMETRO = @pk_ID_PARAMETRO;
+	  
+  END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGPARAMETRO_GetRecordByKey', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGPARAMETRO_GetRecordByKey;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGPARAMETRO_GetRecordByKey(@p_NOMPARAMETRO NVARCHAR(2000)) AS
+  BEGIN
+  SET NOCOUNT ON;
+	  
+      SELECT ID_PARAMETRO,
+             NOMPARAMETRO,
+             DESCRIPCION,
+             VALOR,
+             FECHAHORAMODIFICACION,
+             CODUSUARIOMODIFICACION,
+             ACTIVE
+      FROM WSXML_SFG.PARAMETRO
+      WHERE NOMPARAMETRO = @p_NOMPARAMETRO;
+	
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGPARAMETRO_GetValorByKey', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGPARAMETRO_GetValorByKey;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGPARAMETRO_GetValorByKey(@p_NOMPARAMETRO NVARCHAR(2000), @p_VALOR NVARCHAR(2000) OUTPUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    SELECT @p_VALOR = ISNULL(VALOR, '') FROM WSXML_SFG.PARAMETRO WHERE NOMPARAMETRO = @p_NOMPARAMETRO;
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGPARAMETRO_GetValorByKey_F', 'FN') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGPARAMETRO_GetValorByKey_F;
+GO
+
+CREATE     FUNCTION WSXML_SFG.SFGPARAMETRO_GetValorByKey(@p_NOMPARAMETRO NVARCHAR(2000)) RETURNS NVARCHAR(2000) AS
+  BEGIN
+    SELECT @p_VALOR = ISNULL(VALOR, '') FROM WSXML_SFG.PARAMETRO WHERE NOMPARAMETRO = @p_NOMPARAMETRO;
+	RETURN @p_VALOR
+  END;
+GO
+
+  -- Returns a query resultset from table AGRUPACIONPUNTODEVENTA
+  -- given the search criteria and sorting condition.
+IF OBJECT_ID('WSXML_SFG.SFGPARAMETRO_GetList', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGPARAMETRO_GetList;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGPARAMETRO_GetList(@p_active NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+
+    -- Get the rows from the query.  Checksum value will be
+    -- returned along the row data to support concurrency.
+	  
+      SELECT ID_PARAMETRO,
+             NOMPARAMETRO,
+             DESCRIPCION,
+             VALOR,
+             FECHAHORAMODIFICACION,
+             CODUSUARIOMODIFICACION,
+             ACTIVE
+      FROM WSXML_SFG.PARAMETRO
+      WHERE ACTIVE = CASE WHEN @p_active = -1 THEN ACTIVE ELSE @p_active END;
+	
+  END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGPARAMETRO_SetOrReplaceParameter', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGPARAMETRO_SetOrReplaceParameter;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGPARAMETRO_SetOrReplaceParameter(@p_NOMPARAMETRO NVARCHAR(2000), @p_VALOR NVARCHAR(2000)) AS
+ BEGIN
+    DECLARE @xParameterID NUMERIC(22,0);
+   
+  SET NOCOUNT ON;
+    SELECT @xParameterID = ID_PARAMETRO FROM WSXML_SFG.PARAMETRO WHERE RTRIM(LTRIM(UPPER(NOMPARAMETRO))) = RTRIM(LTRIM(UPPER(@p_NOMPARAMETRO)));
+    IF @xParameterID > 0 BEGIN
+      UPDATE WSXML_SFG.PARAMETRO SET VALOR = @p_VALOR WHERE ID_PARAMETRO = @xParameterID;
+    END 
+	
+	IF @@ROWCOUNT = 0
+		INSERT INTO WSXML_SFG.PARAMETRO ( NOMPARAMETRO, VALOR, CODUSUARIOMODIFICACION) VALUES ( RTRIM(LTRIM(@p_NOMPARAMETRO)), @p_VALOR, 2);
+END;
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGPARAMETRO_SetOrRetrieveParameter', 'FN') IS NOT NULL
+  DROP FUNCTION WSXML_SFG.SFGPARAMETRO_SetOrRetrieveParameter;
+GO
+
+CREATE FUNCTION WSXML_SFG.SFGPARAMETRO_SetOrRetrieveParameter(@p_NOMPARAMETRO NVARCHAR(2000), @p_VALOR NVARCHAR(2000)) 
+RETURNS NVARCHAR(2000) AS
+ BEGIN
+    DECLARE @xParameterID    NUMERIC(22,0);
+    DECLARE @xParameterValue VARCHAR(4000) /* Use -meta option PARAMETRO.VALOR%TYPE */;
+   
+    SELECT @xParameterID = ID_PARAMETRO FROM WSXML_SFG.PARAMETRO WHERE RTRIM(LTRIM(UPPER(NOMPARAMETRO))) = RTRIM(LTRIM(UPPER(@p_NOMPARAMETRO)));
+    IF @xParameterID > 0 BEGIN
+      SELECT @xParameterValue = VALOR FROM WSXML_SFG.PARAMETRO WHERE ID_PARAMETRO = @xParameterID;
+    END
+	
+	IF @@ROWCOUNT = 0 BEGIN
+		--INSERT INTO WSXML_SFG.PARAMETRO ( NOMPARAMETRO, VALOR, CODUSUARIOMODIFICACION)
+		--VALUES ( RTRIM(LTRIM(@p_NOMPARAMETRO)), @p_VALOR, 2);
+		RETURN @p_VALOR;
+	END
+	
+    RETURN @xParameterValue;
+END;
+

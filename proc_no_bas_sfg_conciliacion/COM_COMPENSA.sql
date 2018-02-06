@@ -1,0 +1,1833 @@
+USE SFGPRODU;
+--  DDL for Package Body COM_COMPENSA
+--------------------------------------------------------
+
+  /* PACKAGE BODY SFG_CONCILIACION.COM_COMPENSA */ 
+
+  IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_CALENDARIO', 'FN') IS NOT NULL
+  DROP FUNCTION SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_CALENDARIO;
+GO
+
+CREATE     FUNCTION SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_CALENDARIO(@P_FECHA DATETIME, @P_DIAS NUMERIC(22,0)) RETURNS DATETIME AS
+ BEGIN
+  
+    DECLARE @V_FECHA_CRITERIO DATETIME = CONVERT(DATETIME, CONVERT(DATE,@P_FECHA - @P_DIAS));
+    DECLARE @V_FECHA          DATETIME;
+  
+   
+  
+    SELECT @V_FECHA = CALG.FECHA_CALENDARIO
+      FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL CALG
+     WHERE CALG.FECHA_CALENDARIO = CONVERT(DATETIME,CONVERT(DATE,@V_FECHA_CRITERIO)); --TRUNC(@V_FECHA_CRITERIO);
+  
+    RETURN @V_FECHA;
+  
+  END;
+GO
+
+
+IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL_MAS', 'FN') IS NOT NULL
+  DROP FUNCTION SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL_MAS;
+GO
+
+CREATE     FUNCTION SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL_MAS(@P_FECHA DATETIME) RETURNS DATETIME AS
+ BEGIN
+  
+    DECLARE @v_cantidad NUMERIC(22,0);
+    DECLARE @v_dater    datetime = @P_FECHA;
+  
+   
+  
+    select @v_cantidad = count(*)
+      from sfg_conciliacion.con_calendario_gral cg
+     where DATEPART(WEEKDAY, cg.fecha_calendario) not in (1, 7)
+       and cg.fecha_calendario = convert(datetime, convert(date,@P_FECHA))
+       and cg.id_calendario_gral not in
+           (select cf.codcalendario_gral
+              from sfg_conciliacion.con_calendario_fest_gral cf);
+  
+    if @v_cantidad = 0 begin
+    
+		SET @P_FECHA = convert(datetime, convert(date,@P_FECHA)) + 1
+      SET @v_dater = WSXML_SFG.sfg_conciliacion.com_compensa_hasta_dia_habil_mas(@P_FECHA);
+    
+    end
+    else if @v_cantidad = 1 begin
+      return @v_dater;
+    
+    end 
+    return @v_dater;
+  END;
+  GO
+  
+
+  IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL', 'FN') IS NOT NULL
+  DROP FUNCTION SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL;
+GO
+
+CREATE     FUNCTION SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL(@P_FECHA                    DATETIME,
+                           @P_DIAS                     NUMERIC(22,0),
+                           @P_DIAS_PAR                 NUMERIC(22,0),
+                           @P_ACUMULA_NO_HABIL_DIA_ANT NUMERIC(22,0)) RETURNS DATETIME AS
+ BEGIN
+    /*
+    P_ACUMULA_NO_HABIL_DIA_ANT
+    1 = El fin de semana o el festivo que sea objetivo de compensar,
+    se pagara acumul ndose al ultimo d!a h bil, inmediatamente anterior
+    al fin de semana o al festivo.
+    0 = El fin de semana o el festivo que
+    sea objetivo de compensar, se pagara acumul ndose al siguiente d!a h bil,
+    inmediatamente posterior al fin de semana o al festivo.
+    */
+  
+    DECLARE @V_DIAS           INTEGER;
+    DECLARE @V_DIAS_LOOP      INTEGER;
+    DECLARE @V_FECHA_CRITERIO DATETIME = CONVERT(DATETIME, CONVERT(DATE,@P_FECHA - @P_DIAS_PAR));
+    DECLARE @V_FECHA          DATETIME;
+    DECLARE @V_FECHA_LOOP     DATETIME;
+  
+   
+  
+    SELECT @V_DIAS = COUNT(*)
+      FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL CALG
+     WHERE CALG.ID_CALENDARIO_GRAL NOT IN
+           (SELECT CALF.CODCALENDARIO_GRAL
+              FROM SFG_CONCILIACION.CON_CALENDARIO_FEST_GRAL CALF)
+       AND DATEPART(weekday, CALG.FECHA_CALENDARIO) NOT IN (1, 7)
+       AND CALG.FECHA_CALENDARIO > CONVERT(DATETIME,CONVERT(DATE,@V_FECHA_CRITERIO)) --TRUNC(@V_FECHA_CRITERIO)
+       AND CALG.FECHA_CALENDARIO <= CONVERT(DATETIME, CONVERT(DATE,@P_FECHA));
+    IF @V_DIAS = @P_DIAS
+      BEGIN
+        SELECT @V_FECHA = CALG.FECHA_CALENDARIO
+          FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL CALG
+         WHERE CALG.ID_CALENDARIO_GRAL NOT IN
+               (SELECT CALF.CODCALENDARIO_GRAL
+                  FROM SFG_CONCILIACION.CON_CALENDARIO_FEST_GRAL CALF)
+           AND DATEPART(weekday, CALG.FECHA_CALENDARIO) NOT IN (1, 7)
+           AND CALG.FECHA_CALENDARIO = CONVERT(DATETIME,CONVERT(DATE,@V_FECHA_CRITERIO))--TRUNC(@V_FECHA_CRITERIO);
+      
+        IF @P_ACUMULA_NO_HABIL_DIA_ANT = 1 BEGIN
+          SET @V_FECHA_LOOP = @V_FECHA;
+          WHILE 1=1 BEGIN
+            SET @V_FECHA_LOOP = @V_FECHA_LOOP + 1;
+            SELECT @V_DIAS_LOOP = COUNT(*)
+              FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL CALG
+             WHERE (CALG.ID_CALENDARIO_GRAL IN
+                   (SELECT CALF.CODCALENDARIO_GRAL
+                       FROM SFG_CONCILIACION.CON_CALENDARIO_FEST_GRAL CALF) OR
+                   DATEPART(weekday, CALG.FECHA_CALENDARIO) IN (1, 7))
+               AND CALG.FECHA_CALENDARIO = @V_FECHA_LOOP;
+			IF @V_DIAS_LOOP = 0
+				BREAK
+            
+          END;
+          SET @V_FECHA = @V_FECHA_LOOP - 1;
+        END 
+        
+		IF @@ROWCOUNT = 0 
+		BEGIN
+		
+			SET @P_DIAS_PAR = @P_DIAS_PAR + 1
+			SET @V_FECHA = SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL(@P_FECHA,P_DIAS,@P_DIAS_PAR,@P_ACUMULA_NO_HABIL_DIA_ANT);
+			
+			IF @P_ACUMULA_NO_HABIL_DIA_ANT = 1 BEGIN
+				SET @V_FECHA_LOOP = @V_FECHA;
+				WHILE 1=1 BEGIN
+				  SET @V_FECHA_LOOP = @V_FECHA_LOOP + 1;
+				  SELECT @V_DIAS_LOOP = COUNT(*)
+					FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL CALG
+				   WHERE (CALG.ID_CALENDARIO_GRAL IN
+						 (SELECT CALF.CODCALENDARIO_GRAL
+							 FROM SFG_CONCILIACION.CON_CALENDARIO_FEST_GRAL CALF) OR
+						 DATEPART(WEEKDAY,CALG.FECHA_CALENDARIO) IN (1, 7))
+					 AND CALG.FECHA_CALENDARIO = @V_FECHA_LOOP;
+					IF @V_FECHA_LOOP = 0
+						BREAK;
+
+				END;
+				SET @V_FECHA = @V_FECHA_LOOP - 1;
+			END 
+			
+			RETURN @V_FECHA;
+
+		END
+		
+		RETURN @V_FECHA;
+		
+
+        
+      END;
+    ELSE IF @V_DIAS < @P_DIAS BEGIN
+    
+	SET @P_DIAS_PAR = @P_DIAS_PAR + 1;
+    SET @V_FECHA = SFG_CONCILIACION.COM_COMPENSA.HASTA_DIA_HABIL(@P_FECHA,@P_DIAS,@P_DIAS_PAR,@P_ACUMULA_NO_HABIL_DIA_ANT);
+    
+      RETURN @V_FECHA;
+    END 
+    RETURN NULL;
+  
+  END;
+  GO
+  
+
+    IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_REVERSA_AJUSTES', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_AJUSTES;
+GO
+
+
+  CREATE PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_AJUSTES(@P_COM_AJUSTE FLOAT) AS
+  
+  BEGIN
+  SET NOCOUNT ON;
+  
+    UPDATE WSXML_SFG.AJUSTEFACTURACION
+       SET COMPENSADO = 0, CODCOMAJUSTES = NULL
+     WHERE CODCOMAJUSTES = @P_COM_AJUSTE;
+  
+    DELETE SFG_CONCILIACION.COM_AJUSTES
+     WHERE ID_COM_AJUSTES = @P_COM_AJUSTE;
+  
+  END; 
+  GO
+
+IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_REVERSA_AJUSTES_1', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_AJUSTES_1;
+GO
+
+
+  CREATE PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_AJUSTES_1(@P_COD_ALIADO           FLOAT,
+                            @P_FECHA_REVERSAR_DESDE DATETIME) AS
+  BEGIN
+  SET NOCOUNT ON;
+    IF @P_COD_ALIADO > 0 BEGIN
+      --REVERSA EL ALIADO ESPECIFICO DESDE LA FECHA ESPECIFICA
+      DECLARE ALICA CURSOR FOR SELECT T.ID_COM_AJUSTES
+                      FROM SFG_CONCILIACION.COM_AJUSTES T
+                     WHERE T.CODALIADOESTRATEGICO = @P_COD_ALIADO
+                       AND T.FECHA_VENCIMIENTO >= @P_FECHA_REVERSAR_DESDE; OPEN ALICA;
+
+		 DECLARE @ALICA__ID_COM_AJUSTES NUMERIC(38,0)
+		 FETCH NEXT FROM ALICA INTO @ALICA__ID_COM_AJUSTES
+		 WHILE @@FETCH_STATUS=0
+		 BEGIN
+      
+			EXEC SFG_CONCILIACION.COM_COMPENSA_REVERSA_AJUSTES @ALICA__ID_COM_AJUSTES
+      
+		  FETCH NEXT FROM ALICA INTO @ALICA__ID_COM_AJUSTES
+		  END;
+		  CLOSE ALICA;
+		  DEALLOCATE ALICA;
+    
+    END
+    ELSE IF @P_COD_ALIADO = 0 BEGIN
+      --REVERSA TODOS LOS ALIADOS DESDE LA FECHA ESPECIFICA
+		DECLARE ALICA2 CURSOR FOR SELECT T.ID_COM_AJUSTES
+                      FROM SFG_CONCILIACION.COM_AJUSTES T
+                     WHERE T.FECHA_VENCIMIENTO >= @P_FECHA_REVERSAR_DESDE; OPEN ALICA;
+		 DECLARE @ALICA2__ID_COM_AJUSTES NUMERIC(38,0)
+		 FETCH NEXT FROM ALICA2 INTO @ALICA2__ID_COM_AJUSTES
+		 WHILE @@FETCH_STATUS=0
+		 BEGIN
+      
+				EXEC SFG_CONCILIACION.COM_COMPENSA_REVERSA_AJUSTES @ALICA2__ID_COM_AJUSTES
+      
+			  FETCH NEXT FROM ALICA2 INTO @ALICA2__ID_COM_AJUSTES
+		END;
+		CLOSE ALICA2;
+		DEALLOCATE ALICA2;
+			END 
+  
+  END;
+GO
+
+
+
+    IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_CADENAS_DESCONTADAS', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_CADENAS_DESCONTADAS;
+GO
+
+
+  CREATE PROCEDURE SFG_CONCILIACION.COM_COMPENSA_CADENAS_DESCONTADAS(@P_COM_CADENA_DESCONTAR FLOAT) AS
+  
+  BEGIN
+  SET NOCOUNT ON;
+  
+    DELETE SFG_CONCILIACION.COM_CADENA_DESCONTAR
+     WHERE ID_CADENA_DESCONTAR = @P_COM_CADENA_DESCONTAR;
+  
+  END
+GO
+
+    IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_REVERSA_CADENAS_DESCONTADAS', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_CADENAS_DESCONTADAS;
+GO
+
+
+  CREATE PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_CADENAS_DESCONTADAS(@P_COM_CADENA_DESCONTAR FLOAT) AS
+  
+  BEGIN
+  SET NOCOUNT ON;
+  
+    DELETE SFG_CONCILIACION.COM_CADENA_DESCONTAR
+     WHERE ID_CADENA_DESCONTAR = @P_COM_CADENA_DESCONTAR;
+  
+  END; 
+GO
+
+    IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_REVERSA_CADENAS_DESCONTADAS_1', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_CADENAS_DESCONTADAS_1;
+GO
+
+
+  CREATE PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_CADENAS_DESCONTADAS_1(@P_COD_ALIADO           FLOAT,
+                                        @P_FECHA_REVERSAR_DESDE DATETIME) AS
+  
+  BEGIN
+  SET NOCOUNT ON;
+  
+    IF @P_COD_ALIADO > 0 BEGIN
+      --REVERSA EL ALIADO ESPECIFICO DESDE LA FECHA ESPECIFICA
+			  DECLARE ALICA CURSOR FOR SELECT T.ID_CADENA_DESCONTAR
+							  FROM SFG_CONCILIACION.COM_CADENA_DESCONTAR T
+							 WHERE T.COD_ALIADO = @P_COD_ALIADO
+							   AND T.FECHA_VENCIMIENTO >= @P_FECHA_REVERSAR_DESDE; OPEN ALICA;
+
+			DECLARE @ALICA__ID_CADENA_DESCONTAR NUMERIC(38,0)
+
+			FETCH NEXT FROM ALICA INTO @ALICA__ID_CADENA_DESCONTAR
+
+		 WHILE @@FETCH_STATUS=0
+		 BEGIN
+      
+				EXEC SFG_CONCILIACION.COM_COMPENSA_REVERSA_CADENAS_DESCONTADAS @ALICA__ID_CADENA_DESCONTAR
+      
+		  FETCH NEXT FROM ALICA INTO @ALICA__ID_CADENA_DESCONTAR
+		  END;
+		  CLOSE ALICA;
+		  DEALLOCATE ALICA;
+    END
+    ELSE IF @P_COD_ALIADO = 0 BEGIN
+		  --REVERSA TODOS LOS ALIADOS DESDE LA FECHA ESPECIFICA
+		  DECLARE ALICA2 CURSOR FOR SELECT T.ID_CADENA_DESCONTAR
+						  FROM SFG_CONCILIACION.COM_CADENA_DESCONTAR T
+						 WHERE T.FECHA_VENCIMIENTO >= @P_FECHA_REVERSAR_DESDE; OPEN ALICA;
+		 DECLARE @ALICA2__ID_CADENA_DESCONTAR NUMERIC(38,0)
+
+		FETCH NEXT FROM ALICA2 INTO @ALICA2__ID_CADENA_DESCONTAR
+		 WHILE @@FETCH_STATUS=0
+		 BEGIN
+      
+			EXEC SFG_CONCILIACION.COM_COMPENSA_REVERSA_CADENAS_DESCONTADAS @ALICA2__ID_CADENA_DESCONTAR
+      
+         FETCH NEXT FROM ALICA2 INTO @ALICA2__ID_CADENA_DESCONTAR
+         END;
+		CLOSE ALICA2;
+		DEALLOCATE ALICA2;
+    END 
+  
+  END
+
+  GO
+
+    IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_COMPENSA_CADENAS_DESCONTADAS', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_COMPENSA_CADENAS_DESCONTADAS;
+GO
+
+
+  CREATE PROCEDURE SFG_CONCILIACION.COM_COMPENSA_COMPENSA_CADENAS_DESCONTADAS(@FECHA_PROCESO           DATETIME,
+                                         @P_COD_ALIADOESTRATEGICO FLOAT) AS
+ BEGIN
+  
+    DECLARE @P_ID_CADENA_DESCONTAR_OUT FLOAT;
+    DECLARE @V_DEBE_HABER              VARCHAR(1);
+  
+   
+  SET NOCOUNT ON;
+	SET @FECHA_PROCESO = CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO))
+    DECLARE RFR CURSOR FOR SELECT T.CODPRODUCTO,
+                       ID_REGISTROFACTURACION,
+                       CODPUNTODEVENTA,
+                       VALORTRANSACCION,
+                       CODTIPOREGISTRO,
+                       NUMTRANSACCIONES,
+                       AC.FECHAARCHIVO
+                  FROM WSXML_SFG.REGISTROFACTURACION   T,
+                       WSXML_SFG.ENTRADAARCHIVOCONTROL AC
+                 WHERE T.CODENTRADAARCHIVOCONTROL =
+                       AC.ID_ENTRADAARCHIVOCONTROL
+                   AND T.CODPUNTODEVENTA IN
+                       (SELECT PDV.ID_PUNTODEVENTA
+                          FROM WSXML_SFG.PUNTODEVENTA             PDV,
+                               WSXML_SFG.AGRUPACIONPUNTODEVENTA   AG,
+                               SFG_CONCILIACION.COM_ALIADO_CADENA AC
+                         WHERE AG.ID_AGRUPACIONPUNTODEVENTA =
+                               PDV.CODAGRUPACIONPUNTODEVENTA
+                           AND AG.ID_AGRUPACIONPUNTODEVENTA =
+                               AC.CODAGRUPACIONPUNTODEVENTA
+                           AND AC.COD_ALIADOESTRATEGICO =
+                               @P_COD_ALIADOESTRATEGICO
+                           and ac.active = 1)
+                   AND AC.FECHAARCHIVO >=
+                       SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL(@FECHA_PROCESO,1,1,0)
+                   AND AC.FECHAARCHIVO < CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO))
+                   AND T.CODTIPOREGISTRO = 1; OPEN RFR;
+
+		DECLARE @RFR__CODPRODUCTO NUMERIC(38,0),
+                       @RFR__ID_REGISTROFACTURACION NUMERIC(38,0),
+                       @RFR__CODPUNTODEVENTA NUMERIC(38,0),
+                       @RFR__VALORTRANSACCION FLOAT,
+                       @RFR__CODTIPOREGISTRO NUMERIC(38,0),
+                       @RFR__NUMTRANSACCIONES NUMERIC(22,0),
+                       @RFR__FECHAARCHIVO DATETIME
+
+		FETCH NEXT FROM RFR INTO @RFR__CODPRODUCTO,
+                       @RFR__CODPUNTODEVENTA,
+                       @RFR__VALORTRANSACCION,
+                       @RFR__CODTIPOREGISTRO,
+                       @RFR__NUMTRANSACCIONES,
+                       @RFR__FECHAARCHIVO
+
+ WHILE @@FETCH_STATUS=0
+ BEGIN
+      BEGIN
+        SELECT @V_DEBE_HABER = T.DEBE_HABER
+          FROM SFG_CONCILIACION.VW_COM_DEBE_HABER_PROD T
+         WHERE T.ID_PRODUCTO = @RFR__CODPRODUCTO;
+      
+		  IF @@ROWCOUNT = 0
+			  SET @V_DEBE_HABER = '-';
+        
+      END;
+
+      BEGIN
+		BEGIN TRY
+			EXEC SFG_CONCILIACION.SFGCONCIWEBCOM_CADENA_DESCONTA_ADDRECORD 
+																 @RFR__ID_REGISTROFACTURACION,
+                                                                  @RFR__CODPUNTODEVENTA,
+                                                                  @P_COD_ALIADOESTRATEGICO,
+                                                                  @RFR__CODPRODUCTO,
+                                                                  @RFR__CODTIPOREGISTRO,
+                                                                  @FECHA_PROCESO,
+                                                                  @RFR__VALORTRANSACCION,
+                                                                  @RFR__NUMTRANSACCIONES,
+                                                                  @V_DEBE_HABER,
+                                                                  @RFR__FECHAARCHIVO,
+                                                                  @P_ID_CADENA_DESCONTAR_OUT OUT
+      
+		END TRY
+		BEGIN CATCH
+			--EXCEPTION WHEN DUP_VAL_ON_INDEX THEN
+          SELECT NULL;
+		END CATCH
+      END;
+    FETCH NEXT FROM RFR INTO @RFR__CODPRODUCTO,
+                       @RFR__CODPUNTODEVENTA,
+                       @RFR__VALORTRANSACCION,
+                       @RFR__CODTIPOREGISTRO,
+                       @RFR__NUMTRANSACCIONES,
+                       @RFR__FECHAARCHIVO
+    END;
+    CLOSE RFR;
+    DEALLOCATE RFR;
+  
+  END
+  GO
+
+ IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_REVERSA_COMPENSA_1', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_COMPENSA_1;
+GO
+
+
+  CREATE PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_COMPENSA_1(@P_COM_COMPENSACION FLOAT) AS
+ BEGIN
+  
+    DECLARE @V_CANTIDAD                 FLOAT;
+    DECLARE @V_ARCHIVOTRANSACCIONALIADO FLOAT;
+  
+   
+  SET NOCOUNT ON;
+  
+    SELECT @V_CANTIDAD = COUNT(*)
+      FROM SFG_CONCILIACION.COM_COMPENSACION T
+     WHERE T.ID_COM_COMPENSACION = @P_COM_COMPENSACION;
+  
+    IF @V_CANTIDAD = 1
+      begin
+        SELECT @V_ARCHIVOTRANSACCIONALIADO = TA.CODARCHIVOTRANSACCIONALIADO
+          FROM WSXML_SFG.TRANSACCIONALIADO TA
+         WHERE TA.COD_COM_COMPENSACION = @P_COM_COMPENSACION
+         GROUP BY TA.CODARCHIVOTRANSACCIONALIADO;
+      
+        UPDATE WSXML_SFG.TRANSACCIONALIADO
+           SET COMPENSADO = 0, COD_COM_COMPENSACION = NULL
+         WHERE COD_COM_COMPENSACION = @P_COM_COMPENSACION;
+      
+		IF @@ROWCOUNT = 0
+          SELECT null;
+      end;
+      DECLARE ATACUR CURSOR FOR SELECT TA.COMPENSADO, COUNT(*) AS CANTIDAD
+                       FROM WSXML_SFG.TRANSACCIONALIADO        TA,
+                            WSXML_SFG.ARCHIVOTRANSACCIONALIADO ATA
+                      WHERE TA.CODARCHIVOTRANSACCIONALIADO =
+                            ATA.ID_ARCHIVOTRANSACCIONALIADO
+                        AND ATA.ID_ARCHIVOTRANSACCIONALIADO =
+                            @V_ARCHIVOTRANSACCIONALIADO
+                      GROUP BY TA.COMPENSADO; OPEN ATACUR;
+	
+	DECLARE @ATACUR__COMPENSADO NUMERIC(38,0), @ATACUR__CANTIDAD NUMERIC(38,0)
+
+	FETCH NEXT FROM ATACUR INTO @ATACUR__COMPENSADO, @ATACUR__CANTIDAD
+
+	 WHILE @@FETCH_STATUS=0
+	 BEGIN
+      
+        IF @ATACUR__COMPENSADO = 0 BEGIN
+        
+          UPDATE WSXML_SFG.ARCHIVOTRANSACCIONALIADO
+             SET COMPENSADO = 0
+           WHERE ID_ARCHIVOTRANSACCIONALIADO =
+                 @V_ARCHIVOTRANSACCIONALIADO;
+          RETURN
+        END
+        ELSE IF @ATACUR__COMPENSADO = 1 BEGIN
+        
+          UPDATE WSXML_SFG.ARCHIVOTRANSACCIONALIADO
+             SET COMPENSADO = 2
+           WHERE ID_ARCHIVOTRANSACCIONALIADO = @V_ARCHIVOTRANSACCIONALIADO;
+        
+        END 
+      
+      FETCH NEXT FROM ATACUR INTO @ATACUR__COMPENSADO, @ATACUR__CANTIDAD
+      END;
+
+      CLOSE ATACUR;
+      DEALLOCATE ATACUR;
+    
+      DELETE FROM SFG_CONCILIACION.COM_COMPENSACION
+      WHERE ID_COM_COMPENSACION = @P_COM_COMPENSACION;
+  
+  END
+GO
+
+    IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_REVERSA_COMPENSA', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_COMPENSA;
+GO
+
+
+  CREATE PROCEDURE SFG_CONCILIACION.COM_COMPENSA_REVERSA_COMPENSA(@P_COD_ALIADO           NUMERIC(22,0),
+                             @P_FECHA_REVERSAR_DESDE DATETIME) AS
+  
+  BEGIN
+  SET NOCOUNT ON;
+  
+    IF @P_COD_ALIADO > 0 BEGIN
+      --REVERSA EL ALIADO ESPECIFICO DESDE LA FECHA ESPECIFICA
+      DECLARE ALICA CURSOR FOR SELECT T.ID_COM_COMPENSACION
+                      FROM SFG_CONCILIACION.COM_COMPENSACION T
+                     WHERE T.COD_ALIADO = @P_COD_ALIADO
+                       AND T.FECHA_VENCIMIENTO >= @P_FECHA_REVERSAR_DESDE; OPEN ALICA;
+	
+	DECLARE @ALICA__ID_COM_COMPENSACION NUMERIC(38,0)
+
+	FETCH NEXT FROM ALICA INTO @ALICA__ID_COM_COMPENSACION
+
+	 WHILE @@FETCH_STATUS=0
+	 BEGIN
+      
+        EXEC SFG_CONCILIACION.COM_COMPENSA_REVERSA_COMPENSA_1 @ALICA__ID_COM_COMPENSACION
+      
+      FETCH NEXT FROM ALICA INTO @ALICA__ID_COM_COMPENSACION
+      END;
+      CLOSE ALICA;
+      DEALLOCATE ALICA;
+    END
+    ELSE IF @P_COD_ALIADO = 0 BEGIN
+      --REVERSA TODOS LOS ALIADOS DESDE LA FECHA ESPECIFICA
+      DECLARE ALICA2 CURSOR FOR SELECT T.ID_COM_COMPENSACION
+                      FROM SFG_CONCILIACION.COM_COMPENSACION T
+                     WHERE T.FECHA_VENCIMIENTO >= @P_FECHA_REVERSAR_DESDE; OPEN ALICA;
+
+		DECLARE @ALICA2__ID_COM_COMPENSACION NUMERIC(38,0)
+
+		FETCH NEXT FROM ALICA2 INTO @ALICA2__ID_COM_COMPENSACION
+		WHILE @@FETCH_STATUS=0
+		BEGIN
+      
+			EXEC SFG_CONCILIACION.COM_COMPENSA_REVERSA_COMPENSA_1  @ALICA2__ID_COM_COMPENSACION
+      
+		FETCH NEXT FROM ALICA2 INTO @ALICA2__ID_COM_COMPENSACION
+      END;
+      CLOSE ALICA2;
+      DEALLOCATE ALICA2;
+    END 
+  
+    EXEC SFG_CONCILIACION.COM_COMPENSA_REVERSA_CADENAS_DESCONTADAS_1 @P_COD_ALIADO, @P_FECHA_REVERSAR_DESDE
+  
+    EXEC SFG_CONCILIACION.COM_COMPENSA_REVERSA_AJUSTES_1 @P_COD_ALIADO, @P_FECHA_REVERSAR_DESDE
+  
+
+	Execute sp_refreshview  'SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN'
+  
+
+END
+GO
+
+
+  IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_GET_COMPENSACION', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_GET_COMPENSACION;
+GO
+
+CREATE     PROCEDURE SFG_CONCILIACION.COM_COMPENSA_GET_COMPENSACION(@P_COM_DAY     DATETIME,
+                             @P_COM_DAY_FIN DATETIME,
+                             @P_ALIADO      FLOAT,
+                             @P_TIPO_MONTO  VARCHAR(4000),
+                             @P_CALENDARIO  VARCHAR(4000),
+                             @P_PAGE_NUMBER INTEGER,
+                             @P_BATCH_SIZE  INTEGER,
+                             @P_TOTAL_SIZE  INTEGER OUT) AS
+ BEGIN
+  
+    DECLARE @V_FECHA             VARCHAR(MAX);
+    DECLARE @V_FECHA_CANT        VARCHAR(MAX);
+    DECLARE @V_NULOS             VARCHAR(MAX);
+    DECLARE @V_NULOS_CANT        VARCHAR(MAX);
+    DECLARE @V_SZSQLINSTRUCTION  VARCHAR(MAX);
+    DECLARE @V_SZSQLINSTRUCTION2 VARCHAR(MAX);
+    DECLARE @V_SZSQLINSTRUCTION3 VARCHAR(MAX);
+    DECLARE @V_SZSQLINSTRUCTION4 VARCHAR(MAX);
+    DECLARE @L_END_GEN_ROW_NUM   INTEGER;
+    DECLARE @L_START_GEN_ROW_NUM INTEGER;
+    DECLARE @L_COUNT_QUERY       VARCHAR(MAX);
+    DECLARE @L_COUNT_QUERY2      VARCHAR(MAX);
+    DECLARE @L_COUNT_QUERY3      VARCHAR(MAX);
+    DECLARE @L_COUNT_QUERY4      VARCHAR(MAX);
+    DECLARE @V_EVLUA_ALIADO      VARCHAR(200) = '';
+    DECLARE @V_TIPO_MONTO        VARCHAR(200) = UPPER(@P_TIPO_MONTO);
+    DECLARE @V_TIPO_CANT         VARCHAR(200);
+    DECLARE @V_DAY_MONTH         DATETIME;
+    DECLARE @V_LAST_DAY_MONTH    DATETIME;
+    DECLARE @V_CONTADOR          FLOAT = 0;
+    DECLARE @v_COLUMNA_SALIDA    VARCHAR(200);
+    DECLARE @v_COLUMNA_CONTENIDO VARCHAR(200);
+    DECLARE @v_orden             FLOAT = 0;
+    DECLARE @v_recorridos        float = 0;
+    DECLARE @sql NVARCHAR(MAX);
+    
+	DECLARE @TP__ID_TIPO_VALOR NUMERIC(38,0), @TP__ENCABEZADO VARCHAR(100),@TP__NOM_TIPO_VALOR  VARCHAR(50), 
+			@TP__DESCR_TIPO_VALOR VARCHAR(50), @TP__NOM_TIPO_CANTIDAD  VARCHAR(50), @TP__ORDEN  NUMERIC(22,0), @TP__PADRE  NUMERIC(38,0)
+   
+  SET NOCOUNT ON;
+  
+
+  
+    IF UPPER(@P_CALENDARIO) = 'M' BEGIN
+    
+      --  SELECT TRUNC(P_COM_DAY, 'MM') INTO V_DAY_MONTH FROM DUAL;
+    
+      SET @V_DAY_MONTH = CONVERT(DATETIME, CONVERT(DATE,@P_COM_DAY));
+    
+      --   SELECT LAST_DAY(P_COM_DAY) INTO V_LAST_DAY_MONTH FROM DUAL;
+    
+      SET @V_LAST_DAY_MONTH = CONVERT(DATETIME, CONVERT(DATE,@P_COM_DAY_FIN));
+    
+      WHILE @V_DAY_MONTH <= @V_LAST_DAY_MONTH
+      
+       BEGIN
+        SET @V_CONTADOR = @V_CONTADOR + 1;
+
+	  
+
+        IF @V_CONTADOR = 1 BEGIN
+          SET @V_FECHA = ISNULL(@V_FECHA, '') + '''' + ISNULL(CONVERT(VARCHAR, @V_DAY_MONTH), '') + ''' as "' +
+                     isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '"';
+        
+          SET @v_NULOS = ISNULL(@V_NULOS, '') + ' isnull(X."' +
+                     isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '",0) as "VR ' +
+                     isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '"';
+        
+          SET @V_FECHA_CANT = ISNULL(@V_FECHA_CANT, '') + '''' + ISNULL(CONVERT(VARCHAR, @V_DAY_MONTH), '') +
+                          ''' as "' + isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '"';
+        
+          SET @v_NULOS_CANT = ISNULL(@V_NULOS_CANT, '') + ' isnull(Y."' +
+                          isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') +
+                          '",0) as "TX ' +
+                          isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '"';
+        
+        END
+        ELSE IF @V_CONTADOR > 1 BEGIN
+        
+          SET @V_FECHA = ISNULL(@V_FECHA, '') + ',''' + ISNULL(CONVERT(VARCHAR, @V_DAY_MONTH), '') + ''' as "' +
+                     isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '"';
+        
+          SET @v_NULOS = ISNULL(@V_NULOS, '') + ' , ' + ' ISNULL(X."' +
+                     isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '",0) as "VR ' +
+                     isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '"';
+        
+          SET @V_FECHA_CANT = ISNULL(@V_FECHA_CANT, '') + ',''' + ISNULL(CONVERT(VARCHAR, @V_DAY_MONTH), '') +
+                          ''' as "' + isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '"';
+        
+          SET @v_NULOS_CANT = ISNULL(@V_NULOS_CANT, '') + ' , ' + ' ISNULL(Y."' +
+                          isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') +
+                          '",0) as "TX ' +
+                          isnull(format(@V_DAY_MONTH, 'MMM dd yyyy'), '') + '"';
+        
+        END 
+        SET @V_DAY_MONTH = @V_DAY_MONTH + 1;
+      END;
+    
+    END
+    ELSE IF UPPER(@P_CALENDARIO) = 'D' BEGIN
+    
+      SET @V_FECHA = '''' + ISNULL(CONVERT(VARCHAR, @P_COM_DAY), '') + ''' AS "' +
+                 ISNULL(format(@P_COM_DAY, 'MON DD YYYY'), '') + '"';
+    
+      SET @V_NULOS = ' ISNULL(X."' + ISNULL(format(@P_COM_DAY, 'MMM dd yyyy'), '') +
+                 '",0) AS "VR ' + ISNULL(format(@P_COM_DAY, 'MMM dd yyyy'), '') + '"';
+    
+      SET @V_FECHA_CANT = '''' + ISNULL(CONVERT(VARCHAR, @P_COM_DAY), '') + ''' AS "' +
+                      ISNULL(format(@P_COM_DAY, 'MON DD YYYY'), '') + '"';
+    
+      SET @v_NULOS_CANT = ' ISNULL(Y."' + ISNULL(format(@P_COM_DAY, 'MMM dd yyyy'), '') +
+                      '",0) AS "TX ' + ISNULL(format(@P_COM_DAY, 'MMM dd yyyy'), '') + '"';
+    
+    END 
+  
+    IF @P_ALIADO > 0 BEGIN
+      SET @V_EVLUA_ALIADO = ' AND X.ID_ALIADOESTRATEGICO = ' + @P_ALIADO + ' ';
+    END 
+  
+    -- CALCULATE THE ROWS TO BE INCLUDED IN THE LIST
+    -- BEFORE GETING THE LIST.
+    SET @L_END_GEN_ROW_NUM   = @P_PAGE_NUMBER * @P_BATCH_SIZE;
+    SET @L_START_GEN_ROW_NUM = @L_END_GEN_ROW_NUM - (@P_BATCH_SIZE - 1);
+  
+    IF @V_TIPO_MONTO NOT IN ('VALOR_TX_REC_VIA',
+                            'VALOR_TX_RET_VIA',
+                            'VALOR_TX_REC_CAD',
+                            'VALOR_TX_RET_CAD',
+                            'VALOR_TX_REC_ANU',
+                            'VALOR_TX_RET_ANU',
+                            'VALOR_TX_COMISION_NETA',
+                            'VALOR_TX_COMISION_BRUTA',
+                            'VALOR_TX_IVA_INGRESO',
+                            'VALOR_TX_RETEFUENTE',
+                            'VALOR_TX_RETEIVA',
+                            'VALOR_TX_RETEICA',
+                            'VALOR_PAGAR',
+                            'DETALLE_DIARIO') BEGIN
+    
+      SET @V_TIPO_MONTO = 'VALOR_PAGAR';
+    END 
+  
+    IF @V_TIPO_MONTO NOT IN ('VALOR_PAGAR', 'DETALLE_DIARIO') BEGIN
+    
+      IF @V_TIPO_MONTO IN ('VALOR_TX_REC_VIA',
+                          'VALOR_TX_RET_VIA',
+                          'VALOR_TX_REC_CAD',
+                          'VALOR_TX_RET_CAD',
+                          'VALOR_TX_REC_ANU',
+                          'VALOR_TX_RET_ANU',
+                          'VALOR_TX_COMISION_NETA') BEGIN
+      
+        DECLARE TP CURSOR FOR SELECT --T.*
+				T.ID_TIPO_VALOR,T.ENCABEZADO, T.NOM_TIPO_VALOR, 
+				T.DESCR_TIPO_VALOR, T.NOM_TIPO_CANTIDAD, T.ORDEN, T.PADRE
+                     FROM SFG_CONCILIACION.COM_TIPO_VALOR T
+                    WHERE T.TOTALIZA = 0
+                      AND T.PADRE = 0
+                   --   AND T.ES_PADRE = 0
+                   --  and rownum <= 2
+                    order by t.orden; OPEN TP;
+
+		
+
+		FETCH NEXT FROM TP INTO @TP__ID_TIPO_VALOR, @TP__ENCABEZADO, @TP__NOM_TIPO_VALOR, 
+			@TP__DESCR_TIPO_VALOR, @TP__NOM_TIPO_CANTIDAD, @TP__ORDEN, @TP__PADRE
+
+		 WHILE @@FETCH_STATUS=0
+		 BEGIN
+        
+			  SET @v_recorridos = @v_recorridos + 1;
+        
+			  SET @V_COLUMNA_SALIDA    = @TP__ENCABEZADO;
+			  SET @V_COLUMNA_CONTENIDO = @TP__DESCR_TIPO_VALOR;
+			  SET @V_TIPO_MONTO        = @TP__NOM_TIPO_VALOR;
+			  SET @V_TIPO_CANT         = @TP__NOM_TIPO_CANTIDAD;
+			  SET @v_orden             = @TP__ORDEN;
+        
+			  if @v_recorridos <= 4 begin
+          
+				IF @V_SZSQLINSTRUCTION IS NOT NULL BEGIN
+            
+				  SET @V_SZSQLINSTRUCTION = ISNULL(@V_SZSQLINSTRUCTION, '') + ' UNION ';
+            
+				END 
+				-- SETUP THE QUERY
+				SET @V_SZSQLINSTRUCTION = ISNULL(@V_SZSQLINSTRUCTION, '') + ' SELECT * FROM ' +
+									  ' (SELECT ' + isnull(@v_orden, '') +
+									  ' as ORDEN, ID_ALIADOESTRATEGICO , ' +
+									  ISNULL(@v_COLUMNA_CONTENIDO, '') + ' as "' +
+									  ISNULL(@v_COLUMNA_SALIDA, '') + '" , ' + ISNULL(@V_NULOS, '') +
+									  ' , ISD_ROW_NUMBER , PADRE ' +
+									  ' FROM (SELECT W.*,  ROW_NUMBER() OVER(ORDER BY ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+									  ' FROM (SELECT * ' +
+									  ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+									  ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+									  ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+									  '), 0) AS VALOR_TX, ' +
+									  ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+									  ' as PADRE  ' +
+									  ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+									  ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+									  ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+									  ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+									  ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+									  ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+									  ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+									  ' , ' +
+									  ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(VALOR_TX) FOR FECHA_VENCIMIENTO IN (' +
+									  ISNULL(@V_FECHA, '') + ' ))' +
+									  ') W) X) VL ' +
+                                 
+									  ' , ' +
+                                 
+									  ' (SELECT  ID_ALIADOESTRATEGICO AS  ID_ALIADOESTRATEGICO2, ' +
+									  ISNULL(@V_NULOS_CANT, '') +
+									  ' , ISD_ROW_NUMBER AS ISD_ROW_NUMBER2 , TO_DATE (''' +
+									  ISNULL(@P_COM_DAY, '') + ''') AS FECHA_RECAUDO' +
+									  ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+									  ' FROM (SELECT * ' +
+									  ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+									  ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+									  ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_CANT, '') +
+									  '), 0) AS CANTIDAD_TX, ' +
+									  ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+									  ' as PADRE  ' +
+									  ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+									  ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+									  ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+									  ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+									  ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+									  ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+									  ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+									  ' , ' +
+									  ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(CANTIDAD_TX) FOR FECHA_VENCIMIENTO IN (' +
+									  ISNULL(@V_FECHA_CANT, '') + ' ))' +
+									  ') W) Y) TX ' +
+                                 
+									  ' WHERE TX.ID_ALIADOESTRATEGICO2 = VL.ID_ALIADOESTRATEGICO ' +
+									  ' AND VL.ISD_ROW_NUMBER >= ' +
+									  ISNULL(@L_START_GEN_ROW_NUM, '') +
+									  ' AND VL.ISD_ROW_NUMBER <= ' +
+									  ISNULL(@L_END_GEN_ROW_NUM, '') + ISNULL(@V_EVLUA_ALIADO, '');
+          
+				-- dbms_output.put_line(V_SZSQLINSTRUCTION);
+          
+			  end
+			  else if @v_recorridos > 4 and @v_recorridos <= 8 begin
+          
+				SET @V_SZSQLINSTRUCTION2 = ISNULL(@V_SZSQLINSTRUCTION2, '') + ' UNION ';
+          
+				SET @V_SZSQLINSTRUCTION2 = ISNULL(@V_SZSQLINSTRUCTION2, '') + ' SELECT * FROM ' +
+									   ' (SELECT ' + isnull(@v_orden, '') +
+									   ' as ORDEN, ID_ALIADOESTRATEGICO , ' +
+									   ISNULL(@v_COLUMNA_CONTENIDO, '') + ' as "' +
+									   ISNULL(@v_COLUMNA_SALIDA, '') + '" , ' + ISNULL(@V_NULOS, '') +
+									   ' , ISD_ROW_NUMBER , PADRE ' +
+									   ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+									   ' FROM (SELECT * ' +
+									   ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+									   ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+									   ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+									   '), 0) AS VALOR_TX, ' +
+									   ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+									   ' as PADRE  ' +
+									   ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+									   ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+									   ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+									   ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+									   ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+									   ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+									   ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+									   ' , ' +
+									   ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(VALOR_TX) FOR FECHA_VENCIMIENTO IN (' +
+									   ISNULL(@V_FECHA, '') + ' ))' +
+									   ') W) X) VL ' +
+                                  
+									   ' , ' +
+                                  
+									   ' (SELECT  ID_ALIADOESTRATEGICO AS  ID_ALIADOESTRATEGICO2, ' +
+									   ISNULL(@V_NULOS_CANT, '') +
+									   ' , ISD_ROW_NUMBER AS ISD_ROW_NUMBER2 , TO_DATE (''' +
+									   ISNULL(@P_COM_DAY, '') + ''') AS FECHA_RECAUDO' +
+									   ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+									   ' FROM (SELECT * ' +
+									   ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+									   ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+									   ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_CANT, '') +
+									   '), 0) AS CANTIDAD_TX, ' +
+									   ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+									   ' as PADRE  ' +
+									   ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+									   ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+									   ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+									   ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+									   ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+									   ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+									   ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+									   ' , ' +
+									   ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(CANTIDAD_TX) FOR FECHA_VENCIMIENTO IN (' +
+									   ISNULL(@V_FECHA_CANT, '') + ' ))' +
+									   ') W) Y) TX ' +
+                                  
+									   ' WHERE TX.ID_ALIADOESTRATEGICO2 = VL.ID_ALIADOESTRATEGICO ' +
+									   ' AND VL.ISD_ROW_NUMBER >= ' +
+									   ISNULL(@L_START_GEN_ROW_NUM, '') +
+									   ' AND VL.ISD_ROW_NUMBER <= ' +
+									   ISNULL(@L_END_GEN_ROW_NUM, '') + ISNULL(@V_EVLUA_ALIADO, '');
+          
+				-- dbms_output.put_line(LENGTH(V_SZSQLINSTRUCTION2));
+          
+			  end
+			  else if @v_recorridos > 8 and @v_recorridos <= 12 begin
+          
+				SET @V_SZSQLINSTRUCTION3 = ISNULL(@V_SZSQLINSTRUCTION3, '') + ' UNION ';
+          
+				SET @V_SZSQLINSTRUCTION3 = ISNULL(@V_SZSQLINSTRUCTION3, '') + ' SELECT * FROM ' +
+									   ' (SELECT ' + isnull(@v_orden, '') +
+									   ' as ORDEN, ID_ALIADOESTRATEGICO , ' +
+									   ISNULL(@v_COLUMNA_CONTENIDO, '') + ' as "' +
+									   ISNULL(@v_COLUMNA_SALIDA, '') + '" , ' + ISNULL(@V_NULOS, '') +
+									   ' , ISD_ROW_NUMBER , PADRE ' +
+									   ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+									   ' FROM (SELECT * ' +
+									   ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+									   ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+									   ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+									   '), 0) AS VALOR_TX, ' +
+									   ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+									   ' as PADRE  ' +
+									   ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+									   ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+									   ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+									   ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+									   ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+									   ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+									   ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+									   ' , ' +
+									   ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(VALOR_TX) FOR FECHA_VENCIMIENTO IN (' +
+									   ISNULL(@V_FECHA, '') + ' ))' +
+									   ' ) W) X) VL ' +
+                                  
+									   ' , ' +
+                                  
+									   ' (SELECT  ID_ALIADOESTRATEGICO AS  ID_ALIADOESTRATEGICO2, ' +
+									   ISNULL(@V_NULOS_CANT, '') +
+									   ' , ISD_ROW_NUMBER AS ISD_ROW_NUMBER2 , TO_DATE (''' +
+									   ISNULL(@P_COM_DAY, '') + ''') AS FECHA_RECAUDO' +
+									   ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+									   ' FROM (SELECT * ' +
+									   ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+									   ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+									   ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_CANT, '') +
+									   '), 0) AS CANTIDAD_TX, ' +
+									   ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+									   ' as PADRE  ' +
+									   ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+									   ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+									   ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+									   ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+									   ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+									   ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+									   ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+									   ' , ' +
+									   ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(CANTIDAD_TX) FOR FECHA_VENCIMIENTO IN (' +
+									   ISNULL(@V_FECHA_CANT, '') + ' ))' +
+									   ') W) Y) TX ' +
+                                  
+									   ' WHERE TX.ID_ALIADOESTRATEGICO2 = VL.ID_ALIADOESTRATEGICO ' +
+									   ' AND VL.ISD_ROW_NUMBER >= ' +
+									   ISNULL(@L_START_GEN_ROW_NUM, '') +
+									   ' AND VL.ISD_ROW_NUMBER <= ' +
+									   ISNULL(@L_END_GEN_ROW_NUM, '') + ISNULL(@V_EVLUA_ALIADO, '');
+          
+				-- dbms_output.put_line(LENGTH(V_SZSQLINSTRUCTION3));
+          
+			  end 
+        
+				FETCH NEXT FROM TP INTO @TP__ID_TIPO_VALOR, @TP__ENCABEZADO, @TP__NOM_TIPO_VALOR, 
+				@TP__DESCR_TIPO_VALOR, @TP__NOM_TIPO_CANTIDAD, @TP__ORDEN, @TP__PADRE
+			END;
+			CLOSE TP;
+			DEALLOCATE TP;
+      
+      END
+      ELSE IF @V_TIPO_MONTO IN ('VALOR_TX_COMISION_BRUTA',
+                             'VALOR_TX_IVA_INGRESO',
+                             'VALOR_TX_RETEFUENTE',
+                             'VALOR_TX_RETEIVA',
+                             'VALOR_TX_RETEICA') BEGIN
+      
+				DECLARE TP2 CURSOR FOR SELECT --T.*
+							T.ID_TIPO_VALOR,T.ENCABEZADO, T.NOM_TIPO_VALOR, 
+							T.DESCR_TIPO_VALOR, T.NOM_TIPO_CANTIDAD, T.ORDEN, T.PADRE
+							 FROM SFG_CONCILIACION.COM_TIPO_VALOR T
+							WHERE T.TOTALIZA = 0
+							  AND T.PADRE = 7
+							  AND T.ES_PADRE = 0
+						   --       and rownum <= 2
+							order by t.orden; 
+				OPEN TP2;
+			 		FETCH NEXT FROM TP2 INTO @TP__ID_TIPO_VALOR, @TP__ENCABEZADO, @TP__NOM_TIPO_VALOR, 
+					@TP__DESCR_TIPO_VALOR, @TP__NOM_TIPO_CANTIDAD, @TP__ORDEN, @TP__PADRE
+
+			 WHILE @@FETCH_STATUS=0
+			 BEGIN
+        
+				  SET @v_recorridos = @v_recorridos + 1;
+
+				  SET @V_COLUMNA_SALIDA    = @TP__ENCABEZADO;
+				  SET @V_COLUMNA_CONTENIDO = @TP__DESCR_TIPO_VALOR;
+				  SET @V_TIPO_MONTO        = @TP__NOM_TIPO_VALOR;
+				  SET @V_TIPO_CANT         = @TP__NOM_TIPO_CANTIDAD;
+				  SET @v_orden             = @TP__ORDEN;
+        
+				  if @v_recorridos <= 5 begin
+          
+					IF @V_SZSQLINSTRUCTION IS NOT NULL BEGIN
+            
+					  SET @V_SZSQLINSTRUCTION = ISNULL(@V_SZSQLINSTRUCTION, '') + ' UNION ';
+            
+					END 
+					-- SETUP THE QUERY
+					SET @V_SZSQLINSTRUCTION = ISNULL(@V_SZSQLINSTRUCTION, '') + ' SELECT * FROM ' +
+										  ' (SELECT ' + isnull(@v_orden, '') +
+										  ' as ORDEN, ID_ALIADOESTRATEGICO , ' +
+										  ISNULL(@v_COLUMNA_CONTENIDO, '') + ' as "' +
+										  ISNULL(@v_COLUMNA_SALIDA, '') + '" , ' + ISNULL(@V_NULOS, '') +
+										  ' , ISD_ROW_NUMBER , PADRE ' +
+										  ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+										  ' FROM (SELECT * ' +
+										  ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+										  ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+										  ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+										  '), 0) AS VALOR_TX, ' +
+										  ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+										  ' as PADRE  ' +
+										  ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+										  ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+										  ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+										  ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+										  ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+										  ' HAVING SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+										  ') <>0  ' +
+										  ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+										  ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+										  ' , ' +
+										  ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(VALOR_TX) FOR FECHA_VENCIMIENTO IN (' +
+										  ISNULL(@V_FECHA, '') + ' ))' +
+										  ') W) X) VL ' +
+                                 
+										  ' , ' +
+                                 
+										  ' (SELECT  ID_ALIADOESTRATEGICO AS  ID_ALIADOESTRATEGICO2, ' +
+										  ISNULL(@V_NULOS_CANT, '') +
+										  ' , ISD_ROW_NUMBER AS ISD_ROW_NUMBER2 , TO_DATE (''' +
+										  ISNULL(@P_COM_DAY, '') + ''') AS FECHA_RECAUDO' +
+										  ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+										  ' FROM (SELECT * ' +
+										  ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+										  ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+										  ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_CANT, '') +
+										  '), 0) AS CANTIDAD_TX, ' +
+										  ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+										  ' as PADRE  ' +
+										  ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+										  ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+										  ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+										  ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+										  ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+										  ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+										  ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+										  ' , ' +
+										  ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(CANTIDAD_TX) FOR FECHA_VENCIMIENTO IN (' +
+										  ISNULL(@V_FECHA_CANT, '') + ' ))' +
+										  ' ) W) Y) TX ' +
+                                 
+										  ' WHERE TX.ID_ALIADOESTRATEGICO2 = VL.ID_ALIADOESTRATEGICO ' +
+                                 
+										  ' AND VL.ISD_ROW_NUMBER >= ' +
+										  ISNULL(@L_START_GEN_ROW_NUM, '') +
+										  ' AND VL.ISD_ROW_NUMBER <= ' +
+										  ISNULL(@L_END_GEN_ROW_NUM, '') + ISNULL(@V_EVLUA_ALIADO, '');
+          
+					--  dbms_output.put_line(V_SZSQLINSTRUCTION);
+          
+				  end
+				  else if @v_recorridos > 4 and @v_recorridos <= 8 begin
+          
+					SET @V_SZSQLINSTRUCTION2 = ISNULL(@V_SZSQLINSTRUCTION2, '') + ' UNION ';
+          
+					SET @V_SZSQLINSTRUCTION2 = ISNULL(@V_SZSQLINSTRUCTION2, '') + ' SELECT * FROM ' +
+										   ' (SELECT ' + isnull(@v_orden, '') +
+										   ' as ORDEN, ID_ALIADOESTRATEGICO , ' +
+										   ISNULL(@v_COLUMNA_CONTENIDO, '') + ' as "' +
+										   ISNULL(@v_COLUMNA_SALIDA, '') + '" , ' + ISNULL(@V_NULOS, '') +
+										   ' , ISD_ROW_NUMBER , PADRE ' +
+										   ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO") AS ISD_ROW_NUMBER ' +
+										   ' FROM (SELECT * ' +
+										   ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+										   ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+										   ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+										   '), 0) AS VALOR_TX, ' +
+										   ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+										   ' as PADRE  ' +
+										   ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+										   ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+										   ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+										   ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+										   ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+										   ' HAVING SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+										   ') <>0  ' +
+										   ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+										   ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+										   ' , ' +
+										   ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(VALOR_TX) FOR FECHA_VENCIMIENTO IN (' +
+										   ISNULL(@V_FECHA, '') + ' ))' +
+										   ') W) X) VL ' +
+                                  
+										   ' , ' +
+                                  
+										   ' (SELECT  ID_ALIADOESTRATEGICO AS  ID_ALIADOESTRATEGICO2, ' +
+										   ISNULL(@V_NULOS_CANT, '') +
+										   ' , ISD_ROW_NUMBER AS ISD_ROW_NUMBER2 , TO_DATE (''' +
+										   ISNULL(@P_COM_DAY, '') + ''') AS FECHA_RECAUDO' +
+										   ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+										   ' FROM (SELECT * ' +
+										   ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+										   ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+										   ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_CANT, '') +
+										   '), 0) AS CANTIDAD_TX, ' +
+										   ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+										   ' as PADRE  ' +
+										   ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+										   ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+										   ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+										   ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+										   ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+										   ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+										   ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+										   ' , ' +
+										   ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(CANTIDAD_TX) FOR FECHA_VENCIMIENTO IN (' +
+										   ISNULL(@V_FECHA_CANT, '') + ' ))' +
+										   ' ) W) Y) TX ' +
+                                  
+										   ' WHERE TX.ID_ALIADOESTRATEGICO2 = VL.ID_ALIADOESTRATEGICO ' +
+                                  
+										   ' AND VL.ISD_ROW_NUMBER >= ' +
+										   ISNULL(@L_START_GEN_ROW_NUM, '') +
+										   ' AND VL.ISD_ROW_NUMBER <= ' +
+										   ISNULL(@L_END_GEN_ROW_NUM, '') + ISNULL(@V_EVLUA_ALIADO, '');
+          
+					--dbms_output.put_line(LENGTH(V_SZSQLINSTRUCTION2));
+          
+				  end
+				  else if @v_recorridos > 8 and @v_recorridos <= 12 begin
+          
+					SET @V_SZSQLINSTRUCTION3 = ISNULL(@V_SZSQLINSTRUCTION3, '') + ' UNION ';
+          
+					SET @V_SZSQLINSTRUCTION3 = ISNULL(@V_SZSQLINSTRUCTION3, '') + ' SELECT * FROM ' +
+										   ' (SELECT ' + isnull(@v_orden, '') +
+										   ' as ORDEN, ID_ALIADOESTRATEGICO , ' +
+										   ISNULL(@v_COLUMNA_CONTENIDO, '') + ' as "' +
+										   ISNULL(@v_COLUMNA_SALIDA, '') + '" , ' + ISNULL(@V_NULOS, '') +
+										   ' , ISD_ROW_NUMBER , PADRE ' +
+										   ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+										   ' FROM (SELECT * ' +
+										   ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+										   ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+										   ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+										   '), 0) AS VALOR_TX, ' +
+										   ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+										   ' as PADRE  ' +
+										   ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+										   ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+										   ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+										   ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+										   ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+										   ' HAVING SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+										   ') <>0  ' +
+										   ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+										   ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+										   ' , ' +
+										   ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(VALOR_TX) FOR FECHA_VENCIMIENTO IN (' +
+										   ISNULL(@V_FECHA, '') + ' ))' +
+										   ' ) W) X) VL ' +
+                                  
+										   ' , ' +
+                                  
+										   ' (SELECT  ID_ALIADOESTRATEGICO AS  ID_ALIADOESTRATEGICO2, ' +
+										   ISNULL(@V_NULOS_CANT, '') +
+										   ' , ISD_ROW_NUMBER AS ISD_ROW_NUMBER2 , TO_DATE (''' +
+										   ISNULL(@P_COM_DAY, '') + ''') AS FECHA_RECAUDO' +
+										   ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+										   ' FROM (SELECT * ' +
+										   ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+										   ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+										   ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_CANT, '') +
+										   '), 0) AS CANTIDAD_TX, ' +
+										   ' CCC.FECHA_VENCIMIENTO , ' + ISNULL(@TP__PADRE, '') +
+										   ' as PADRE  ' +
+										   ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+										   ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+										   ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+										   ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+										   ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+										   ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+										   ' AA.NOMALIADOESTRATEGICO, ' + ISNULL(@TP__PADRE, '') +
+										   ' , ' +
+										   ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(CANTIDAD_TX) FOR FECHA_VENCIMIENTO IN (' +
+										   ISNULL(@V_FECHA_CANT, '') + ' ))' +
+										   ' ) W) Y) TX ' +
+                                  
+										   ' WHERE TX.ID_ALIADOESTRATEGICO2 = VL.ID_ALIADOESTRATEGICO ' +
+                                  
+										   ' AND VL.ISD_ROW_NUMBER >= ' +
+										   ISNULL(@L_START_GEN_ROW_NUM, '') +
+										   ' AND VL.ISD_ROW_NUMBER <= ' +
+										   ISNULL(@L_END_GEN_ROW_NUM, '') + ISNULL(@V_EVLUA_ALIADO, '');
+          
+					--dbms_output.put_line(LENGTH(V_SZSQLINSTRUCTION3));
+          
+				  end 
+        
+				FETCH NEXT FROM TP INTO @TP__ID_TIPO_VALOR, @TP__ENCABEZADO, @TP__NOM_TIPO_VALOR, 
+					@TP__DESCR_TIPO_VALOR, @TP__NOM_TIPO_CANTIDAD, @TP__ORDEN, @TP__PADRE
+				END;
+				CLOSE TP2;
+				DEALLOCATE TP2;
+      
+				IF @P_CALENDARIO = 'D' BEGIN
+				  SET @V_SZSQLINSTRUCTION4 = 'UNION SELECT * FROM SFG_CONCILIACION.VW_COM_DETALLE_DIARIO WHERE FECHA_VENCIMIENTO  = CONVERT(DATETIME, CONVERT(DATE,''' +
+										 ISNULL(@P_COM_DAY, '') + '''))';
+				END 
+			  END 
+    END
+    ELSE IF @V_TIPO_MONTO = 'VALOR_PAGAR' BEGIN
+    
+      SELECT @v_COLUMNA_SALIDA = T.ENCABEZADO, @v_COLUMNA_CONTENIDO = T.descr_tipo_valor
+        FROM SFG_CONCILIACION.COM_TIPO_VALOR T
+       WHERE T.TOTALIZA = 1
+        -- AND;
+    
+      -- SETUP THE QUERY
+      SET @V_SZSQLINSTRUCTION = ' SELECT  ' + isnull(@v_orden, '') +
+                            ' as ORDEN, X.ID_ALIADOESTRATEGICO , X.' +
+                            ISNULL(@v_COLUMNA_CONTENIDO, '') + ' as "' +
+                            ISNULL(@v_COLUMNA_SALIDA, '') + '" , ' + ISNULL(@V_NULOS, '') +
+                            ' , X.ISD_ROW_NUMBER , padre' +
+                            ' FROM (SELECT W.*, ROW_NUMBER() OVER(ORDER BY "ALIADO ESTRATEGICO" ASC) AS ISD_ROW_NUMBER ' +
+                            ' FROM (SELECT * ' +
+                            ' FROM (SELECT AA.ID_ALIADOESTRATEGICO, ' +
+                            ' AA.NOMALIADOESTRATEGICO AS "ALIADO ESTRATEGICO", ' +
+                            ' ISNULL(SUM(CCC.' + ISNULL(@V_TIPO_MONTO, '') +
+                            '), 0) AS VALOR_TX, ' +
+                            ' CCC.FECHA_VENCIMIENTO , 0 as PADRE ' +
+                            ' FROM SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN         CCC, ' +
+                            ' SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CA, ' +
+                            ' WSXML_SFG.ALIADOESTRATEGICO               AA ' +
+                            ' WHERE CA.CODALIADO = CCC.COD_ALIADO(+) ' +
+                            ' AND CA.CODALIADO = AA.ID_ALIADOESTRATEGICO(+) ' +
+                            ' GROUP BY AA.ID_ALIADOESTRATEGICO, ' +
+                            ' AA.NOMALIADOESTRATEGICO , 0 , ' +
+                            ' CCC.FECHA_VENCIMIENTO) S PIVOT(SUM(VALOR_TX) FOR FECHA_VENCIMIENTO IN (' +
+                            ISNULL(@V_FECHA, '') + ' ))' +
+                            ' ) W) X ' +
+                            ' WHERE X.ISD_ROW_NUMBER >= ' +
+                            ISNULL(@L_START_GEN_ROW_NUM, '') +
+                            ' AND X.ISD_ROW_NUMBER <= ' +
+                            ISNULL(@L_END_GEN_ROW_NUM, '') + ISNULL(@V_EVLUA_ALIADO, '');
+    
+    END 
+    --dbms_output.put_line(V_SZSQLINSTRUCTION);
+    -- GET THE TOTAL COUNT OF ROWS THE QUERY WILL RETURN
+    IF @P_PAGE_NUMBER > 0 AND @P_BATCH_SIZE >= 0 BEGIN
+      SET @L_COUNT_QUERY  = 'SELECT @P_TOTAL_SIZE = COUNT(*) ' + 'FROM (' +
+                        ISNULL(@V_SZSQLINSTRUCTION, '');
+      SET @L_COUNT_QUERY2 = ' ' + ISNULL(@V_SZSQLINSTRUCTION2, '') + ' ';
+      SET @L_COUNT_QUERY3 = ' ' + ISNULL(@V_SZSQLINSTRUCTION3, '') + ' ';
+      SET @L_COUNT_QUERY4 = ' ' + ISNULL(@V_SZSQLINSTRUCTION4, '') + ' ) ';
+    
+      -- RUN THE COUNT QUERY
+	  SET @sql =  @L_COUNT_QUERY + ISNULL(@L_COUNT_QUERY2, '') + ISNULL(@L_COUNT_QUERY3, '') + ISNULL(@L_COUNT_QUERY4, '')
+      EXECUTE sp_executesql @sql, N'@P_TOTAL_SIZE INT OUTPUT', @p_total_size OUTPUT;
+    END 
+  
+    -- RUN THE QUERY
+    SET @sql =  ISNULL(@V_SZSQLINSTRUCTION, '') + ISNULL(@V_SZSQLINSTRUCTION2, '') + ISNULL(@V_SZSQLINSTRUCTION3, '') + ISNULL(@V_SZSQLINSTRUCTION4, '');
+    EXECUTE sp_executesql @sql;
+  
+  END
+  GO
+
+
+
+    IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_COMPENSA_AJUSTES', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_COMPENSA_AJUSTES;
+GO
+
+
+  CREATE PROCEDURE SFG_CONCILIACION.COM_COMPENSA_COMPENSA_AJUSTES(@P_FECHA_PROCESAR DATETIME,
+                             @P_CODALIADO      NUMERIC(22,0),
+                             @P_CODPRODUCTO    NUMERIC(22,0)) AS
+ BEGIN
+  
+    DECLARE @P_ID_COM_AJUSTES_OUT NUMERIC(22,0);
+   
+  SET NOCOUNT ON;
+  
+    DECLARE VALIDA_PRD CURSOR FOR SELECT ALI.ID_ALIADOESTRATEGICO,
+                              ALI.NOMALIADOESTRATEGICO,
+                              PRD.ID_PRODUCTO,
+                              PRD.NOMPRODUCTO,
+                              CCA.NUMERO_DIAS,
+                              CASE CCA.DEBE_HABER  WHEN '-' THEN  '+'  WHEN '+' THEN  '-' END AS DEBE_HABER
+                         FROM SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CCA,
+                              WSXML_SFG.ALIADOESTRATEGICO               ALI,
+                              WSXML_SFG.PRODUCTO                        PRD
+                        WHERE CCA.CODALIADO = ALI.ID_ALIADOESTRATEGICO
+                          AND PRD.ID_PRODUCTO = @P_CODPRODUCTO
+                          AND ALI.ID_ALIADOESTRATEGICO = @P_CODALIADO
+                          AND ALI.ID_ALIADOESTRATEGICO =
+                              PRD.CODALIADOESTRATEGICO
+                          AND CCA.DESCUENTA_ANULACIONES = 1
+                          AND PRD.ID_PRODUCTO NOT IN
+                              (SELECT CCP.CODPRODUCTO
+                                 FROM SFG_CONCILIACION.COM_CONF_COMPENSA_PROD CCP)
+                       
+                       UNION
+                       
+                       SELECT ALI.ID_ALIADOESTRATEGICO,
+                              ALI.NOMALIADOESTRATEGICO,
+                              PRD.ID_PRODUCTO,
+                              PRD.NOMPRODUCTO,
+                              CCP.NUMERO_DIAS,
+                              CASE CCP.DEBE_HABER  WHEN '-' THEN  '+'  WHEN '+' THEN  '-' END AS DEBE_HABER
+                         FROM SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CCA,
+                              WSXML_SFG.ALIADOESTRATEGICO               ALI,
+                              WSXML_SFG.PRODUCTO                        PRD,
+                              SFG_CONCILIACION.COM_CONF_COMPENSA_PROD   CCP
+                        WHERE CCA.CODALIADO = ALI.ID_ALIADOESTRATEGICO
+                          AND PRD.ID_PRODUCTO = @P_CODPRODUCTO
+                          AND ALI.ID_ALIADOESTRATEGICO = @P_CODALIADO
+                          AND CCA.DESCUENTA_ANULACIONES = 1
+                          AND CCP.DESCUENTA_ANULACIONES = 1
+                          AND ALI.ID_ALIADOESTRATEGICO =
+                              PRD.CODALIADOESTRATEGICO
+                          AND CCA.ID_CONF_COMPENSA_ALIADO =
+                              CCP.COD_CONF_COMPENSA_ALI
+                          AND PRD.ID_PRODUCTO = CCP.CODPRODUCTO; OPEN VALIDA_PRD;
+
+	 DECLARE @VALIDA_PRD__ID_ALIADOESTRATEGICO NUMERIC(38,0)
+		, @VALIDA_PRD__NOMALIADOESTRATEGICO VARCHAR(255), @VALIDA_PRD__ID_PRODUCTO NUMERIC(38,0)
+		, @VALIDA_PRD__NOMPRODUCTO VARCHAR(255), @VALIDA_PRD__NUMERO_DIAS NUMERIC(22,0)
+		, @VALIDA_PRD__DEBE_HABER  CHAR(1)
+
+	 FETCH NEXT FROM VALIDA_PRD INTO  @VALIDA_PRD__ID_ALIADOESTRATEGICO
+	 , @VALIDA_PRD__NOMALIADOESTRATEGICO, @VALIDA_PRD__ID_PRODUCTO, @VALIDA_PRD__NOMPRODUCTO
+	 , @VALIDA_PRD__NUMERO_DIAS , @VALIDA_PRD__DEBE_HABER
+
+	 WHILE @@FETCH_STATUS=0
+	 BEGIN
+    
+      DECLARE CUR_AJS CURSOR FOR SELECT AJS.ID_AJUSTEFACTURACION,
+                             CODTIPOAJUSTEFACTURACION,
+                             AJS.VALORAJUSTE               AS VALOR_AJS,
+                             DST.FECHAARCHIVO              AS "FECHA_AJS",
+                             RFR.VALORTRANSACCION          AS "VALOR_TX",
+                             ORG.FECHAARCHIVO              AS "FECHA_TX",
+                             AJS.DESCRIPCIONAJUSTE,
+                             AJS.CANTIDADAJUSTE,
+                             AJS.REVENUETOTAL,
+                             CODREGISTROFACTORIGEN,
+                             RFR.ID_REGISTROFACTREFERENCIA,
+                             RF.CODPUNTODEVENTA,
+                             RF.CODPRODUCTO,
+                             PRD.CODALIADOESTRATEGICO,
+							 ROW_NUMBER() OVER( ORDER BY DST.FECHAARCHIVO, AJS.ID_AJUSTEFACTURACION) AS FILA
+                             --AJS.ROWID                     AS FILA
+                        FROM WSXML_SFG.AJUSTEFACTURACION AJS
+                       INNER JOIN WSXML_SFG.ENTRADAARCHIVOCONTROL ORG
+                          ON (ORG.ID_ENTRADAARCHIVOCONTROL =
+                             AJS.CODENTRADAARCHIVOORIGEN)
+                       INNER JOIN WSXML_SFG.ENTRADAARCHIVOCONTROL DST
+                          ON (DST.ID_ENTRADAARCHIVOCONTROL =
+                             AJS.CODENTRADAARCHIVODESTINO)
+                       INNER JOIN WSXML_SFG.PRODUCTO PRD
+                          ON (PRD.ID_PRODUCTO = AJS.CODPRODUCTO)
+                       INNER JOIN WSXML_SFG.REGISTROFACTURACION RF
+                          ON (RF.ID_REGISTROFACTURACION =
+                             AJS.CODREGISTROFACTORIGEN)
+                        LEFT OUTER JOIN WSXML_SFG.REGISTROFACTREFERENCIA RFR
+                          ON (RFR.ID_REGISTROFACTREFERENCIA =
+                             AJS.CODREGISTROFACTREFORIGEN)
+                       WHERE AJS.CODTIPOAJUSTEFACTURACION = 1
+                         AND PRD.CODALIADOESTRATEGICO = @VALIDA_PRD__ID_ALIADOESTRATEGICO
+                         AND DST.FECHAARCHIVO <= @P_FECHA_PROCESAR
+                         AND AJS.COMPENSADO = 0
+                         AND PRD.ID_PRODUCTO = @VALIDA_PRD__ID_PRODUCTO
+                       ORDER BY DST.FECHAARCHIVO, AJS.ID_AJUSTEFACTURACION; 
+		OPEN CUR_AJS;
+
+		DECLARE @CUR_AJS__ID_AJUSTEFACTURACION NUMERIC(38,0),
+                             @CUR_AJS__CODTIPOAJUSTEFACTURACION  NUMERIC(38,0),
+                             @CUR_AJS__VALOR_AJS FLOAT,
+                             @CUR_AJS__FECHA_AJS DATETIME,
+                             @CUR_AJS__VALOR_TX FLOAT,
+                             @CUR_AJS__FECHA_TX DATETIME,
+                             @CUR_AJS__DESCRIPCIONAJUSTE VARCHAR(255),
+                             @CUR_AJS__CANTIDADAJUSTE NUMERIC(22,0),
+                             @CUR_AJS__REVENUETOTAL FLOAT,
+                             @CUR_AJS__CODREGISTROFACTORIGEN NUMERIC(38,0),
+                             @CUR_AJS__ID_REGISTROFACTREFERENCIA NUMERIC(38,0),
+                             @CUR_AJS__CODPUNTODEVENTA NUMERIC(38,0),
+                             @CUR_AJS__CODPRODUCTO NUMERIC(38,0),
+                             @CUR_AJS__CODALIADOESTRATEGICO NUMERIC(38,0),
+							 @CUR_AJS__FILA NUMERIC(38,0)
+		
+
+		 FETCH NEXT FROM CUR_AJS INTO  @CUR_AJS__ID_AJUSTEFACTURACION, @CUR_AJS__CODTIPOAJUSTEFACTURACION,
+                             @CUR_AJS__VALOR_AJS,@CUR_AJS__FECHA_AJS, @CUR_AJS__VALOR_TX,@CUR_AJS__FECHA_TX,
+                             @CUR_AJS__DESCRIPCIONAJUSTE , @CUR_AJS__CANTIDADAJUSTE, 
+                             @CUR_AJS__REVENUETOTAL, @CUR_AJS__CODREGISTROFACTORIGEN,
+                             @CUR_AJS__ID_REGISTROFACTREFERENCIA, @CUR_AJS__CODPUNTODEVENTA,
+                             @CUR_AJS__CODPRODUCTO, @CUR_AJS__CODALIADOESTRATEGICO, @CUR_AJS__FILA
+
+		 WHILE @@FETCH_STATUS=0
+		 BEGIN
+      
+			BEGIN
+          -- CALL THE PROCEDURE
+          EXEC SFG_CONCILIACION.SFGCONCIWEBCOM_AJUSTES_ADDRECORD   
+														   @P_FECHA_PROCESAR,
+                                                           @CUR_AJS__ID_AJUSTEFACTURACION,
+                                                           @CUR_AJS__CODTIPOAJUSTEFACTURACION,
+                                                           @CUR_AJS__VALOR_AJS,
+                                                           @CUR_AJS__FECHA_AJS,
+                                                           @CUR_AJS__VALOR_TX,
+                                                           @CUR_AJS__FECHA_TX,
+                                                           @CUR_AJS__DESCRIPCIONAJUSTE,
+                                                           @CUR_AJS__CANTIDADAJUSTE,
+                                                           @CUR_AJS__REVENUETOTAL,
+                                                           @CUR_AJS__CODREGISTROFACTORIGEN,
+                                                           @CUR_AJS__ID_REGISTROFACTREFERENCIA,
+                                                           @CUR_AJS__CODPUNTODEVENTA,
+                                                           @CUR_AJS__CODPRODUCTO,
+                                                           @CUR_AJS__CODALIADOESTRATEGICO,
+                                                           @VALIDA_PRD__DEBE_HABER,
+                                                           @P_ID_COM_AJUSTES_OUT OUT
+        
+          UPDATE WSXML_SFG.AJUSTEFACTURACION
+             SET COMPENSADO = 1, CODCOMAJUSTES = @P_ID_COM_AJUSTES_OUT
+           WHERE ID_AJUSTEFACTURACION = @CUR_AJS__ID_AJUSTEFACTURACION
+        END;
+      
+      FETCH NEXT FROM CUR_AJS INTO  @CUR_AJS__ID_AJUSTEFACTURACION, @CUR_AJS__CODTIPOAJUSTEFACTURACION,
+                             @CUR_AJS__VALOR_AJS,@CUR_AJS__FECHA_AJS, @CUR_AJS__VALOR_TX,@CUR_AJS__FECHA_TX,
+                             @CUR_AJS__DESCRIPCIONAJUSTE , @CUR_AJS__CANTIDADAJUSTE, 
+                             @CUR_AJS__REVENUETOTAL, @CUR_AJS__CODREGISTROFACTORIGEN,
+                             @CUR_AJS__ID_REGISTROFACTREFERENCIA, @CUR_AJS__CODPUNTODEVENTA,
+                             @CUR_AJS__CODPRODUCTO, @CUR_AJS__CODALIADOESTRATEGICO, @CUR_AJS__FILA
+
+      END;
+      CLOSE CUR_AJS;
+      DEALLOCATE CUR_AJS;
+
+
+    FETCH NEXT FROM VALIDA_PRD INTO  @VALIDA_PRD__ID_ALIADOESTRATEGICO
+	 , @VALIDA_PRD__NOMALIADOESTRATEGICO, @VALIDA_PRD__ID_PRODUCTO, @VALIDA_PRD__NOMPRODUCTO
+	 , @VALIDA_PRD__NUMERO_DIAS , @VALIDA_PRD__DEBE_HABER
+    END;
+    CLOSE VALIDA_PRD;
+    DEALLOCATE VALIDA_PRD;
+  END; 
+GO
+
+
+  IF OBJECT_ID('SFG_CONCILIACION.COM_COMPENSA_COMPENSA', 'P') IS NOT NULL
+  DROP PROCEDURE SFG_CONCILIACION.COM_COMPENSA_COMPENSA;
+GO
+
+CREATE     PROCEDURE SFG_CONCILIACION.COM_COMPENSA_COMPENSA(@FECHA_PROCESO DATETIME) AS
+ BEGIN
+  
+    DECLARE @V_ID_COM_COMPENSACION_OUT NUMERIC(22,0);
+    DECLARE @V_COD_ALIADO              NUMERIC(22,0);
+    DECLARE @V_COD_PRODUCTO            NUMERIC(22,0);
+    DECLARE @V_FECHA_VENCIMIENTO       DATETIME;
+    DECLARE @V_FECHA_COMPENSACION      DATETIME;
+    DECLARE @V_VALOR_TX                NUMERIC(22,0);
+    DECLARE @V_CANTIDAD_TX             NUMERIC(22,0);
+    DECLARE @V_DEBE_HABER              VARCHAR(1);
+    DECLARE @V_FECHA_RECAUDO           DATETIME;
+    DECLARE @V_FLAG_INSERT_COMPENSA    BIT;
+    DECLARE @lsttransactions           WSXML_SFG.LONGNUMBERARRAY;
+  
+   
+  SET NOCOUNT ON;
+  
+    DECLARE FREC_PRO CURSOR FOR SELECT 1 AS COD_COM_FRECUENCIA
+                       FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL T
+                      WHERE T.FECHA_CALENDARIO = CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO))
+                        AND T.EJECUTA_COMP_DIARIA = 1
+                     UNION
+                     SELECT 2 AS COD_COM_FRECUENCIA
+                       FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL T
+                      WHERE T.FECHA_CALENDARIO = CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO))
+                        AND T.EJECUTA_COMP_SEMANAL = 1
+                     UNION
+                     SELECT 3 AS COD_COM_FRECUENCIA
+                       FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL T
+                      WHERE T.FECHA_CALENDARIO = CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO))
+                        AND T.EJECUTA_COMP_QUINCE = 1
+                     UNION
+                     SELECT 4 AS COD_COM_FRECUENCIA
+                       FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL T
+                      WHERE T.FECHA_CALENDARIO = CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO))
+                        AND T.EJECUTA_COMP_MENSUAL = 1; OPEN FREC_PRO;
+
+		DECLARE @FREC_PRO__COD_COM_FRECUENCIA NUMERIC(38,0)
+		FETCH NEXT FROM FREC_PRO INTO @FREC_PRO__COD_COM_FRECUENCIA
+
+		WHILE @@FETCH_STATUS=0
+		BEGIN
+    
+		DECLARE CFG_ALI_COMP CURSOR FOR SELECT ALI.ID_ALIADOESTRATEGICO,
+                                  ALI.NOMALIADOESTRATEGICO,
+                                  PRD.ID_PRODUCTO,
+                                  PRD.NOMPRODUCTO,
+                                  CCA.NUMERO_DIAS,
+                                  CCA.DEBE_HABER,
+                                  CCA.ACUMULA_NO_HABIL_DIA_ANT,
+                                  CASE CCA.HABILES
+                                    WHEN 1 THEN
+                                     SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL(CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO)),
+                                                                                   CCA.NUMERO_DIAS,
+                                                                                   CCA.NUMERO_DIAS,
+                                                                                   CCA.ACUMULA_NO_HABIL_DIA_ANT)
+                                    ELSE
+                                    
+                                     SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_CALENDARIO(CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO)),
+                                                                                        CCA.NUMERO_DIAS)
+                                  END FECHA_A_COMPENSAR
+                           
+                             FROM SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CCA,
+                                  WSXML_SFG.ALIADOESTRATEGICO               ALI,
+                                  WSXML_SFG.PRODUCTO                        PRD
+                           
+                            WHERE CCA.CODALIADO = ALI.ID_ALIADOESTRATEGICO
+                              AND ALI.ID_ALIADOESTRATEGICO =
+                                  PRD.CODALIADOESTRATEGICO
+                              AND PRD.ID_PRODUCTO NOT IN
+                                  (SELECT CCP.CODPRODUCTO
+                                     FROM SFG_CONCILIACION.COM_CONF_COMPENSA_PROD CCP)
+                              AND CCA.COD_COM_FRECUENCIA = @FREC_PRO__COD_COM_FRECUENCIA
+                           /*OJO DESDE ACA PRUEBAS*/
+                           --  AND ALI.ID_ALIADOESTRATEGICO = 107
+                           /*OJO HASTA ACA PRUEBAS*/
+                           UNION
+                           
+                           SELECT ALI.ID_ALIADOESTRATEGICO,
+                                  ALI.NOMALIADOESTRATEGICO,
+                                  PRD.ID_PRODUCTO,
+                                  PRD.NOMPRODUCTO,
+                                  CCP.NUMERO_DIAS,
+                                  CCP.DEBE_HABER,
+                                  CCA.ACUMULA_NO_HABIL_DIA_ANT,
+                                  CASE CCP.HABILES
+                                    WHEN 1 THEN
+                                     SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL(CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO)),
+                                                                                   CCP.NUMERO_DIAS,
+                                                                                   CCP.NUMERO_DIAS,
+                                                                                   CCA.ACUMULA_NO_HABIL_DIA_ANT)
+                                    ELSE
+                                    
+                                     SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_CALENDARIO(CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO)),
+                                                                                        CCP.NUMERO_DIAS)
+                                  END FECHA_A_COMPENSAR
+                             FROM SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO CCA,
+                                  WSXML_SFG.ALIADOESTRATEGICO               ALI,
+                                  WSXML_SFG.PRODUCTO                        PRD,
+                                  SFG_CONCILIACION.COM_CONF_COMPENSA_PROD   CCP
+                            WHERE CCA.CODALIADO = ALI.ID_ALIADOESTRATEGICO
+                              AND ALI.ID_ALIADOESTRATEGICO =
+                                  PRD.CODALIADOESTRATEGICO
+                              AND CCA.ID_CONF_COMPENSA_ALIADO =
+                                  CCP.COD_CONF_COMPENSA_ALI
+                              AND PRD.ID_PRODUCTO = CCP.CODPRODUCTO
+                              AND CCP.COD_COM_FRECUENCIA = @FREC_PRO__COD_COM_FRECUENCIA;
+                           /*OJO DESDE ACA PRUEBAS*/
+                           --  AND ALI.ID_ALIADOESTRATEGICO = 107
+                           /*OJO HASTA ACA PRUEBAS*/
+		 OPEN CFG_ALI_COMP;
+
+		 DECLARE @CFG_ALI_COMP__ID_ALIADOESTRATEGICO NUMERIC(38,0),
+                                  @CFG_ALI_COMP__NOMALIADOESTRATEGICO VARCHAR(255),
+                                  @CFG_ALI_COMP__ID_PRODUCTO NUMERIC(38,0),
+                                  @CFG_ALI_COMP__NOMPRODUCTO VARCHAR(255),
+                                  @CFG_ALI_COMP__NUMERO_DIAS NUMERIC(38,0),
+                                  @CFG_ALI_COMP__DEBE_HABER VARCHAR(1),
+                                  @CFG_ALI_COMP__ACUMULA_NO_HABIL_DIA_ANT NUMERIC(22,0),
+								  @CFG_ALI_COMP__FECHA_A_COMPENSAR DATETIME
+
+		 FETCH NEXT FROM CFG_ALI_COMP INTO  @CFG_ALI_COMP__ID_ALIADOESTRATEGICO,
+                                  @CFG_ALI_COMP__NOMALIADOESTRATEGICO, @CFG_ALI_COMP__ID_PRODUCTO,
+                                  @CFG_ALI_COMP__NOMPRODUCTO, @CFG_ALI_COMP__NUMERO_DIAS,
+                                  @CFG_ALI_COMP__DEBE_HABER, @CFG_ALI_COMP__ACUMULA_NO_HABIL_DIA_ANT, @CFG_ALI_COMP__FECHA_A_COMPENSAR
+
+		 WHILE @@FETCH_STATUS=0
+		 BEGIN
+      
+			BEGIN
+			  -- CALL THE PROCEDURE AJUSTES
+			  EXEC SFG_CONCILIACION.COM_COMPENSA_COMPENSA_AJUSTES @CFG_ALI_COMP__FECHA_A_COMPENSAR,
+															 @CFG_ALI_COMP__ID_ALIADOESTRATEGICO,
+															 @CFG_ALI_COMP__ID_PRODUCTO
+			END;
+      
+        SET @V_DEBE_HABER = @CFG_ALI_COMP__DEBE_HABER;
+      
+        BEGIN
+          DECLARE SUMA_COMPENSAR CURSOR FOR SELECT ATA.ID_ARCHIVOTRANSACCIONALIADO,
+                                        ATA.FECHAARCHIVO
+                                   FROM WSXML_SFG.ARCHIVOTRANSACCIONALIADO ATA
+                                  WHERE ATA.FECHAARCHIVO <=
+                                        @CFG_ALI_COMP__FECHA_A_COMPENSAR
+                                    AND ATA.CODALIADOESTRATEGICO = @CFG_ALI_COMP__ID_ALIADOESTRATEGICO
+                                    AND ATA.COMPENSADO IN (0, 2); OPEN SUMA_COMPENSAR;
+
+		 DECLARE @SUMA_COMPENSAR__ID_ARCHIVOTRANSACCIONALIADO NUMERIC(38,0),@SUMA_COMPENSAR__FECHAARCHIVO DATETIME
+		 FETCH NExT FROM SUMA_COMPENSAR INTO @SUMA_COMPENSAR__ID_ARCHIVOTRANSACCIONALIADO, @SUMA_COMPENSAR__FECHAARCHIVO
+		 WHILE @@FETCH_STATUS=0
+		 BEGIN
+          
+            SET @V_COD_ALIADO           = @CFG_ALI_COMP__ID_ALIADOESTRATEGICO
+            SET @V_FECHA_VENCIMIENTO    = CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO));
+            SET @V_FECHA_COMPENSACION   = NULL;
+            SET @V_VALOR_TX             = 0;
+            SET @V_CANTIDAD_TX          = 0;
+            SET @V_FLAG_INSERT_COMPENSA = 0;
+          
+            DECLARE DETALL_TX CURSOR FOR SELECT ROW_NUMBER() OVER(ORDER BY TA.ID_TRANSACCIONALIADO) AS FILA,
+                                     RFR.VALORTRANSACCION,
+                                     @SUMA_COMPENSAR__FECHAARCHIVO AS FECHAARCHIVO
+                              --SE ADICIONA LECTURA DEL VALOR DE Registrofactreferencia PARA PAGAR CON ESE VALOR
+                                FROM WSXML_SFG.TRANSACCIONALIADO      TA,
+                                     WSXML_SFG.Registrofactreferencia RFR,
+                                     WSXML_SFG.Registrofacturacion    RF
+                               WHERE TA.CODREGISTROFACTREFERENCIA =
+                                     RFR.ID_REGISTROFACTREFERENCIA
+                                 AND RF.ID_REGISTROFACTURACION =
+                                     RFR.CODREGISTROFACTURACION
+                                 AND TA.CODPRODUCTO = @CFG_ALI_COMP__ID_PRODUCTO
+                                 AND TA.CODARCHIVOTRANSACCIONALIADO =
+                                     @SUMA_COMPENSAR__ID_ARCHIVOTRANSACCIONALIADO
+                                 AND TA.COMPENSADO IN (0, 2)
+                                 AND TA.CODREGISTROFACTREFERENCIA IS NOT NULL
+                                    --SE ADICIONA LECTURA DEL TIPO DE REGISTRO DE Registrofacturacion PAREA QUE SOLO SEAN VENTAS
+                                 AND RF.CODTIPOREGISTRO = 1; OPEN DETALL_TX;
+			
+			 DECLARE @DETALL_TX__FILA NUMERIC(38,0), @DETALL_TX__VALORTRANSACCION FLOAT, @DETALL_TX__FECHAARCHIVO DATETIME
+
+			 FETCH NEXT FROM DETALL_TX INTO @DETALL_TX__FILA , @DETALL_TX__VALORTRANSACCION, @DETALL_TX__FECHAARCHIVO
+			 WHILE @@FETCH_STATUS=0
+			 BEGIN
+            
+				SET @V_COD_PRODUCTO         = @CFG_ALI_COMP__ID_PRODUCTO;
+				SET @V_VALOR_TX             = @V_VALOR_TX + @DETALL_TX__VALORTRANSACCION;
+				SET @V_CANTIDAD_TX          = @V_CANTIDAD_TX + 1;
+				SET @V_FECHA_RECAUDO        = @DETALL_TX__FECHAARCHIVO;
+				SET @V_FLAG_INSERT_COMPENSA = 1;
+            
+				FETCH NEXT FROM DETALL_TX INTO @DETALL_TX__FILA , @DETALL_TX__VALORTRANSACCION, @DETALL_TX__FECHAARCHIVO
+             END;
+            CLOSE DETALL_TX;
+            DEALLOCATE DETALL_TX;
+
+            IF @V_FLAG_INSERT_COMPENSA = 1
+              BEGIN
+                -- CALL THE PROCEDURE
+                EXEC SFG_CONCILIACION.SFGCONCIWEBCOM_COMPENSACION_ADDRECORD 
+																		@V_COD_ALIADO,
+																		@V_COD_PRODUCTO,
+																		@V_FECHA_VENCIMIENTO,
+																		@V_FECHA_COMPENSACION,
+																		@V_VALOR_TX,
+																		@V_CANTIDAD_TX,
+																		@V_DEBE_HABER,
+																		@V_FECHA_RECAUDO,
+																		@V_ID_COM_COMPENSACION_OUT OUT
+              
+              END;
+            
+          
+            SET @V_COD_ALIADO        = NULL;
+            SET @V_COD_PRODUCTO      = NULL;
+            SET @V_FECHA_VENCIMIENTO = NULL;
+            SET @V_VALOR_TX          = NULL;
+            SET @V_CANTIDAD_TX       = NULL;
+            SET @V_FECHA_RECAUDO     = NULL;
+            /*
+              FOR DETALL_TX IN (SELECT TA.ROWID AS FILA,
+                                       TA.VALORTRANSACCION,
+                                       SUMA_COMPENSAR.FECHAARCHIVO AS FECHAARCHIVO
+                                  FROM WSXML_SFG.TRANSACCIONALIADO TA
+                                 WHERE TA.CODPRODUCTO =
+                                       CFG_ALI_COMP.ID_PRODUCTO
+                                   AND TA.CODARCHIVOTRANSACCIONALIADO =
+                                       SUMA_COMPENSAR.ID_ARCHIVOTRANSACCIONALIADO
+                                   AND TA.COMPENSADO IN (0, 2)) LOOP
+            
+                UPDATE WSXML_SFG.TRANSACCIONALIADO TA
+                   SET TA.COMPENSADO           = 1,
+                       TA.COD_COM_COMPENSACION = V_ID_COM_COMPENSACION_OUT
+                 WHERE TA.ROWID = DETALL_TX.FILA;
+            
+              END LOOP;
+            */
+          
+            BEGIN
+				INSERT INTO @lsttransactions
+				SELECT ID_TRANSACCIONALIADO
+                
+                FROM WSXML_SFG.TRANSACCIONALIADO TA
+				WHERE TA.CODPRODUCTO = @CFG_ALI_COMP__ID_PRODUCTO
+					AND TA.CODARCHIVOTRANSACCIONALIADO = @SUMA_COMPENSAR__ID_ARCHIVOTRANSACCIONALIADO
+                 AND TA.COMPENSADO IN (0, 2);
+              IF (SELECT COUNT(*) FROM @lsttransactions) > 0 BEGIN
+                update wsxml_sfg.transaccionaliado
+                   set compensado           = 1,
+                       cod_com_compensacion = @V_ID_COM_COMPENSACION_OUT
+                 WHERE ID_TRANSACCIONALIADO IN
+                       (SELECT IDVALUE FROM @lsttransactions);
+              END 
+            END;
+          
+            DECLARE ATACUR CURSOR FOR SELECT TA.COMPENSADO, COUNT(*) AS CANTIDAD
+                             FROM WSXML_SFG.TRANSACCIONALIADO        TA,
+                                  WSXML_SFG.ARCHIVOTRANSACCIONALIADO ATA
+                            WHERE TA.CODARCHIVOTRANSACCIONALIADO = ATA.ID_ARCHIVOTRANSACCIONALIADO
+                              AND ATA.ID_ARCHIVOTRANSACCIONALIADO = @SUMA_COMPENSAR__ID_ARCHIVOTRANSACCIONALIADO
+                            GROUP BY TA.COMPENSADO; 
+			OPEN ATACUR;
+			DECLARE @ATACUR__COMPENSADO NUMERIC(22,0), @ATACUR__CANTIDAD NUMERIC(22,0)
+			
+			FETCH NEXT FROM ATACUR INTO @ATACUR__CANTIDAD;
+			WHILE @@FETCH_STATUS=0
+			BEGIN
+            
+              IF @ATACUR__COMPENSADO = 0 BEGIN
+              
+                UPDATE WSXML_SFG.ARCHIVOTRANSACCIONALIADO
+                   SET COMPENSADO = 2
+                 WHERE ID_ARCHIVOTRANSACCIONALIADO = @SUMA_COMPENSAR__ID_ARCHIVOTRANSACCIONALIADO;
+                BREAK;
+              END
+              ELSE IF @ATACUR__COMPENSADO = 1 BEGIN
+              
+                UPDATE WSXML_SFG.ARCHIVOTRANSACCIONALIADO
+                   SET COMPENSADO = 1
+                 WHERE ID_ARCHIVOTRANSACCIONALIADO = @SUMA_COMPENSAR__ID_ARCHIVOTRANSACCIONALIADO;
+              
+              END 
+            
+			 FETCH NEXT FROM ATACUR INTO @ATACUR__CANTIDAD;
+            END;
+            CLOSE ATACUR;
+            DEALLOCATE ATACUR;
+
+
+          FETCH NExT FROM SUMA_COMPENSAR INTO @SUMA_COMPENSAR__ID_ARCHIVOTRANSACCIONALIADO, @SUMA_COMPENSAR__FECHAARCHIVO
+          END;
+          CLOSE SUMA_COMPENSAR;
+          DEALLOCATE SUMA_COMPENSAR;
+        END;
+      
+      FETCH NEXT FROM CFG_ALI_COMP INTO  @CFG_ALI_COMP__ID_ALIADOESTRATEGICO,
+                                  @CFG_ALI_COMP__NOMALIADOESTRATEGICO, @CFG_ALI_COMP__ID_PRODUCTO,
+                                  @CFG_ALI_COMP__NOMPRODUCTO, @CFG_ALI_COMP__NUMERO_DIAS,
+                                  @CFG_ALI_COMP__DEBE_HABER, @CFG_ALI_COMP__ACUMULA_NO_HABIL_DIA_ANT, @CFG_ALI_COMP__FECHA_A_COMPENSAR
+      END;
+      CLOSE CFG_ALI_COMP;
+      DEALLOCATE CFG_ALI_COMP;
+    
+    FETCH NEXT FROM FREC_PRO INTO @FREC_PRO__COD_COM_FRECUENCIA
+    END;
+    CLOSE FREC_PRO;
+    DEALLOCATE FREC_PRO;
+  
+    DECLARE ALI_CAD CURSOR FOR 
+		SELECT AC.COD_ALIADOESTRATEGICO,
+			SFG_CONCILIACION.COM_COMPENSA_HASTA_DIA_HABIL_mas(CONVERT(DATETIME, CONVERT(DATE,@FECHA_PROCESO))) as FECHA_A_COMPENSAR
+        FROM SFG_CONCILIACION.COM_ALIADO_CADENA AC
+        where ac.active = 1
+        group by AC.COD_ALIADOESTRATEGICO; OPEN ALI_CAD;
+
+		DECLARE @ALI_CAD__COD_ALIADOESTRATEGICO NUMERIC(38,0), @ALI_CAD__FECHA_A_COMPENSAR DATETIME
+		FETCH NEXT FROM ALI_CAD INTO @ALI_CAD__COD_ALIADOESTRATEGICO, @ALI_CAD__FECHA_A_COMPENSAR;
+		 WHILE @@FETCH_STATUS=0
+		 BEGIN
+    
+			EXEC SFG_CONCILIACION.COM_COMPENSA_COMPENSA_CADENAS_DESCONTADAS 
+					@ALI_CAD__FECHA_A_COMPENSAR, @ALI_CAD__COD_ALIADOESTRATEGICO
+    
+		FETCH NEXT FROM ALI_CAD INTO @ALI_CAD__COD_ALIADOESTRATEGICO, @ALI_CAD__FECHA_A_COMPENSAR;
+		END;
+    CLOSE ALI_CAD;
+    DEALLOCATE ALI_CAD;
+
+	
+	DECLARE @l_LASTADAY DATETIME = dbo.LAST_DAY( CONVERT( DATETIME, CONVERT(DATE,GETDATE())))
+    DECLARE FECHA CURSOR FOR SELECT SFG_CONCILIACION.CON_CALENDARIO_GRAL.FECHA_CALENDARIO,
+                         SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO.CODALIADO
+                    FROM SFG_CONCILIACION.CON_CALENDARIO_GRAL,
+                         SFG_CONCILIACION.COM_CONF_COMPENSA_ALIADO
+                   WHERE CON_CALENDARIO_GRAL.FECHA_CALENDARIO >=
+                         WSXML_SFG.DATEADD('mm', -3, @l_LASTADAY )
+                     AND CON_CALENDARIO_GRAL.FECHA_CALENDARIO <=
+                         WSXML_SFG.DATEADD('mm', 1, @l_LASTADAY); 
+	OPEN FECHA;
+
+	DECLARE @FECHA__FECHA_CALENDARIO DATETIME, @FECHA__CODALIADO NUMERIC(38,0)
+
+	FETCH NEXT FROM FECHA INTO @FECHA__FECHA_CALENDARIO,@FECHA__CODALIADO
+	WHILE @@FETCH_STATUS=0
+	BEGIN
+    
+		BEGIN
+		
+			--EXCEPTION WHEN DUP_VAL_ON_INDEX THEN
+			IF EXISTS (
+				SELECT * FROM SFG_CONCILIACION.VW_ALI_VS_FECHA 
+					WHERE FECHA_CALENDARIO = @FECHA__FECHA_CALENDARIO AND CODALIADO = @FECHA__CODALIADO
+				) BEGIN
+				SELECT NULL;
+			END ELSE BEGIN
+				INSERT INTO SFG_CONCILIACION.VW_ALI_VS_FECHA (FECHA_CALENDARIO, CODALIADO)
+				VALUES (@FECHA__FECHA_CALENDARIO, @FECHA__CODALIADO);
+			END
+          
+		END;
+    
+		FETCH NEXT FROM FECHA INTO @FECHA__FECHA_CALENDARIO,@FECHA__CODALIADO
+    END;
+    CLOSE FECHA;
+    DEALLOCATE FECHA;
+  
+	--Revisar
+	--EXECUTE sp_refreshview  SFG_CONCILIACION.VW_COM_COMPENSA_RESUMEN
+ 
+END
+GO
+
+

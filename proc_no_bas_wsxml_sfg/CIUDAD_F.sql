@@ -1,0 +1,26 @@
+USE SFGPRODU;
+--  DDL for Function CIUDAD_F
+--------------------------------------------------------
+
+IF OBJECT_ID('WSXML_SFG.CIUDAD_F', 'FN') IS NOT NULL
+    DROP FUNCTION WSXML_SFG.CIUDAD_F;
+GO
+
+CREATE FUNCTION WSXML_SFG.CIUDAD_F (@p_CODIGODANE NVARCHAR(2000)) RETURNS NUMERIC(22,0) AS
+	BEGIN
+	DECLARE @result NUMERIC(22,0);
+ 
+	SELECT @result = ID_CIUDAD 
+	FROM WSXML_SFG.CIUDAD
+	WHERE CAST(CIUDADDANE AS INT) = CAST(@p_CODIGODANE AS INT);
+
+	 IF @@ROWCOUNT = 0 BEGIN
+		--EXCEPTION WHEN OTHERS THEN  RAISERROR('-20054 No existe la la fecha en el calendario', 16, 1);
+		RETURN CAST('-20054 No existe la ciudad con codigo ' + ISNULL(@p_CODIGODANE, '') as INT)
+		RETURN 0;
+	END
+
+	RETURN @result;
+
+END
+

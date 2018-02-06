@@ -1,0 +1,61 @@
+USE SFGPRODU;
+--  DDL for Function CALCULARDIGITOVERIFICACION
+--------------------------------------------------------
+
+  IF OBJECT_ID('WSXML_SFG.CALCULARDIGITOVERIFICACION', 'FN') IS NOT NULL
+    DROP FUNCTION WSXML_SFG.CALCULARDIGITOVERIFICACION;
+GO
+
+  CREATE FUNCTION WSXML_SFG.CALCULARDIGITOVERIFICACION (@IDENTIFICACION NUMERIC(22,0))
+  returns integer as
+ begin
+  declare @Result INTeger;
+ 
+  IF ISNULL(@IDENTIFICACION, 0) <> 0 BEGIN
+      DECLARE @NUMBERS TABLE (ID INT , CODE INT)
+	  
+	  
+
+
+      
+      DECLARE @LENGTHNIT INT;
+      DECLARE @TMP INT;
+      DECLARE @TMPIDENTIFICACION INT;
+      DECLARE @ITEM INT;
+      DECLARE @CHK INT;
+      DECLARE @MODRES INT;
+
+    BEGIN
+
+      
+      SET @LENGTHNIT= LEN(CONVERT(VARCHAR, @IDENTIFICACION));
+	  
+	  INSERT INTO @NUMBERS VALUES (1,3), (2,7), (3,13), (4,17), (5,19), (6,23), (7,29), (8,37), (9,41), (10,43), (11,47), (12,53), (13,59), (14,67), (15,71)
+
+      
+      SET @CHK =0;
+      SET @ITEM=1;
+      SET @TMPIDENTIFICACION= @IDENTIFICACION;
+
+      WHILE @TMPIDENTIFICACION >0
+            BEGIN
+                SET @TMP =  ROUND((@TMPIDENTIFICACION %10),0);
+                SET @TMPIDENTIFICACION=ROUND((@TMPIDENTIFICACION-@TMP)/10,0);
+                SET @CHK = @CHK + (@TMP * (SELECT CODE FROM @NUMBERS WHERE ID = @ITEM));
+                SET @ITEM=@ITEM +1;
+            END;
+      SET @MODRES = (@CHK %11);
+      IF @MODRES IN (0,1) BEGIN
+        RETURN @MODRES;
+      END
+      ELSE BEGIN
+        RETURN (11-@MODRES);
+      END  
+
+    END;
+
+  END 
+
+  return(@Result);
+end; 
+

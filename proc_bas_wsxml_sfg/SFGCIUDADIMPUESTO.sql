@@ -1,0 +1,153 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGCIUDADIMPUESTO
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGCIUDADIMPUESTO */ 
+
+  IF OBJECT_ID('WSXML_SFG.SFGCIUDADIMPUESTO_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_AddRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_AddRecord(@p_CODCIUDAD              NUMERIC(22,0),
+                      @p_CODIMPUESTO            NUMERIC(22,0),
+                      @p_FECHAINICIOVALIDEZ     DATETIME,
+                      @p_FECHAFINVALIDEZ        DATETIME,
+                      @p_CODUSUARIOMODIFICACION NUMERIC(22,0),
+                      @p_ID_CIUDADIMPUESTO_out  NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    INSERT INTO WSXML_SFG.CIUDADIMPUESTO (
+                                CODCIUDAD,
+                                CODIMPUESTO,
+                                FECHAINICIOVALIDEZ,
+                                FECHAFINVALIDEZ,
+                                CODUSUARIOMODIFICACION)
+    VALUES (
+            @p_CODCIUDAD,
+            @p_CODIMPUESTO,
+            @p_FECHAINICIOVALIDEZ,
+            @p_FECHAFINVALIDEZ,
+            @p_CODUSUARIOMODIFICACION);
+    SET @p_ID_CIUDADIMPUESTO_out = SCOPE_IDENTITY();
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGCIUDADIMPUESTO_UpdateRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_UpdateRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_UpdateRecord(@pk_ID_CIUDADIMPUESTO     NUMERIC(22,0),
+                         @p_CODCIUDAD              NUMERIC(22,0),
+                         @p_CODIMPUESTO            NUMERIC(22,0),
+                         @p_FECHAINICIOVALIDEZ     DATETIME,
+                         @p_FECHAFINVALIDEZ        DATETIME,
+                         @p_CODUSUARIOMODIFICACION NUMERIC(22,0),
+                         @p_ACTIVE                 NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+    UPDATE WSXML_SFG.CIUDADIMPUESTO
+       SET CODCIUDAD              = @p_CODCIUDAD,
+           CODIMPUESTO            = @p_CODIMPUESTO,
+           FECHAINICIOVALIDEZ     = @p_FECHAINICIOVALIDEZ,
+           FECHAFINVALIDEZ        = @p_FECHAFINVALIDEZ,
+           CODUSUARIOMODIFICACION = @p_CODUSUARIOMODIFICACION,
+           ACTIVE                 = @p_ACTIVE
+     WHERE ID_CIUDADIMPUESTO = @pk_ID_CIUDADIMPUESTO;
+
+    IF @@rowcount = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+    END 
+    IF @@rowcount > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+    END 
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGCIUDADIMPUESTO_GetRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_GetRecord;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_GetRecord(@pk_ID_CIUDADIMPUESTO NUMERIC(22,0)) AS
+ BEGIN
+    DECLARE @l_count INTEGER;
+   
+  SET NOCOUNT ON;
+    SELECT @l_count = COUNT(*) FROM WSXML_SFG.CIUDADIMPUESTO WHERE ID_CIUDADIMPUESTO = @pk_ID_CIUDADIMPUESTO;
+    IF @l_count = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+    END 
+    IF @l_count > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+    END 
+	 
+      SELECT ID_CIUDADIMPUESTO,
+             CODCIUDAD,
+             CODIMPUESTO,
+             FECHAINICIOVALIDEZ,
+             FECHAFINVALIDEZ,
+             FECHAHORAMODIFICACION,
+             CODUSUARIOMODIFICACION,
+             ACTIVE
+        FROM WSXML_SFG.CIUDADIMPUESTO
+       WHERE ID_CIUDADIMPUESTO = @pk_ID_CIUDADIMPUESTO;
+	
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGCIUDADIMPUESTO_GetList', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_GetList;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_GetList(@p_active NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+	 
+      SELECT ID_CIUDADIMPUESTO,
+             CODCIUDAD,
+             CODIMPUESTO,
+             FECHAINICIOVALIDEZ,
+             FECHAFINVALIDEZ,
+             FECHAHORAMODIFICACION,
+             CODUSUARIOMODIFICACION,
+             ACTIVE
+        FROM WSXML_SFG.CIUDADIMPUESTO
+       WHERE ACTIVE = CASE WHEN @p_active = -1 THEN ACTIVE ELSE @p_active END;
+	
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGCIUDADIMPUESTO_GetListByImpuesto', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_GetListByImpuesto;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCIUDADIMPUESTO_GetListByImpuesto(@p_ACTIVE      NUMERIC(22,0),
+                             @p_CODIMPUESTO NUMERIC(22,0)
+                                         ) AS
+  BEGIN
+  SET NOCOUNT ON;
+	 
+      SELECT CI.ID_CIUDADIMPUESTO,
+             CI.CODCIUDAD,
+             C.NOMCIUDAD,
+             C.CODDEPARTAMENTO,
+             D.NOMDEPARTAMENTO,
+             CI.CODIMPUESTO,
+             CI.FECHAINICIOVALIDEZ,
+             CI.FECHAFINVALIDEZ,
+             CI.FECHAHORAMODIFICACION,
+             CI.CODUSUARIOMODIFICACION,
+             CI.ACTIVE
+      FROM WSXML_SFG.CIUDADIMPUESTO CI
+      LEFT OUTER JOIN CIUDAD C
+        ON (C.ID_CIUDAD = CI.CODCIUDAD)
+      LEFT OUTER JOIN DEPARTAMENTO D
+        ON (D.ID_DEPARTAMENTO = C.CODDEPARTAMENTO)
+      WHERE CI.CODIMPUESTO = @p_CODIMPUESTO
+        AND CI.ACTIVE = CASE WHEN @p_ACTIVE = -1 THEN CI.ACTIVE ELSE @p_ACTIVE END;
+	
+  END;
+GO
+
+
+
+
+
+

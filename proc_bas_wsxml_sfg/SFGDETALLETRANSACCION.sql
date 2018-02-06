@@ -1,0 +1,152 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGDETALLETRANSACCION
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGDETALLETRANSACCION */ 
+
+  IF OBJECT_ID('WSXML_SFG.SFGDETALLETRANSACCION_AddRecord', 'P') IS NOT NULL
+    DROP PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_AddRecord;
+  GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_AddRecord(@p_CODCTRLTRANSACCION        NUMERIC(22,0),
+                      @p_NUMEROREGISTRO            NUMERIC(22,0),
+                      @p_FECHATRANSACCION          DATETIME,
+                      @p_VALORTRANSACCION          FLOAT,
+                      @p_CODUSUARIOMODIFICACION    NUMERIC(22,0),
+                      @p_ID_DETALLETRANSACCION_out NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    INSERT INTO WSXML_SFG.DETALLETRANSACCION (
+                                    CODCTRLTRANSACCION,
+                                    NUMEROREGISTRO,
+                                    FECHATRANSACCION,
+                                    VALORTRANSACCION,
+                                    CODUSUARIOMODIFICACION)
+    VALUES (
+            @p_CODCTRLTRANSACCION,
+            @p_NUMEROREGISTRO,
+            @p_FECHATRANSACCION,
+            @p_VALORTRANSACCION,
+            @p_CODUSUARIOMODIFICACION);
+    SET @p_ID_DETALLETRANSACCION_out = SCOPE_IDENTITY();
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGDETALLETRANSACCION_AddDescriptiveRecord', 'P') IS NOT NULL
+    DROP PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_AddDescriptiveRecord;
+  GO
+  CREATE PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_AddDescriptiveRecord(
+                                 @p_CODCTRLTRANSACCION        NUMERIC(22,0),
+                                 @p_CODMOVIMIENTOBANCO        NUMERIC(22,0),
+                                 @p_NUMEROREGISTRO            NUMERIC(22,0),
+                                 @p_FECHATRANSACCION          DATETIME,
+                                 @p_VALORTRANSACCION          FLOAT,
+                                 @p_CODUSUARIOMODIFICACION    NUMERIC(22,0),
+                                 @p_ID_DETALLETRANSACCION_out NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    INSERT INTO WSXML_SFG.DETALLETRANSACCION (
+                                    CODCTRLTRANSACCION,
+                                    CODMOVIMIENTOBANCO,
+                                    NUMEROREGISTRO,
+                                    FECHATRANSACCION,
+                                    VALORTRANSACCION,
+                                    CODUSUARIOMODIFICACION)
+    VALUES (
+            @p_CODCTRLTRANSACCION,
+            @p_CODMOVIMIENTOBANCO,
+            @p_NUMEROREGISTRO,
+            @p_FECHATRANSACCION,
+            @p_VALORTRANSACCION,
+            @p_CODUSUARIOMODIFICACION);
+    SET @p_ID_DETALLETRANSACCION_out = SCOPE_IDENTITY();
+  END;
+GO
+  IF OBJECT_ID('WSXML_SFG.SFGDETALLETRANSACCION_UpdateRecord', 'P') IS NOT NULL
+    DROP PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_UpdateRecord;
+  GO
+  CREATE PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_UpdateRecord
+                        (@pk_ID_DETALLETRANSACCION NUMERIC(22,0),
+                         @p_CODCTRLTRANSACCION     NUMERIC(22,0),
+                         @p_NUMEROREGISTRO         NUMERIC(22,0),
+                         @p_FECHATRANSACCION       DATETIME,
+                         @p_VALORTRANSACCION       FLOAT,
+                         @p_CODUSUARIOMODIFICACION NUMERIC(22,0),
+                         @p_ACTIVE                 NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+    UPDATE WSXML_SFG.DETALLETRANSACCION
+       SET CODCTRLTRANSACCION     = @p_CODCTRLTRANSACCION,
+           NUMEROREGISTRO         = @p_NUMEROREGISTRO,
+           FECHATRANSACCION       = @p_FECHATRANSACCION,
+           VALORTRANSACCION       = @p_VALORTRANSACCION,
+           CODUSUARIOMODIFICACION = @p_CODUSUARIOMODIFICACION,
+           FECHAHORAMODIFICACION  = GETDATE(),
+           ACTIVE                 = @p_ACTIVE
+    WHERE ID_DETALLETRANSACCION = @pk_ID_DETALLETRANSACCION;
+  END;
+GO
+
+
+  IF OBJECT_ID('WSXML_SFG.SFGDETALLETRANSACCION_GetRecord', 'P') IS NOT NULL
+    DROP PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_GetRecord;
+  GO
+  CREATE PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_GetRecord(
+                              @pk_ID_DETALLETRANSACCION NUMERIC(22,0)
+							   ) AS
+ BEGIN
+    DECLARE @l_count INTEGER;
+   
+  SET NOCOUNT ON;
+    SELECT @l_count = COUNT(*) FROM WSXML_SFG.DETALLETRANSACCION 
+	  WHERE ID_DETALLETRANSACCION = @pk_ID_DETALLETRANSACCION;
+      IF @l_count = 0 BEGIN
+         RAISERROR('-20054 The record no longer exists.', 16, 1);
+      END 
+      IF @l_count > 1 BEGIN
+         RAISERROR('-20053 Duplicate object instances.', 16, 1);
+      END 
+	  
+      SELECT ID_DETALLETRANSACCION,
+             NUMEROREGISTRO,
+             FECHATRANSACCION,
+             VALORTRANSACCION,
+             CODCTRLTRANSACCION,
+             CODUSUARIOMODIFICACION,
+             FECHAHORAMODIFICACION,
+             ACTIVE
+      FROM WSXML_SFG.DETALLETRANSACCION
+      WHERE ID_DETALLETRANSACCION = @pk_ID_DETALLETRANSACCION;
+	  
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGDETALLETRANSACCION_GetList', 'P') IS NOT NULL
+    DROP PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_GetList;
+  GO
+
+  CREATE PROCEDURE WSXML_SFG.SFGDETALLETRANSACCION_GetList(@p_ACTIVE NUMERIC(22,0)
+                                                                ) AS
+  BEGIN
+  SET NOCOUNT ON;
+   
+      SELECT ID_DETALLETRANSACCION,
+             NUMEROREGISTRO,
+             FECHATRANSACCION,
+             VALORTRANSACCION,
+             CODCTRLTRANSACCION,
+             CODUSUARIOMODIFICACION,
+             FECHAHORAMODIFICACION,
+             ACTIVE
+      FROM WSXML_SFG.DETALLETRANSACCION
+      WHERE ACTIVE = CASE WHEN @p_ACTIVE = -1 THEN ACTIVE ELSE @p_ACTIVE END;
+	  
+
+  END;
+GO 
+
+
+
+
+
+

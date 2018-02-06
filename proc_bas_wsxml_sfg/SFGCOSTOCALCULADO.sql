@@ -1,0 +1,206 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGCOSTOCALCULADO
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGCOSTOCALCULADO */ 
+
+   
+ IF OBJECT_ID('WSXML_SFG.SFGCOSTOCALCULADO_CONSTANT', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOSTOCALCULADO_CONSTANT;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCOSTOCALCULADO_CONSTANT(  
+  @p_VALORUSUARIO 	TINYINT OUT,
+  @p_VALORFIGURAP  	TINYINT OUT,
+  @p_VALORTARIFAV 	TINYINT OUT,
+  @p_VALORCOSTOPV 	TINYINT OUT,
+  @p_VALORCOSTASO 	TINYINT OUT) AS 
+BEGIN
+	SET @p_VALORUSUARIO = 1
+	SET @p_VALORFIGURAP = 2
+	SET @p_VALORTARIFAV = 3
+	SET @p_VALORCOSTOPV = 4
+	SET @p_VALORCOSTASO = 5
+END
+GO
+
+ 
+ 
+IF OBJECT_ID('WSXML_SFG.SFGCOSTOCALCULADO_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOSTOCALCULADO_AddRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCOSTOCALCULADO_AddRecord(@p_NOMCOSTOCALCULADO       NVARCHAR(2000),
+                      @p_CODSERVICIO             NUMERIC(22,0),
+                      @p_ORDEN                   NUMERIC(22,0),
+                      @p_CODUSUARIOMODIFICACION  NUMERIC(22,0),
+                      @p_ID_COSTOCALCULADO_out   NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    INSERT INTO WSXML_SFG.COSTOCALCULADO (
+                                NOMCOSTOCALCULADO,
+                                CODSERVICIO,
+                                ORDEN,
+                                CODUSUARIOMODIFICACION)
+    VALUES (
+            @p_NOMCOSTOCALCULADO,
+            @p_CODSERVICIO,
+            @p_ORDEN,
+            @p_CODUSUARIOMODIFICACION);
+    SET @p_ID_COSTOCALCULADO_out = SCOPE_IDENTITY();
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGCOSTOCALCULADO_AddAutoDetail', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOSTOCALCULADO_AddAutoDetail;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCOSTOCALCULADO_AddAutoDetail(@p_CODCOSTOCALCULADO       NUMERIC(22,0),
+                          @p_CODTIPOVALOR            NUMERIC(22,0),
+                          @p_VALORUSUARIO            FLOAT,
+                          @p_CODTIPOFIGURAPYG        NUMERIC(22,0),
+                          @p_CODTARIFAVALOR          NUMERIC(22,0),
+                          @p_CODCOSTOCALCULADOPREVIO NUMERIC(22,0),
+                          @p_OPERADOR                VARCHAR(1)) AS
+  BEGIN
+  SET NOCOUNT ON;
+  
+	DECLARE @l_VALORUSUARIO TINYINT, @l_VALORFIGURAP TINYINT, @l_VALORTARIFAV TINYINT, @l_VALORCOSTOPV TINYINT, @l_VALORCOSTASO TINYINT 
+	
+	EXEC WSXML_SFG.SFGCOSTOCALCULADO_CONSTANT 
+		@l_VALORUSUARIO 	OUT,
+		@l_VALORFIGURAP  	OUT,
+		@l_VALORTARIFAV 	OUT,
+		@l_VALORCOSTOPV 	OUT,
+		@l_VALORCOSTASO 	OUT
+	  
+    IF @p_CODTIPOVALOR = @l_VALORUSUARIO AND @p_VALORUSUARIO IS NULL BEGIN
+      RAISERROR('-20089 No se puede asignar un valor nulo a la operacion', 16, 1);
+    END
+    ELSE IF @p_CODTIPOVALOR = @l_VALORFIGURAP AND @p_CODTIPOFIGURAPYG IS NULL BEGIN
+      RAISERROR('-20089 No se puede asignar una figura de importe nula a la operacion', 16, 1);
+    END
+    ELSE IF @p_CODTIPOVALOR = @l_VALORTARIFAV AND @p_CODTARIFAVALOR IS NULL BEGIN
+      RAISERROR('-20089 No se puede asignar una tarifa de producto nula a la operacion', 16, 1);
+    END
+    ELSE IF @p_CODTIPOVALOR = @l_VALORCOSTOPV AND @p_CODCOSTOCALCULADOPREVIO IS NULL BEGIN
+      RAISERROR('-20089 No se puede asignar un costo calculado nulo a la operacion', 16, 1);
+    END 
+    INSERT INTO WSXML_SFG.COSTOCALCULADODETALLE ( 
+                                       CODCOSTOCALCULADO,
+                                       CODTIPOVALOR,
+                                       VALORUSUARIO,
+                                       CODTIPOFIGURAPYG,
+                                       CODTARIFAVALOR,
+                                       CODCOSTOCALCULADOPREVIO,
+                                       OPERADOR)
+    VALUES (
+            @p_CODCOSTOCALCULADO,
+            @p_CODTIPOVALOR,
+            CASE WHEN @p_CODTIPOVALOR = @l_VALORUSUARIO THEN @p_VALORUSUARIO ELSE NULL END,
+            CASE WHEN @p_CODTIPOVALOR = @l_VALORFIGURAP THEN @p_CODTIPOFIGURAPYG ELSE NULL END,
+            CASE WHEN @p_CODTIPOVALOR = @l_VALORTARIFAV THEN @p_CODTARIFAVALOR ELSE NULL END,
+            CASE WHEN @p_CODTIPOVALOR = @l_VALORCOSTOPV THEN @p_CODCOSTOCALCULADOPREVIO ELSE NULL END,
+            @p_OPERADOR);
+  END;
+GO
+
+  IF OBJECT_ID('WSXML_SFG.SFGCOSTOCALCULADO_AddDetail', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOSTOCALCULADO_AddDetail;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCOSTOCALCULADO_AddDetail(@p_CODCOSTOCALCULADO            NUMERIC(22,0),
+                      @p_CODTIPOVALOR                 NUMERIC(22,0),
+                      @p_VALORUSUARIO                 FLOAT,
+                      @p_CODTIPOFIGURAPYG             NUMERIC(22,0),
+                      @p_CODTARIFAVALOR               NUMERIC(22,0),
+                      @p_OPERADOR                     VARCHAR(4000),
+                      @p_ID_COSTOCALCULADODETALLE_out NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    INSERT INTO WSXML_SFG.COSTOCALCULADODETALLE (
+                                      CODCOSTOCALCULADO,
+                                      CODTIPOVALOR,
+                                      VALORUSUARIO,
+                                      CODTIPOFIGURAPYG,
+                                      CODTARIFAVALOR,
+                                      OPERADOR)
+    VALUES (
+            @p_CODCOSTOCALCULADO,
+            @p_CODTIPOVALOR,
+            @p_VALORUSUARIO,
+            @p_CODTIPOFIGURAPYG,
+            @p_CODTARIFAVALOR,
+            @p_OPERADOR);
+    SET @p_ID_COSTOCALCULADODETALLE_out = SCOPE_IDENTITY();
+  END;
+GO
+
+
+
+IF EXISTS (
+    SELECT * FROM sys.objects WHERE OBJECT_NAME(object_id) = N'SFGCOSTOCALCULADO_GetCurrentCostoList'
+    AND type IN (N'FN', N'IF', N'TF')
+)
+    DROP FUNCTION WSXML_SFG.SFGCOSTOCALCULADO_GetCurrentCostoList
+GO
+
+
+
+CREATE   FUNCTION WSXML_SFG.SFGCOSTOCALCULADO_GetCurrentCostoList(@p_CODSERVICIO NUMERIC(22,0)) 
+RETURNS @allformulas TABLE (
+	ID NUMERIC(38,0),
+	DESCONTABLE NUMERIC(38,0),
+	DEFINITION VARCHAR(MAX)
+) AS
+ BEGIN
+    
+   
+    
+    DECLARE costocalculado CURSOR FOR 	
+		SELECT ID_COSTOCALCULADO, DESCONTABLE 
+		FROM WSXML_SFG.COSTOCALCULADO WHERE CODSERVICIO = @p_CODSERVICIO ORDER BY ORDEN; OPEN costocalculado;
+	
+	DECLARE @costocalculado__ID_COSTOCALCULADO NUMERIC(38,0), @costocalculado__DESCONTABLE NUMERIC(22,0)
+	
+	FETCH NEXT FROM costocalculado INTO @costocalculado__ID_COSTOCALCULADO, @costocalculado__DESCONTABLE;
+	
+	WHILE @@FETCH_STATUS=0
+	
+	BEGIN
+        DECLARE @operations VARCHAR(MAX)--WSXML_SFG.OPERATIONCALC;
+      BEGIN
+        -- Collection assumes operation insertion followed null ruling
+		/*
+		INSERT INTO @operations
+        SELECT CODTIPOVALOR, COALESCE(VALORUSUARIO, CODTIPOFIGURAPYG, CODTARIFAVALOR, CODCOSTOCALCULADOPREVIO,CODCOSTOASOCIADO), OPERADOR 
+        FROM COSTOCALCULADODETALLE WHERE CODCOSTOCALCULADO = @costocalculado__ID_COSTOCALCULADO ORDER BY ID_COSTOCALCULADODETALLE;
+		*/
+		
+		SELECT @operations =  STUFF((
+			SELECT '|'+T.CAMPO
+			FROM (
+					SELECT CONVERT(VARCHAR,CODTIPOVALOR)+ ';' + CONVERT(VARCHAR,COALESCE(VALORUSUARIO, CODTIPOFIGURAPYG, CODTARIFAVALOR, CODCOSTOCALCULADOPREVIO,CODCOSTOASOCIADO)) + ';'+ OPERADOR AS CAMPO
+						, ROW_NUMBER() OVER(ORDER BY ID_COSTOCALCULADODETALLE ASC) ISD_ROW_NUMBER
+					FROM WSXML_SFG.COSTOCALCULADODETALLE
+					WHERE CODCOSTOCALCULADO = @costocalculado__ID_COSTOCALCULADO 
+					
+			) T
+			FOR XML PATH('')
+		),1,1, '')
+
+
+
+        IF @@ROWCOUNT > 0 BEGIN
+          INSERT INTO @allformulas VALUES(@costocalculado__ID_COSTOCALCULADO, @costocalculado__DESCONTABLE, @operations);
+        END 
+      END;
+
+    FETCH NEXT FROM costocalculado INTO @costocalculado__ID_COSTOCALCULADO, @costocalculado__DESCONTABLE;
+    END;
+
+    CLOSE costocalculado;
+    DEALLOCATE costocalculado;
+    RETURN
+  END;
+GO

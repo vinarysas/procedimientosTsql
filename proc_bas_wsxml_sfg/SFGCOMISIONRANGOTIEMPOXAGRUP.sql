@@ -1,0 +1,156 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGCOMISIONRANGOTIEMPOXAGRUP
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP */ 
+
+ --Add Record in the table COMISIONRANGOTIEMPOXAGRUP table.
+ IF OBJECT_ID('WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_AddRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_AddRecord;
+GO
+
+CREATE   PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_AddRecord(@p_CODCOMISIONRANGOTIEMPO    NUMERIC(22,0),
+                      @p_CODAGRUPACIONPUNTOVENTA        NUMERIC(22,0),
+                      @p_ACTIVE                         NUMERIC(22,0),
+                      @p_ID_COMISRANGOTIEMPOXAG_out NUMERIC(22,0) OUT) AS
+  BEGIN
+  SET NOCOUNT ON;
+    INSERT INTO WSXML_SFG.COMISIONRANGOTIEMPOXAGRUP (
+                                        CODCOMISIONRANGOTIEMPO,
+                                        CODAGRUPACIONPUNTOVENTA,
+                                        ACTIVE
+                                        )
+    VALUES (
+            @p_CODCOMISIONRANGOTIEMPO,
+            @p_CODAGRUPACIONPUNTOVENTA,
+            @p_ACTIVE);
+    SET @p_ID_COMISRANGOTIEMPOXAG_out = SCOPE_IDENTITY();
+  END;
+GO
+
+  --Update Record in the COMISIONRANGOTIEMPOXAGRUP table.
+  IF OBJECT_ID('WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_UpdateRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_UpdateRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_UpdateRecord(@pk_ID_COMSRANGOTIEMPOXAGRUP             NUMERIC(22,0),
+                         @p_CODCOMISIONRANGOTIEMPO              NUMERIC(22,0),
+                         @p_CODAGRUPACIONPUNTOVENTA             NUMERIC(22,0),
+                         @p_ACTIVE                              NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+    -- Update the record with the passed parameters
+    UPDATE WSXML_SFG.COMISIONRANGOTIEMPOXAGRUP
+    SET CODCOMISIONRANGOTIEMPO              = @p_CODCOMISIONRANGOTIEMPO,
+           CODAGRUPACIONPUNTOVENTA             = @p_CODAGRUPACIONPUNTOVENTA,
+           ACTIVE                              = @p_ACTIVE
+    WHERE ID_COMISIONRANGOTIEMPOXAGRUP = @pk_ID_COMSRANGOTIEMPOXAGRUP;
+
+    -- Make sure only one record is affected
+    IF @@rowcount = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+    END 
+    IF @@rowcount > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+    END 
+
+  END;
+GO
+
+   --Delete Record in the COMISIONRANGOTIEMPODETALLE table.
+  IF OBJECT_ID('WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_DeleteRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_DeleteRecord;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_DeleteRecord(@pk_ID_COMSRANGOTIEMPOXAGRUP             NUMERIC(22,0)) AS
+  BEGIN
+  SET NOCOUNT ON;
+  UPDATE WSXML_SFG.COMISIONRANGOTIEMPOXAGRUP SET ACTIVE=0
+  WHERE ID_COMISIONRANGOTIEMPOXAGRUP = @pk_ID_COMSRANGOTIEMPOXAGRUP;
+  END;
+GO
+
+  --Get Record in the COMSRANGOTIEMPOXAGRUP table by the Primary Key.
+  IF OBJECT_ID('WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_GetRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_GetRecord;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_GetRecord(@pk_ID_COMSRANGOTIEMPOXAGRUP NUMERIC(22,0)) AS
+ BEGIN
+    DECLARE @l_count INTEGER;
+   
+  SET NOCOUNT ON;
+
+    -- Get the rowcount first and make sure
+    -- only one row is returned
+    SELECT @l_count = count(*)
+      FROM WSXML_SFG.COMISIONRANGOTIEMPOXAGRUP
+     WHERE ID_COMISIONRANGOTIEMPOXAGRUP = @pk_ID_COMSRANGOTIEMPOXAGRUP;
+
+    IF @l_count = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+    END 
+
+    IF @l_count > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+    END 
+
+    -- Get the row from the query.  Checksum value will be
+    -- returned along the row data to support concurrency.
+	
+      SELECT ID_COMISIONRANGOTIEMPOXAGRUP,
+             CODCOMISIONRANGOTIEMPO,
+             CODAGRUPACIONPUNTOVENTA,
+             ACTIVE
+       FROM WSXML_SFG.COMISIONRANGOTIEMPOXAGRUP
+       WHERE ID_COMISIONRANGOTIEMPOXAGRUP = @pk_ID_COMSRANGOTIEMPOXAGRUP;
+	 
+  END;
+GO
+
+  --Get List of Records Active or Inactive in the table COMISIONRANGOTIEMPOXAGRUP table.
+  IF OBJECT_ID('WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_GetList', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_GetList;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_GetList(@p_active NUMERIC(22,0)) AS
+    BEGIN
+    SET NOCOUNT ON;
+
+    -- Get the rows from the query.  Checksum value will be
+    -- returned along the row data to support concurrency.
+	 
+    SELECT ID_COMISIONRANGOTIEMPOXAGRUP,
+             CODCOMISIONRANGOTIEMPO,
+             CODAGRUPACIONPUNTOVENTA,
+             ACTIVE
+       FROM WSXML_SFG.COMISIONRANGOTIEMPOXAGRUP
+    WHERE ACTIVE= @p_active;
+	 
+ END;
+GO
+
+      --Get List of Records Active or Inactive in the table COMISIONRANGOTIEMPOXAGRUP table.
+IF OBJECT_ID('WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_GetListByCodComisRangTiempo', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_GetListByCodComisRangTiempo;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGCOMISIONRANGOTIEMPOXAGRUP_GetListByCodComisRangTiempo(@p_CodComisRangTiempo NUMERIC(22,0)) AS
+    BEGIN
+    SET NOCOUNT ON;
+
+    -- Get the rows from the query.  Checksum value will be
+    -- returned along the row data to support concurrency.
+	
+    SELECT ID_COMISIONRANGOTIEMPOXAGRUP,
+             CODCOMISIONRANGOTIEMPO,
+             CODAGRUPACIONPUNTOVENTA,
+             ACTIVE
+       FROM WSXML_SFG.COMISIONRANGOTIEMPOXAGRUP
+    WHERE codcomisionrangotiempo= @p_CodComisRangTiempo;
+	 
+END;
+GO
+
+
+
+
+
+

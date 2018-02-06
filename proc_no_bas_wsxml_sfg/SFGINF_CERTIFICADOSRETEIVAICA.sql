@@ -1,0 +1,58 @@
+USE SFGPRODU;
+--  DDL for Package Body SFGINF_CERTIFICADOSRETEIVAICA
+--------------------------------------------------------
+
+  /* PACKAGE BODY WSXML_SFG.SFGINF_CERTIFICADOSRETEIVAICA */ 
+
+  IF OBJECT_ID('WSXML_SFG.SFGINF_CERTIFICADOSRETEIVAICA_GetCertificadosInfo', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGINF_CERTIFICADOSRETEIVAICA_GetCertificadosInfo;
+GO
+CREATE     PROCEDURE WSXML_SFG.SFGINF_CERTIFICADOSRETEIVAICA_GetCertificadosInfo(@p_FECHAGENERACION DATETIME) AS
+ BEGIN
+    DECLARE @firstMonthFirst DATETIME;
+    DECLARE @firstMonthLast  DATETIME;
+    DECLARE @lastMonthFirst  DATETIME;
+    DECLARE @lastMonthLast   DATETIME;
+    DECLARE @xTestNumber     NUMERIC(22,0);
+
+	DECLARE @p_CURRENTDATE DATETIME
+   
+  SET NOCOUNT ON;
+    -- Burnt Bymonthly Run
+    SELECT @xTestNumber = CAST(FORMAT(@p_FECHAGENERACION, 'MM') AS INT);
+    IF (@xTestNumber % 2) = 0 BEGIN
+		SET @p_CURRENTDATE = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAGENERACION))
+      EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @p_CURRENTDATE , @lastMonthFirst OUT, @lastMonthLast OUT
+	  
+	  SET @lastMonthFirst = @lastMonthFirst - 1
+      EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @lastMonthFirst, @firstMonthFirst OUT, @firstMonthLast OUT
+    END
+    ELSE BEGIN -- Always last bimester
+
+	  SET @p_CURRENTDATE = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAGENERACION)) - (CAST(FORMAT(@p_FECHAGENERACION, 'dd') AS INT) + 1)
+      EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @p_CURRENTDATE, @lastMonthFirst, @lastMonthLast
+
+	   SET @lastMonthFirst = @lastMonthFirst - 1
+      EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @lastMonthFirst, @firstMonthFirst, @firstMonthLast
+    END 
+    PRINT 'Final range becomes ' + ISNULL(FORMAT(@firstMonthFirst, 'dd/MM/yyyy'), '') + ' to ' + ISNULL(FORMAT(@lastMonthLast, 'dd/MM/yyyy'), '');
+	
+      SELECT RSC.ID_RAZONSOCIAL          AS CODRAZONSOCIAL,
+             RSC.NOMRAZONSOCIAL          AS NOMRAZONSOCIAL,
+             RSC.IDENTIFICACION          AS IDENTIFICACION,
+             RSC.DIGITOVERIFICACION      AS DIGITOVERIFICACION,
+             PRF.CODCOMPANIA             AS CODCOMPANIA,
+             SUM(PRF.COMISION)           AS COMISION,
+             SUM(PRF.IVACOMISION)        AS IVACOMISION,
+             SUM(PRF.RETEICA)            AS RETEICA,
+             SUM(PRF.RETEIVA)            AS RETEIVA
+      FROM WSXML_SFG.VW_PREFACTURACION_DIARIA PRF
+      INNER JOIN WSXML_SFG.PUNTODEVENTA         PDV ON (PDV.ID_PUNTODEVENTA         = PRF.CODPUNTODEVENTA)
+      INNER JOIN WSXML_SFG.RAZONSOCIAL          RSC ON (RSC.ID_RAZONSOCIAL          = PDV.CODRAZONSOCIAL)
+      WHERE PRF.FECHAARCHIVO BETWEEN @firstMonthFirst AND @lastMonthLast
+      GROUP BY RSC.ID_RAZONSOCIAL, RSC.NOMRAZONSOCIAL, RSC.IDENTIFICACION, RSC.DIGITOVERIFICACION, PRF.CODCOMPANIA
+      ORDER BY RSC.ID_RAZONSOCIAL, PRF.CODCOMPANIA;
+	  
+  END;
+GO
+
