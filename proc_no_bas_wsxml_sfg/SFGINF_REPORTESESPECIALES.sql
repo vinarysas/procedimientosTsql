@@ -1422,8 +1422,9 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_ReporteComisionPorContr
    
   SET NOCOUNT ON;
 
-      SELECT       ISNULL(FORMAT(CONVERT(DATETIME, CONVERT(DATE,'01-' + ISNULL(CONVERT(VARCHAR,@p_MES), '') + '-' + ISNULL(CONVERT(VARCHAR,@p_ANIO), ''))), 'Month'), '') + ' - ' +  ISNULL(@p_ANIO, '')   AS  Fecha
-                  ,T1.NOMTIPOCONTRATOPDV                 AS  Contrato
+  
+      SELECT       ISNULL(FORMAT(CONVERT(DATETIME, CONVERT(DATE,'01-' + dbo.lpad_varchar2(CONVERT(VARCHAR,@p_MES),2, '0') + '-' + ISNULL(CONVERT(VARCHAR,@p_ANIO), ''))), 'Month'), '') + ' - ' +  ISNULL(CONVERT(VARCHAR,@p_ANIO), '')   AS  Fecha
+                  , T1.NOMTIPOCONTRATOPDV                 AS  Contrato
                   , T2.CODIGOGTECHPUNTODEVENTA           AS  PuntoVenta
                   , SUM(
                       CASE WHEN  T3.CODTIPOREGISTRO IN (1,3) THEN  T3.VALORCOMISION
@@ -1445,8 +1446,8 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_ReporteComisionPorContr
       WHERE           T1.ID_TIPOCONTRATOPDV            =   T3.CODTIPOCONTRATOPDV
       AND           T2.ID_PUNTODEVENTA                =   T3.CODPUNTODEVENTA
       AND           T4.ID_ENTRADAARCHIVOCONTROL        =    T3.CODENTRADAARCHIVOCONTROL
-      AND           T4.FECHAARCHIVO                    >=  CONVERT(DATETIME,  ISNULL(@p_ANIO, '') + '-' + ISNULL(@p_MES, '') + '-01 00:00:00')
-      AND           T4.FECHAARCHIVO                    <=   DBO.LAST_DAY( CONVERT(DATETIME,  ISNULL(@p_ANIO, '') + '-' + ISNULL(@p_MES, '') + '-01 23:59:00') )
+      AND           T4.FECHAARCHIVO                    >=  CONVERT(DATETIME,  CONVERT(VARCHAR,@p_ANIO) + '-' + dbo.lpad_varchar2(CONVERT(VARCHAR,@p_MES),2, '0') + '-01 00:00:00')
+      AND           T4.FECHAARCHIVO                    <=   DBO.LAST_DAY( CONVERT(DATETIME,  CONVERT(VARCHAR,@p_ANIO) + '-' + dbo.lpad_varchar2(CONVERT(VARCHAR,@p_MES),2, '0') + '-01 23:59:00') )
       AND           T3.CODTIPOREGISTRO                =  1
       GROUP BY       T2.CODIGOGTECHPUNTODEVENTA  , T1.NOMTIPOCONTRATOPDV
       ORDER BY       PuntoVenta ASC        , Contrato ASC;
