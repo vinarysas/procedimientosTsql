@@ -118,7 +118,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_FacturacionConsolidada(
              AGR.NOMAGRUPACIONPUNTODEVENTA AS NOMAGRUPACIONPUNTODEVENTA,
              PDV.CODIGOGTECHPUNTODEVENTA AS CODIGOGTECHPUNTODEVENTA,
              PDV.NUMEROTERMINAL AS NUMEROTERMINAL,
-             ISNULL(RSC.IDENTIFICACION, '') + ISNULL(RSC.DIGITOVERIFICACION, '') AS IDENTIFICACION,
+             ISNULL(CONVERT(VARCHAR,RSC.IDENTIFICACION), '') + ISNULL(CONVERT(VARCHAR,RSC.DIGITOVERIFICACION), '') AS IDENTIFICACION,
              RSC.NOMRAZONSOCIAL AS NOMRAZONSOCIAL,
              TCT.NOMTIPOCONTRATOPDV AS NOMTIPOCONTRATOPDV,
              SUM(ISNULL(PRF.CANTIDADVENTA, 0)) AS CANTIDADVENTA,
@@ -1585,6 +1585,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_CutoffAliados          
 	
 GO
 
+
 IF OBJECT_ID('WSXML_SFG.SFGINF_REPORTESESPECIALES_RentabilidadCadenaFecha', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_RentabilidadCadenaFecha;
 GO
@@ -1595,7 +1596,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_RentabilidadCadenaFecha
                     )
   AS
   BEGIN
-      DECLARE @v_consulta VARCHAR(MAX);
+      DECLARE @v_consulta NVARCHAR(MAX);
       DECLARE @v_cadena VARCHAR(100);
       DECLARE @v_where_cadena VARCHAR(250);
       DECLARE @v_innerjoin_cadena VARCHAR(150);
@@ -1608,54 +1609,54 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_RentabilidadCadenaFecha
                 SET @v_innerjoin_cadena = ' ';
               end ELSE begin
                 SET @v_where_cadena =  ' AND     APD.CODIGOAGRUPACIONGTECH IN ('+ isnull(@v_cadena, '') +') ';
-                SET @v_innerjoin_cadena = ' INNER JOIN   AGRUPACIONPUNTODEVENTA APD ON (PRF.CODAGRUPACIONPUNTODEVENTA  = APD.ID_AGRUPACIONPUNTODEVENTA) ';
+                SET @v_innerjoin_cadena = ' INNER JOIN   WSXML_SFG.AGRUPACIONPUNTODEVENTA APD ON (PRF.CODAGRUPACIONPUNTODEVENTA  = APD.ID_AGRUPACIONPUNTODEVENTA) ';
          END;
 
     SET @v_consulta  =  ' SELECT /*+ push_pred(PRF) */ ' +
-    '          LDN.NOMLINEADENEGOCIO                          AS Linea de Negocio, ' +
+    '          LDN.NOMLINEADENEGOCIO                          AS "Linea de Negocio", ' +
     '          AES.NOMALIADOESTRATEGICO                       AS Aliado,           ' +
     '          AGP.NOMAGRUPACIONPRODUCTO                      AS Padre,            ' +
     '          PRD.CODIGOGTECHPRODUCTO                        AS Codigo,           ' +
     '          PRD.NOMPRODUCTO                                AS Producto,         ' +
     '          SUM(NumIngresos - NumAnulaciones)              AS Tx,               ' +
     '          SUM(IngresosBrutosNoRedondeo)                  AS Ingresos,         ' +
-    '          SUM(RevenueBase)                               AS Revenue Base,     ' +
+    '          SUM(RevenueBase)                               AS "Revenue Base",     ' +
     '          SUM(RevenueTransaccion)                        AS Rangos,           ' +
     '          SUM(RevenueFijo)                               AS Fijo,             ' +
-    '          SUM(RevenueTotal)                              AS Revenue Total,    ' +
-    '          SUM(IngresoCorporativo)                        AS Ingreso Corp,     ' +
-    '          SUM(IngresoLocal)                              AS Ingreso Local,    ' +
+    '          SUM(RevenueTotal)                              AS "Revenue Total",    ' +
+    '          SUM(IngresoCorporativo)                        AS "Ingreso Corp",     ' +
+    '          SUM(IngresoLocal)                              AS "Ingreso Local",    ' +
     '          SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV IN (1, 2)                        ' +
-    '                   THEN Comision ELSE 0 END)             AS Ingreso PDV Admin,' +
+    '                   THEN Comision ELSE 0 END)             AS "Ingreso PDV Admin",' +
     '          SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV = 3                              ' +
-    '                   THEN Comision ELSE 0 END)             AS Ingreso PDV Colab,' +
+    '                   THEN Comision ELSE 0 END)             AS "Ingreso PDV Colab",' +
     '          SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV IN (1, 2)                        ' +
-    '                   THEN IvaComision ELSE 0 END)          AS IVA Ingreso PDV Admin,' +
+    '                   THEN IvaComision ELSE 0 END)          AS "IVA Ingreso PDV Admin",' +
     '          SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV = 3                              ' +
-    '                   THEN IvaComision ELSE 0 END)          AS IVA Ingreso PDV Colab, ' +
-    '          SUM(EgresoLocal)                               AS Costo de Venta,   ' +
+    '                   THEN IvaComision ELSE 0 END)          AS "IVA Ingreso PDV Colab", ' +
+    '          SUM(EgresoLocal)                               AS "Costo de Venta",   ' +
     '          SUM(CostoICA)                                  AS ICA,              ' +
-    '          SUM(CostoEtesa)                                AS Comision ETESA,   ' +
+    '          SUM(CostoEtesa)                                AS "Comision ETESA",   ' +
     '          SUM(CostoIC)                                   AS IC,               ' +
-    '          SUM(CostoICAIC)                                AS ICA IC,           ' +
-    '          SUM(CostoBadDebt)                              AS Bad Debt,         ' +
+    '          SUM(CostoICAIC)                                AS "ICA IC",           ' +
+    '          SUM(CostoBadDebt)                              AS "Bad Debt",         ' +
     '          SUM(CostoMercadeoVenta + CostoMercadeoRevenue) AS Mercadeo,         ' +
-    '          SUM(CostoIvaNoDescontable)                     AS IVA Descontable,  ' +
-    '          SUM(CostoIC108)                                AS IC 108,           ' +
-    '          SUM(CostoICAIC108)                             AS ICA IC 108,       ' +
-    '          SUM(UtilidadParcial)                           AS Utilidad Parcial  ' +
-    ' FROM     VW_REVENUE_DIARIO PRF ' +
-    ' INNER JOIN   PRODUCTO               PRD ON (PRD.ID_PRODUCTO           = PRF.CODPRODUCTO) ' +
-    ' INNER JOIN   ALIADOESTRATEGICO      AES ON (AES.ID_ALIADOESTRATEGICO  = PRD.CODALIADOESTRATEGICO) ' +
-    ' INNER JOIN   AGRUPACIONPRODUCTO     AGP ON (AGP.ID_AGRUPACIONPRODUCTO = PRD.CODAGRUPACIONPRODUCTO) ' +
+    '          SUM(CostoIvaNoDescontable)                     AS "IVA Descontable",  ' +
+    '          SUM(CostoIC108)                                AS "IC 108",           ' +
+    '          SUM(CostoICAIC108)                             AS "ICA IC 108",       ' +
+    '          SUM(UtilidadParcial)                           AS "Utilidad Parcial"  ' +
+    ' FROM     WSXML_SFG.VW_REVENUE_DIARIO PRF ' +
+    ' INNER JOIN   WSXML_SFG.PRODUCTO               PRD ON (PRD.ID_PRODUCTO           = PRF.CODPRODUCTO) ' +
+    ' INNER JOIN   WSXML_SFG.ALIADOESTRATEGICO      AES ON (AES.ID_ALIADOESTRATEGICO  = PRD.CODALIADOESTRATEGICO) ' +
+    ' INNER JOIN   WSXML_SFG.AGRUPACIONPRODUCTO     AGP ON (AGP.ID_AGRUPACIONPRODUCTO = PRD.CODAGRUPACIONPRODUCTO) ' +
     ' ' + isnull(@v_innerjoin_cadena, '')  +
-    ' INNER JOIN  LINEADENEGOCIO          LDN ON (PRF.CODLINEADENEGOCIO = LDN.ID_LINEADENEGOCIO) ' +
-    ' WHERE     PRF.FECHAARCHIVO BETWEEN TO_DATE( ''' + isnull(@p_fechainicio, '') +''', ''dd/MM/yyyy'') AND TO_DATE( ''' + isnull(@p_fechafin, '') + ''', ''dd/MM/yyyy'') ' +
+    ' INNER JOIN  WSXML_SFG.LINEADENEGOCIO          LDN ON (PRF.CODLINEADENEGOCIO = LDN.ID_LINEADENEGOCIO) ' +
+    ' WHERE     PRF.FECHAARCHIVO BETWEEN CONVERT(DATETIME, ''' + isnull(@p_fechainicio, '') +''') AND CONVERT(DATETIME, ''' + isnull(@p_fechafin, '') + ''') ' +
     '  ' + isnull(@v_where_cadena, '') +
     ' GROUP BY   LDN.NOMLINEADENEGOCIO, AES.NOMALIADOESTRATEGICO, AGP.NOMAGRUPACIONPRODUCTO, PRD.CODIGOGTECHPRODUCTO, PRD.NOMPRODUCTO ' +
     ' ORDER BY   LDN.NOMLINEADENEGOCIO, AGP.NOMAGRUPACIONPRODUCTO, PRD.CODIGOGTECHPRODUCTO';
 
-    EXECUTE (@v_consulta);
+    EXECUTE sp_executesql @v_consulta;
   END
 GO
 
@@ -1669,7 +1670,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_RentabilidadPuntoVentaF
                     )
   AS
   BEGIN
-      DECLARE @v_consulta VARCHAR(MAX);
+      DECLARE @v_consulta NVARCHAR(MAX);
       DECLARE @v_cadena VARCHAR(100);
       DECLARE @v_where_cadena VARCHAR(250);
       DECLARE @v_innerjoin_cadena VARCHAR(150);
@@ -1682,58 +1683,58 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_RentabilidadPuntoVentaF
                 SET @v_innerjoin_cadena = ' ';
               end ELSE begin
                 SET @v_where_cadena =  ' AND     APD.CODIGOAGRUPACIONGTECH IN ('+ isnull(@v_cadena, '') +') ';
-                SET @v_innerjoin_cadena = ' INNER JOIN   AGRUPACIONPUNTODEVENTA APD ON (PRF.CODAGRUPACIONPUNTODEVENTA  = APD.ID_AGRUPACIONPUNTODEVENTA) ';
+                SET @v_innerjoin_cadena = ' INNER JOIN   WSXML_SFG.AGRUPACIONPUNTODEVENTA APD ON (PRF.CODAGRUPACIONPUNTODEVENTA  = APD.ID_AGRUPACIONPUNTODEVENTA) ';
          END 
 
     SET @v_consulta  =  ' SELECT /*+ push_pred(PRF) */ ' +
-    '          PRF.FECHAARCHIVO                                AS Fecha, ' +
-    '          PDV.CODIGOGTECHPUNTODEVENTA                    AS Codigo Punto de Venta, ' +
-    '          PDV.NOMPUNTODEVENTA                            AS Nombre Punto de Venta, ' +
-    '          LDN.NOMLINEADENEGOCIO                          AS Linea de Negocio, ' +
-    '          AES.NOMALIADOESTRATEGICO                       AS Aliado,           ' +
-    '          AGP.NOMAGRUPACIONPRODUCTO                      AS Padre,            ' +
-    '          PRD.CODIGOGTECHPRODUCTO                        AS Codigo Producto,  ' +
-    '          PRD.NOMPRODUCTO                                AS Producto,         ' +
-    '          SUM(NumIngresos - NumAnulaciones)              AS Tx,               ' +
-    '          SUM(IngresosBrutosNoRedondeo)                  AS Ingresos,         ' +
-    '          SUM(RevenueBase)                               AS Revenue Base,     ' +
-    '          SUM(RevenueTransaccion)                        AS Rangos,           ' +
-    '          SUM(RevenueFijo)                               AS Fijo,             ' +
-    '          SUM(RevenueTotal)                              AS Revenue Total,    ' +
-    '          SUM(IngresoCorporativo)                        AS Ingreso Corp,     ' +
-    '          SUM(IngresoLocal)                              AS Ingreso Local,    ' +
-    '          SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV IN (1, 2)                        ' +
-    '                   THEN Comision ELSE 0 END)             AS Ingreso PDV Admin,' +
-    '          SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV = 3                              ' +
-    '                   THEN Comision ELSE 0 END)             AS Ingreso PDV Colab,' +
-    '          SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV IN (1, 2)                        ' +
-    '                   THEN IvaComision ELSE 0 END)          AS IVA Ingreso PDV Admin,' +
-    '          SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV = 3                              ' +
-    '                   THEN IvaComision ELSE 0 END)          AS IVA Ingreso PDV Colab, ' +
-    '          SUM(EgresoLocal)                               AS Costo de Venta,   ' +
-    '          SUM(CostoICA)                                  AS ICA,              ' +
-    '          SUM(CostoEtesa)                                AS Comision ETESA,   ' +
-    '          SUM(CostoIC)                                   AS IC,               ' +
-    '          SUM(CostoICAIC)                                AS ICA IC,           ' +
-    '          SUM(CostoBadDebt)                              AS Bad Debt,         ' +
-    '          SUM(CostoMercadeoVenta + CostoMercadeoRevenue) AS Mercadeo,         ' +
-    '          SUM(CostoIvaNoDescontable)                     AS IVA Descontable,  ' +
-    '          SUM(CostoIC108)                                AS IC 108,           ' +
-    '          SUM(CostoICAIC108)                             AS ICA IC 108,       ' +
-    '          SUM(UtilidadParcial)                           AS Utilidad Parcial  ' +
-    ' FROM     VW_REVENUE_DIARIO PRF ' +
-    ' INNER JOIN   PUNTODEVENTA           PDV ON (PRF.CODPUNTODEVENTA       = PDV.ID_PUNTODEVENTA)' +
-    ' INNER JOIN   PRODUCTO               PRD ON (PRD.ID_PRODUCTO           = PRF.CODPRODUCTO) ' +
-    ' INNER JOIN   ALIADOESTRATEGICO      AES ON (AES.ID_ALIADOESTRATEGICO  = PRD.CODALIADOESTRATEGICO) ' +
-    ' INNER JOIN   AGRUPACIONPRODUCTO     AGP ON (AGP.ID_AGRUPACIONPRODUCTO = PRD.CODAGRUPACIONPRODUCTO) ' +
+    'PRF.FECHAARCHIVO          AS Fecha, ' +
+    'PDV.CODIGOGTECHPUNTODEVENTA  AS "Codigo Punto de Venta", ' +
+    'PDV.NOMPUNTODEVENTA          AS "Nombre Punto de Venta", ' +
+    'LDN.NOMLINEADENEGOCIO        AS "Linea de Negocio", ' +
+    'AES.NOMALIADOESTRATEGICO     AS Aliado,           ' +
+    'AGP.NOMAGRUPACIONPRODUCTO    AS Padre,            ' +
+    'PRD.CODIGOGTECHPRODUCTO      AS "Codigo Producto",  ' +
+    'PRD.NOMPRODUCTO              AS Producto,         ' +
+    'SUM(NumIngresos - NumAnulaciones)              AS Tx,               ' +
+    'SUM(IngresosBrutosNoRedondeo) AS Ingresos,         ' +
+    'SUM(RevenueBase)              AS "Revenue Base",     ' +
+    'SUM(RevenueTransaccion)       AS Rangos,           ' +
+    'SUM(RevenueFijo)              AS Fijo,             ' +
+    'SUM(RevenueTotal)             AS "Revenue Total",    ' +
+    'SUM(IngresoCorporativo)       AS "Ingreso Corp",     ' +
+    'SUM(IngresoLocal)             AS "Ingreso Local",    ' +
+    'SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV IN (1, 2)                        ' +
+    '	THEN Comision ELSE 0 END)             AS "Ingreso PDV Admin",' +
+    'SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV = 3                              ' +
+    '	THEN Comision ELSE 0 END)             AS "Ingreso PDV Colab",' +
+    'SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV IN (1, 2)                        ' +
+    '                   THEN IvaComision ELSE 0 END)          AS "IVA Ingreso PDV Admin",' +
+    'SUM(CASE WHEN PRF.CODTIPOCONTRATOPDV = 3                              ' +
+    '	THEN IvaComision ELSE 0 END)          AS "IVA Ingreso PDV Colab", ' +
+    'SUM(EgresoLocal)              AS "Costo de Venta",   ' +
+    'SUM(CostoICA)                 AS ICA,              ' +
+    'SUM(CostoEtesa)               AS "Comision ETESA",   ' +
+    'SUM(CostoIC)                  AS IC,               ' +
+    'SUM(CostoICAIC)               AS "ICA IC",           ' +
+    'SUM(CostoBadDebt)             AS "Bad Debt",         ' +
+    'SUM(CostoMercadeoVenta + CostoMercadeoRevenue) AS Mercadeo,         ' +
+    'SUM(CostoIvaNoDescontable)    AS "IVA Descontable",  ' +
+    'SUM(CostoIC108)               AS "IC 108",           ' +
+    'SUM(CostoICAIC108)            AS "ICA IC 108",       ' +
+    'SUM(UtilidadParcial)          AS "Utilidad Parcial"  ' +
+    'FROM     WSXML_SFG.VW_REVENUE_DIARIO PRF ' +
+    ' INNER JOIN   WSXML_SFG.PUNTODEVENTA           PDV ON (PRF.CODPUNTODEVENTA       = PDV.ID_PUNTODEVENTA)' +
+    ' INNER JOIN   WSXML_SFG.PRODUCTO               PRD ON (PRD.ID_PRODUCTO           = PRF.CODPRODUCTO) ' +
+    ' INNER JOIN   WSXML_SFG.ALIADOESTRATEGICO      AES ON (AES.ID_ALIADOESTRATEGICO  = PRD.CODALIADOESTRATEGICO) ' +
+    ' INNER JOIN   WSXML_SFG.AGRUPACIONPRODUCTO     AGP ON (AGP.ID_AGRUPACIONPRODUCTO = PRD.CODAGRUPACIONPRODUCTO) ' +
     ' ' + isnull(@v_innerjoin_cadena, '')  +
-    ' INNER JOIN  LINEADENEGOCIO          LDN ON (PRF.CODLINEADENEGOCIO = LDN.ID_LINEADENEGOCIO) ' +
-    ' WHERE     PRF.FECHAARCHIVO BETWEEN TO_DATE( ''' + isnull(@p_fechainicio, '') +''', ''dd/MM/yyyy'') AND TO_DATE( ''' + isnull(@p_fechafin, '') + ''', ''dd/MM/yyyy'') ' +
+    ' INNER JOIN  WSXML_SFG.LINEADENEGOCIO          LDN ON (PRF.CODLINEADENEGOCIO = LDN.ID_LINEADENEGOCIO) ' +
+    ' WHERE 1=1 AND     PRF.FECHAARCHIVO BETWEEN CONVERT(DATETIME, ''' + isnull(@p_fechainicio, '') +''') AND CONVERT(DATETIME, ''' + isnull(@p_fechafin, '') + ''') ' +
     '  ' + isnull(@v_where_cadena, '') +
     ' GROUP BY   PRF.FECHAARCHIVO, PDV.CODIGOGTECHPUNTODEVENTA, PDV.NOMPUNTODEVENTA, LDN.NOMLINEADENEGOCIO, AES.NOMALIADOESTRATEGICO, AGP.NOMAGRUPACIONPRODUCTO, PRD.CODIGOGTECHPRODUCTO, PRD.NOMPRODUCTO ' +
     ' ORDER BY   PRF.FECHAARCHIVO, PDV.NOMPUNTODEVENTA, LDN.NOMLINEADENEGOCIO, AGP.NOMAGRUPACIONPRODUCTO, PRD.CODIGOGTECHPRODUCTO';
 
-    EXECUTE (@v_consulta);
+    EXECUTE sp_executesql @v_consulta
   END
 GO
 
@@ -1830,8 +1831,6 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_MediosMagneticosFecha  
  END
 GO
 
-
-
 IF OBJECT_ID('WSXML_SFG.SFGINF_REPORTESESPECIALES_RecaudoBalotoDian', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_RecaudoBalotoDian;
 GO
@@ -1849,7 +1848,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_RecaudoBalotoDian  (@p_
          DECLARE @vLASTDATE  DATETIME;
          DECLARE @v_FECHA_I_C VARCHAR(30);
          DECLARE @v_FECHA_F_C VARCHAR(30);
-         DECLARE @v_consulta VARCHAR(MAX);
+         DECLARE @v_consulta NVARCHAR(MAX);
      
     SET NOCOUNT ON;
 
@@ -1875,68 +1874,67 @@ SET @vLASTDATE='30/apr/2017';
 
 
 
-           SET @v_consulta  = 'SELECT   2          AS Modalidad                        ' +
-           ', '' ''                            AS No. Acto Autorizacion            ' +
-           ', '' ''                            AS Fecha acto                       ' +
-           ', '' ''                            AS No. Contato de Concesion         ' +
-           ', '' ''                            AS Fecha Contrato                   ' +
-           ', '' ''                            AS Fecha Final Vigencia             ' +
-           ', 6                                AS Elemento o equipo de Juego       ' +
-           ', '' ''                            AS CNUMDE                           ' +
-           ', '' ''                             AS Serial Equipo/Elemento/Termina   ' +
-           ', ''GTECH''                        AS Marca Equipo/Elemento/Terminal   ' +
-           ', ''TERMINAL DE JUEGO ISYS''        AS Modelo Equipo/Elemento/Termina   ' +
-           ', 1                                AS Forma de tenencia legal          ' +
-           ', '' ''                            AS Numero documento de Tenencia     ' +
-           ', '' ''                            AS Fecha                            ' +
-           ', '' ''                            AS Tipo de documento                ' +
-           ', '' ''                             AS Numero de identificacion         ' +
-           ', '' ''                              AS DV                               ' +
-           ', '' ''                              AS Razon Social                     ' +
-           ', PDV.NOMPUNTODEVENTA               AS Nombre del Establecimiento       ' +
-           ', PDV.DIRECCION                     AS Direccion del Establecimiento    ' +
-           ', PDV.CODIGOGTECHPUNTODEVENTA       AS Codigo Establecimiento           ' +
-           ', PDV.NUMEROTERMINAL                AS Codigo Terminal                  ' +
-           ', DPT.DEPARTAMENTODANE              AS Departamento                     ' +
-           ', SUBSTR(CDA.CIUDADDANE,3,3)        AS Municipio                        ' +
-           ', '' ''                             AS Valor del carton                 ' +
-       ', '' ''                                 AS No. Espacios puestos sillas      ' +
-       ', '' ''                                 AS Nombre de la rifa                ' +
-       ', '' ''                                 AS Valor boleta                     ' +
-       ', '' ''                                 AS No. Total boletas emitidas       ' +
-       ', '' ''                                 AS No. Total boletas vendidas       ' +
-       ', '' ''                                 AS Fecha Sorteo                     ' +
-       ', '' ''                                 AS Valor total plan premios         ' +
-       ', ISNULL(VRA.INGRESOSBRUTOSNANOREDONDEO,0) AS Base de Liquidacion              ' +
-       ', '' ''                                 AS Valor IVA                        ' +
-       ', 15                                     AS Tarifa                           ' +
-       ', '' ''                                 AS Total Derechos exploracion       ' +
-       ', '' ''                                 AS Total gastos admon               ' +
-       ', '' ''                                 AS No. Formulario Litografico       ' +
-    'FROM          PUNTODEVENTA      PDV                                                ' +
-    'INNER JOIN        CIUDAD         CDA ON (PDV.CODCIUDAD  = CDA.ID_CIUDAD)          ' +
-    'INNER JOIN       DEPARTAMENTO       DPT ON (DPT.ID_DEPARTAMENTO  = CDA.CODDEPARTAMENTO) ' +
-    'LEFT OUTER JOIN  (                                                                      ' +
-    '          SELECT        /*+ push_pred(VRA) */                                             ' +
-    '                  VRA.CODPUNTODEVENTA                  AS CODPUNTODEVENTA,                ' +
-    '                  ROUND(SUM(VRA.INGRESOSBRUTOSNANOREDONDEO), 0)     AS INGRESOSBRUTOSNANOREDONDEO  ' +
-    '          FROM       VWKDAYLYREVENUEADJUSTMENTS VRA                                                 ' +
-    '          INNER JOIN     PRODUCTO     PRD ON (VRA.CODPRODUCTO     = PRD.ID_PRODUCTO)                ' +
-    '          INNER JOIN     TIPOPRODUCTO TPR ON (PRD.CODTIPOPRODUCTO = TPR.ID_TIPOPRODUCTO)            ' +
-    '          WHERE       VRA.FECHAARCHIVO BETWEEN TO_DATE(''' + ISNULL(@v_FECHA_I_C, '')  +''',''dd/MM/yyyy'') AND  TO_DATE(''' + ISNULL(@v_FECHA_F_C, '') + ''',''dd/MM/yyyy'') ' +
-    '          AND       TPR.CODLINEADENEGOCIO      = 1     ' +
+           SET @v_consulta  = 'SELECT   2 AS Modalidad' +
+           ', '' ''   AS "No. Acto Autorizacion"' +
+           ', '' ''   AS "Fecha acto"' +
+           ', '' ''   AS "No. Contato de Concesion"' +
+           ', '' ''   AS "Fecha Contrato"' +
+           ', '' ''   AS "Fecha Final Vigencia"' +
+           ', 6       AS "Elemento o equipo de Juego"' +
+           ', '' ''   AS CNUMDE  ' +
+           ', '' ''   AS "Serial Equipo/Elemento/Termina"' +
+           ', ''GTECH'' AS "Marca Equipo/Elemento/Terminal"' +
+           ', ''TERMINAL DE JUEGO ISYS''        AS "Modelo Equipo/Elemento/Termina"' +
+           ', 1       AS "Forma de tenencia legal"' +
+           ', '' ''   AS "Numero documento de Tenencia"' +
+           ', '' ''   AS Fecha ' +
+           ', '' ''   AS "Tipo de documento"' +
+           ', '' ''   AS "Numero de identificacion"' +
+           ', '' ''   AS DV ' +
+           ', '' ''   AS "Razon Social"' +
+           ', PDV.NOMPUNTODEVENTA   AS "Nombre del Establecimiento"' +
+           ', PDV.DIRECCION         AS "Direccion del Establecimiento"' +
+           ', PDV.CODIGOGTECHPUNTODEVENTA       AS "Codigo Establecimiento"' +
+           ', PDV.NUMEROTERMINAL    AS "Codigo Terminal"' +
+           ', DPT.DEPARTAMENTODANE  AS Departamento' +
+           ', SUBSTRING(CDA.CIUDADDANE,3,3)        AS Municipio' +
+           ', '' ''   AS "Valor del carton"' +
+       ', '' ''       AS "No. Espacios puestos sillas"' +
+       ', '' ''       AS "Nombre de la rifa"' +
+       ', '' ''       AS "Valor boleta"' +
+       ', '' ''       AS "No. Total boletas emitidas"' +
+       ', '' ''       AS "No. Total boletas vendidas"' +
+       ', '' ''       AS "Fecha Sorteo"' +
+       ', '' ''       AS "Valor total plan premios"' +
+       ', ISNULL(VRA.INGRESOSBRUTOSNANOREDONDEO,0) AS "Base de Liquidacion"' +
+       ', '' ''       AS "Valor IVA"' +
+       ', 15          AS Tarifa' +
+       ', '' ''       AS "Total Derechos exploracion"' +
+       ', '' ''       AS "Total gastos admon"' +
+       ', '' ''       AS "No. Formulario Litografico" ' +
+    'FROM          WSXML_SFG.PUNTODEVENTA      PDV ' +
+    'INNER JOIN       WSXML_SFG.CIUDAD         CDA ON (PDV.CODCIUDAD  = CDA.ID_CIUDAD) ' +
+    'INNER JOIN       WSXML_SFG.DEPARTAMENTO       DPT ON (DPT.ID_DEPARTAMENTO  = CDA.CODDEPARTAMENTO) ' +
+    'LEFT OUTER JOIN  (   ' +
+    '          SELECT        /*+ push_pred(VRA) */ ' +
+    '                  VRA.CODPUNTODEVENTA    AS CODPUNTODEVENTA,' +
+    '                  ROUND(SUM(VRA.INGRESOSBRUTOSNANOREDONDEO), 0)     AS INGRESOSBRUTOSNANOREDONDEO ' +
+    '          FROM   WSXML_SFG.VWKDAYLYREVENUEADJUSTMENTS VRA  ' +
+    '          INNER JOIN     WSXML_SFG.PRODUCTO     PRD ON (VRA.CODPRODUCTO     = PRD.ID_PRODUCTO) ' +
+    '          INNER JOIN     WSXML_SFG.TIPOPRODUCTO TPR ON (PRD.CODTIPOPRODUCTO = TPR.ID_TIPOPRODUCTO) ' +
+    '          WHERE  VRA.FECHAARCHIVO BETWEEN CONVERT(DATETIME,''' + ISNULL(@v_FECHA_I_C, '')  +''',103) AND  CONVERT(DATETIME,''' + ISNULL(@v_FECHA_F_C, '') + ''',103) ' +
+    '          AND    TPR.CODLINEADENEGOCIO      = 1     ' +
    -- '          AND       PRD.CODTIPOPRODUCTO        = 1     ' ||
    -- '          AND       VRA.CODPRODUCTO            = 155   ' ||
    -- ' 2012.11.02. Omar Rodriguez. cambio producto ' ||
-    '          AND       PRD.CODIGOGTECHPRODUCTO     IN (''10002'', ''19999'')   ' +
-    '          GROUP       BY VRA.CODPUNTODEVENTA           ' +
-    '         )  VRA                                        ' +
+    '          AND       PRD.CODIGOGTECHPRODUCTO     IN (''10002'', ''19999'')' +
+    '          GROUP       BY VRA.CODPUNTODEVENTA' +
+    '         )  VRA ' +
     'ON        (PDV.ID_PUNTODEVENTA =  VRA.CODPUNTODEVENTA) ' +
     '  WHERE     VRA.INGRESOSBRUTOSNANOREDONDEO  <> 0       ' +
     '  ORDER BY PDV.NOMPUNTODEVENTA  ';
-    EXECUTE (@v_consulta);
 
-
+    EXECUTE sp_executesql @v_consulta;
 
     END
 GO
