@@ -445,7 +445,7 @@ GO
 CREATE PROCEDURE WSXML_SFG.SFGWEB_L1LIAB01_GetResumenPremiosL1liab60(@pCodCicloFacturacionPDV float,
                                      @pPeriodoPremioPAgado float) as
  begin 
-    declare @v_sql VARCHAR(MAX);
+    declare @v_sql NVARCHAR(MAX);
     declare @v_nomcategoria VARCHAR(MAX);
   
  set nocount on;
@@ -467,30 +467,28 @@ CREATE PROCEDURE WSXML_SFG.SFGWEB_L1LIAB01_GetResumenPremiosL1liab60(@pCodCicloF
 			select * from (
               select   p.nomproducto as Producto, 
               c.nombrecategoria as categoria, 
-              case when ' + ISNULL(@pPeriodoPremioPAgado, '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosDosMeses'') -1 then 
-              l.premiospagadoshoy when ' + ISNULL(@pPeriodoPremioPAgado, '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosUnAno'')-1 then 
+              case when ' + ISNULL(CONVERT(VARCHAR,@pPeriodoPremioPAgado), '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosDosMeses'') -1 then 
+              l.premiospagadoshoy when ' + ISNULL(CONVERT(VARCHAR,@pPeriodoPremioPAgado), '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosUnAno'')-1 then 
               l.premiospagadoshoymayor60 end
                as pagadoshoymenores,
-			   ROW_NUMBER() OVER(order by producto) AS RowNumber
+			   ROW_NUMBER() OVER(order by p.nomproducto) AS RowNumber
               from WSXML_SFG.l1liabtotalesporproducto l
               inner join WSXML_SFG.producto p on id_producto = codproducto 
               inner join WSXML_SFG.categoriasorteo c on c.id_categoriasorteo = l.codcategoria
               inner join WSXML_SFG.controlpremiosl1liab cl on cl.id_controlpremiosl1liab = l.codcontroll1liab
               inner join WSXML_SFG.entradaarchivocontrol e on e.fechaarchivo  = cl.fechareporte
-              where e.codciclofacturacionpdv = '+ISNULL(@pCodCicloFacturacionPDV, '') +'  and e.tipoarchivo = 2
+              where e.codciclofacturacionpdv = '+ISNULL(CONVERT(VARCHAR,@pCodCicloFacturacionPDV), '') +'  and e.tipoarchivo = 2
               --group by p.nomproducto, c.nombrecategoria
               --order by producto
 			  ) s
 			) s
-            pivot(sum(pagadoshoymenores) for categoria in (' + isnull(@v_nomcategoria, '') + ')) PIV ';
+            pivot(sum(pagadoshoymenores) for categoria in ([' + isnull(@v_nomcategoria, '') + '])) PIV ';
             
-            
-            
+
             execute sp_executesql @v_sql
     
  end;
 GO
-
 
 
 IF OBJECT_ID('WSXML_SFG.SFGWEB_L1LIAB01_GetDetallePremiospagados', 'P') IS NOT NULL
