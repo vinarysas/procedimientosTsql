@@ -183,10 +183,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGWEBPLANTILLAPRODUCTOCIUDAD_AddCitiesOutsideBta
 		BEGIN
 
         -- CALL THE PROCEDURE
-        EXEC WSXML_SFG.SFGWEBPLANTILLAPRODUCTOCIUDAD_ADDRECORD  
+		DECLARE @p_FECHAHORAMODIFICACION DATETIME = GETDATE();
+        EXEC WSXML_SFG.SFGWEBPLANTILLAPRODUCTOCIUDAD_ADDRECORD   
 												 @P_CODPLANTILLAPRODUCTO,
                                                 @l_idciudad,
-                                                 GETDATE,
+                                                 @p_FECHAHORAMODIFICACION,
                                                  1,
                                                  1,
                                                  @tm_C_PLANTILLAPRODUCTOCIUD_OUT,
