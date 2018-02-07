@@ -436,7 +436,6 @@ GO
 GO
  
 
-
 IF OBJECT_ID('WSXML_SFG.SFGWEB_L1LIAB01_GetResumenPremiosL1liab60', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGWEB_L1LIAB01_GetResumenPremiosL1liab60;
 GO
@@ -449,18 +448,20 @@ CREATE PROCEDURE WSXML_SFG.SFGWEB_L1LIAB01_GetResumenPremiosL1liab60(@pCodCicloF
     declare @v_nomcategoria VARCHAR(MAX);
   
  set nocount on;
-    /*
-	select 
-    listagg('''' + ISNULL(NOMBRECATEGORIA, '') + '''', ',') within group (ORDER BY DIVISION, ID_CATEGORIASORTEO) 
-    into @v_nomcategoria 
-    from categoriasorteo;
-	*/
+		/*
+		select 
+		listagg('''' + ISNULL(NOMBRECATEGORIA, '') + '''', ',') within group (ORDER BY DIVISION, ID_CATEGORIASORTEO) 
+		into @v_nomcategoria 
+		from categoriasorteo;
+		*/
 
 
-	SELECT  @v_nomcategoria = STUFF(( SELECT  ','+ NOMBRECATEGORIA FROM WSXML_SFG.categoriasorteo a
-	WHERE b.NOMBRECATEGORIA = a.NOMBRECATEGORIA FOR XML PATH('')),1 ,1, '')--  Members
-	FROM WSXML_SFG.categoriasorteo b
-	ORDER BY DIVISION, ID_CATEGORIASORTEO
+		SELECT @v_nomcategoria = STUFF(( 
+			SELECT  '''],['''+ NOMBRECATEGORIA FROM WSXML_SFG.categoriasorteo a
+			FOR XML PATH('')),1 ,1, '')--  Members
+
+
+		SET @v_nomcategoria = SUBSTRING(@v_nomcategoria, 3, 1000) +''']'
           
            set @v_sql = '
            select * from (
@@ -470,8 +471,7 @@ CREATE PROCEDURE WSXML_SFG.SFGWEB_L1LIAB01_GetResumenPremiosL1liab60(@pCodCicloF
               case when ' + ISNULL(CONVERT(VARCHAR,@pPeriodoPremioPAgado), '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosDosMeses'') -1 then 
               l.premiospagadoshoy when ' + ISNULL(CONVERT(VARCHAR,@pPeriodoPremioPAgado), '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosUnAno'')-1 then 
               l.premiospagadoshoymayor60 end
-               as pagadoshoymenores,
-			   ROW_NUMBER() OVER(order by p.nomproducto) AS RowNumber
+               as pagadoshoymenores
               from WSXML_SFG.l1liabtotalesporproducto l
               inner join WSXML_SFG.producto p on id_producto = codproducto 
               inner join WSXML_SFG.categoriasorteo c on c.id_categoriasorteo = l.codcategoria
@@ -482,7 +482,7 @@ CREATE PROCEDURE WSXML_SFG.SFGWEB_L1LIAB01_GetResumenPremiosL1liab60(@pCodCicloF
               --order by producto
 			  ) s
 			) s
-            pivot(sum(pagadoshoymenores) for categoria in ([' + isnull(@v_nomcategoria, '') + '])) PIV ';
+            pivot(sum(pagadoshoymenores) for categoria in (' + isnull(@v_nomcategoria, '') + ')) PIV ORDER BY Producto';
             
 
             execute sp_executesql @v_sql
@@ -500,31 +500,34 @@ create procedure WSXML_SFG.SFGWEB_L1LIAB01_GetDetallePremiospagados(@pCodCicloFa
                                      @pCodProducto            float,
                                      @pPeriodoPremioPAgado    float) as
  begin
-    declare @v_sql VARCHAR(MAX);
+    declare @v_sql NVARCHAR(MAX);
     declare @v_nomcategoria VARCHAR(MAX);
   
  set nocount on;
+		
+		SELECT @v_nomcategoria = STUFF(( 
+			SELECT  '''],['''+ NOMBRECATEGORIA FROM WSXML_SFG.categoriasorteo a
+			FOR XML PATH('')),1 ,1, '')--  Members
 
-		SELECT  @v_nomcategoria = STUFF(( SELECT  ','+ NOMBRECATEGORIA FROM WSXML_SFG.categoriasorteo a
-		WHERE b.NOMBRECATEGORIA = a.NOMBRECATEGORIA FOR XML PATH('')),1 ,1, '')--  Members
-		FROM WSXML_SFG.categoriasorteo b
-		ORDER BY DIVISION, ID_CATEGORIASORTEO
+
+		SET @v_nomcategoria = SUBSTRING(@v_nomcategoria, 3, 1000) +''']'
+
 
           
            set @v_sql = 'select * from (select * from (
               select   ps.sorteo,
               c.nombrecategoria as categoria, 
-              case when ' + ISNULL(@pPeriodoPremioPAgado, '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosDosMeses'') -1 then 
-              ps.premiospagadoshoy when ' + ISNULL(@pPeriodoPremioPAgado, '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosUnAno'')-1 then 
+              case when ' + ISNULL(CONVERT(VARCHAR,@pPeriodoPremioPAgado), '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosDosMeses'') -1 then 
+              ps.premiospagadoshoy when ' + ISNULL(CONVERT(VARCHAR,@pPeriodoPremioPAgado), '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosUnAno'')-1 then 
               ps.premiospagadoshoymayor60 end as pagadoshoy
-			  , ROW_NUMBER() OVER(order by Sorteo desc) AS "Row Number"
+			  --, ROW_NUMBER() OVER(order by ps.sorteo desc) AS "Row Number"
               from WSXML_SFG.l1liabtotalesporproducto l
               inner join WSXML_SFG.l1liabpremiosporsorteo ps on ps.codl1liabtotalespremios = l.id_l1liabtotalesporproducto
               inner join WSXML_SFG.producto p on id_producto = codproducto 
               inner join WSXML_SFG.categoriasorteo c on c.id_categoriasorteo = l.codcategoria
               inner join WSXML_SFG.controlpremiosl1liab cl on cl.id_controlpremiosl1liab = l.codcontroll1liab
               inner join WSXML_SFG.entradaarchivocontrol e on e.fechaarchivo  = cl.fechareporte
-              where e.codciclofacturacionpdv = ' + ISNULL(@pCodCicloFacturacionPDV, '') + ' and codproducto = ' + ISNULL(@pCodProducto, '') + '  and e.tipoarchivo = 2
+              where e.codciclofacturacionpdv = ' + ISNULL(CONVERT(VARCHAR,@pCodCicloFacturacionPDV), '') + ' and codproducto = ' + ISNULL(CONVERT(VARCHAR,@pCodProducto), '') + '  and e.tipoarchivo = 2
               --group by p.nomproducto, c.nombrecategoria
               --order by Sorteo desc
 			  )s )s
@@ -535,14 +538,18 @@ create procedure WSXML_SFG.SFGWEB_L1LIAB01_GetDetallePremiospagados(@pCodCicloFa
   GO
   
   
-  
 IF OBJECT_ID('WSXML_SFG.SFGWEB_L1LIAB01_GetDetallePremiosconfiltros', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGWEB_L1LIAB01_GetDetallePremiosconfiltros;
 GO
 
 
 
-   create procedure WSXML_SFG.SFGWEB_L1LIAB01_GetDetallePremiosconfiltros(@pCodProducto                 float,
+IF OBJECT_ID('WSXML_SFG.SFGWEB_L1LIAB01_GetDetallePremiosconfiltros', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGWEB_L1LIAB01_GetDetallePremiosconfiltros;
+GO
+
+
+create procedure WSXML_SFG.SFGWEB_L1LIAB01_GetDetallePremiosconfiltros(@pCodProducto                 float,
                                          @pFechadesde                  datetime,
                                          @pFechaHasta                  datetime,
                                          @pTipoConsulta                varchar(4000),
@@ -557,42 +564,38 @@ GO
     --Lista productos a consultar
     if @pCodProducto = 0 begin
 
-		  SELECT  @vcodproductos = STUFF(( SELECT  ','+ codproducto FROM (select distinct codproducto from  WSXML_SFG.producto_l1shrclc) a
-				WHERE b.codproducto = a.codproducto FOR XML PATH('')),1 ,1, '')--  Members
-		  FROM (select distinct codproducto from  WSXML_SFG.producto_l1shrclc) b
+		  SELECT  @vcodproductos = STUFF(( SELECT  ','+ CONVERT(VARCHAR,codproducto) FROM (select distinct codproducto from  WSXML_SFG.producto_l1shrclc) a
+				FOR XML PATH('')),1 ,1, '')--  Members
 
      end
      else begin
             set @vcodproductos= @pCodProducto;
      end 
              
-          
-    
-    
            set @v_sql = 'select * from (select * from (
               select  CONVERT(VARCHAR,ps.sorteo) as sorteo,p.nomproducto as Producto,
               c.nombrecategoria as categoria, 
-              case when ' +ISNULL(@pTipoConsulta, '') + ' = SFGINF_CARTASFIDUCIA.PARAMETRO_NUMBER(''PremiosVencidosDosMeses'') -1 then 
-              ps.premiospagadoshoy when ' + ISNULL(@pTipoConsulta, '') + ' = SFGINF_CARTASFIDUCIA.PARAMETRO_NUMBER(''PremiosVencidosUnAno'')-1 then 
-              ps.premiospagadoshoymayor60 when '+ isnull(@pTipoConsulta, '') + ' = SFGINF_CARTASFIDUCIA.PARAMETRO_NUMBER(''PremiosVencidosUnAno'') then
+              case when ' +ISNULL(@pTipoConsulta, '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosDosMeses'') -1 then 
+              ps.premiospagadoshoy when ' + ISNULL(@pTipoConsulta, '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosUnAno'')-1 then 
+              ps.premiospagadoshoymayor60 when '+ isnull(@pTipoConsulta, '') + ' = WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(''PremiosVencidosUnAno'') then
               ps.premioscaducosmayor365 else ps.premiospagadoshoy + ps.premiospagadoshoymayor60
                end as pagadoshoy
-			   , ROW_NUMBER() OVER(order by Sorteo desc) AS "Row Number"
+			   --, ROW_NUMBER() OVER(order by Sorteo desc) AS "Row Number"
               from WSXML_SFG.l1liabtotalesporproducto l
               inner join WSXML_SFG.l1liabpremiosporsorteo ps on ps.codl1liabtotalespremios = l.id_l1liabtotalesporproducto
               inner join WSXML_SFG.producto p on id_producto = codproducto 
               inner join WSXML_SFG.categoriasorteo c on c.id_categoriasorteo = l.codcategoria
               inner join WSXML_SFG.controlpremiosl1liab cl on cl.id_controlpremiosl1liab = l.codcontroll1liab
               inner join WSXML_SFG.entradaarchivocontrol e on e.fechaarchivo  = cl.fechareporte
-              where e.fechaarchivo between ''' + isnull(@pFechadesde, '') + ''' and ''' + isnull(@pFechaHasta, '') + ''' 
+              where 1=1 -- and e.fechaarchivo between ''' + isnull(CONVERT(VARCHAR,@pFechadesde,120), '') + ''' and ''' + isnull(CONVERT(VARCHAR,@pFechaHasta,120), '') + ''' 
               and e.tipoarchivo = 2
-              and codproducto in (select regexp_substr('''+isnull(@vcodproductos, '')+''' ,''[^,]+'', 1, level)
-              connect by regexp_substr('''+isnull(@vcodproductos, '')+''' , ''[^,]+'', 1, level) is not null)
+              --and codproducto in (select regexp_substr('''+isnull(@vcodproductos, '')+''' ,''[^,]+'', 1, level)
+			  and codproducto in ('+@vcodproductos+')
+              --connect by regexp_substr('''+isnull(@vcodproductos, '')+''' , ''[^,]+'', 1, level) is not null)
               --group by p.nomproducto, c.nombrecategoria
               )s ) s
-            pivot(sum(pagadoshoy) for categoria in (' + ISNULL(@pCategorias, '') + ')) PIV order by sorteo desc';
-            
+            pivot(sum(pagadoshoy) for categoria in ([''' + ISNULL(@pCategorias, '') + '''])) PIV order by sorteo desc';
+
              execute sp_executesql @v_sql
   end;
 GO
-
