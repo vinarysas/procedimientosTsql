@@ -93,7 +93,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_INVRPT_GetReportData(@p_CODCICLOFACTURACIO
                               CODLINEADENEGOCIO) VLDF ON (VLDF.ID_CICLOFACTURACIONPDV = CFP.ID_CICLOFACTURACIONPDV
                                                       AND VLDF.CODPUNTODEVENTA        = PDV.ID_PUNTODEVENTA
                                                       AND VLDF.CODLINEADENEGOCIO      = LDN.ID_LINEADENEGOCIO)
-    left outer join vw_puntosdeventafromsag pdvsag on pdvsag.codigo = pdv.codigogtechpuntodeventa
+    left outer join WSXML_SFG.vw_puntosdeventafromsag pdvsag on pdvsag.codigo = pdv.codigogtechpuntodeventa
     WHERE CFP.ID_CICLOFACTURACIONPDV = @p_CODCICLOFACTURACIONPDV
       AND LDN.ID_LINEADENEGOCIO      = @p_CODLINEADENEGOCIO
       AND PDV.ACTIVE                 = 1
