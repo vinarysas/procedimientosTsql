@@ -151,6 +151,7 @@ GO
 		BEGIN CATCH		
 			SET @msg = '-20054 Error al crear el registro de facturacion de linea de negocio: ' + isnull(ERROR_MESSAGE ( ), '');
 			RAISERROR(@msg, 16, 1);
+			RETURN 0;
 		END CATCH
     END;
 
@@ -1315,6 +1316,7 @@ GO
 		BEGIN CATCH
 			SET @msg = '-20054 Error al crear el registro de facturacion de linea de negocio: ' + isnull(ERROR_MESSAGE ( ) , '');
 			RAISERROR(@msg, 16, 1);
+			RETURN 0
 		END CATCH
 			
     END;
