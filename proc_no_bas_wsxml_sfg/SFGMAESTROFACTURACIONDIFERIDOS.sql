@@ -11,12 +11,16 @@ GO
 
 CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONDIFERIDOS_ObtenerDiferidosCiclo AS
  BEGIN
+	SET NOCOUNT ON;
+
     DECLARE @p_CODCICLO                 NUMERIC(22,0);
     DECLARE @msg                        VARCHAR(2000);
     DECLARE @V_CODENTRADAARCHIVOCONTROL NUMERIC(22,0);
     DECLARE @V_FECHA_ARCHIVO_VENTAS     datetime;
    
-  SET NOCOUNT ON;
+
+	
+	BEGIN TRANSACTION
 
     SELECT @p_CODCICLO = MAX(C.SECUENCIA) + 1
       FROM WSXML_SFG.CICLOFACTURACIONPDV C
@@ -110,10 +114,15 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONDIFERIDOS_ObtenerDiferidosCi
                                  @V_CODENTRADAARCHIVOCONTROL,
                                  @V_FECHA_ARCHIVO_VENTAS
 
-      COMMIT;
+      COMMIT TRANSACTION
     END 
   END
 GO
+
+ IF OBJECT_ID('WSXML_SFG.SFGMAESTROFACTURACIONDIFERIDOS_InsercionDifPrefacturacion', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONDIFERIDOS_InsercionDifPrefacturacion;
+GO
+
 
   -- Procedimiento para marcar en SQL los registros de Diferidos prefacturados
   CREATE PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONDIFERIDOS_InsercionDifPrefacturacion(@P_CODCICLO                 NUMERIC(22,0),
@@ -143,7 +152,7 @@ GO
 
 		IF @RESULT > 0 BEGIN
 			SET @msg = '-20086 Error al intentar actualizar la tabla [Diferidos].[dbo].[PlanDePagos] de SQLServer durante la prefacturacion. ' +
-								  ISNULL(@RESULT, '')
+								  ISNULL(CONVERT(VARCHAR,@RESULT), '')
 		  RAISERROR(@msg, 16, 1);
 		END 
 	END TRY

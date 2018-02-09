@@ -25,8 +25,10 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_ReversarFacturacion(@
        AND LIP. ID_LIQ_IND_GENERADA = LID.COD_LIQ_IND_GENERADA;
 
     IF @xCurrentCiclo <> @p_FECHAINICIO AND @xFechaFin <> @p_FECHAFIN  BEGIN
-       IF @@ROWCOUNT = 0
-		RAISERROR('-20035 El ciclo ingresado no corresponde con el ciclo actual facturado', 16, 1);
+       IF @@ROWCOUNT = 0 BEGIN
+			RAISERROR('-20035 El ciclo ingresado no corresponde con el ciclo actual facturado', 16, 1);
+			RETURN 0
+		END
     END 
 
     SELECT @xNewCurrentHs = ID_LIQ_IND_GEN_DETALLE
@@ -78,7 +80,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_EstablecerFacturacion
 		 RAISERROR('-20030 Ya se ha facturado el ciclo para este producto', 16, 1);
     
 		IF @@ROWCOUNT = 0
-			SELECT NULL;
+			RETURN 0
     END;
     -- Check for concurrency (skip holes, check for higher value)
     DECLARE @xCurrentHistoricRec NUMERIC(22,0);
@@ -99,6 +101,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_EstablecerFacturacion
            AND ID_LIQ_IND_GEN_DETALLE = @xCurrentHistoricRec;
         IF @xCurrentHistoricSeq >= @p_FECHAINICIO BEGIN
           RAISERROR('-20031 No se puede facturar una semana anterior al actualmente facturado', 16, 1);
+		  RETURN 0
         END 
       END 
     END;
@@ -183,7 +186,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_EstablecerFactEncabez
 			SET @msg = '-20030 Ya se ha facturado el ciclo ' +' para este producto';
 			RAISERROR(@msg, 16, 1);
 			IF @@ROWCOUNT = 0
-				SELECT NULL;
+				RETURN 0;
 		END;
     -- Check for concurrency (skip holes, check for higher value)
       DECLARE @xCurrentHistoricRec NUMERIC(22,0);
@@ -906,6 +909,8 @@ CREATE PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_RegresarAUltimaLiquidacio
   DECLARE @v_cod_liq_ind_generada    NUMERIC(22,0);
   DECLARE @v_ant_liq_independiente   NUMERIC(22,0);
   DECLARE @msg VARCHAR(2000)
+  BEGIN TRANSACTION;
+  
   BEGIN TRY
  
 
@@ -924,10 +929,10 @@ CREATE PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_RegresarAUltimaLiquidacio
 	   delete from wsxml_sfg.liq_ind_gen_detalle
 	   where id_liq_ind_gen_detalle = @v_cod_liq_ind_gen_detalle;
 
-		commit;
+		COMMIT TRANSACTION;   
 	END TRY
 	BEGIN CATCH
-		rollback;
+		rollback TRANSACTION;
 		SET @msg = '-20035 Error durante la reversion a la ultima liquidacion. Error : ' + isnull(ERROR_MESSAGE() , '')
 	    RAISERROR(@msg, 16, 1);
 	END CATCH
