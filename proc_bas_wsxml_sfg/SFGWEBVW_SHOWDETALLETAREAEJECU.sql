@@ -539,58 +539,6 @@ GO
 
 
 
-IF OBJECT_ID('WSXML_SFG.SFGWEBVW_SHOWDETALLETAREAEJECU_GetRecord', 'P') IS NOT NULL
-  DROP PROCEDURE WSXML_SFG.SFGWEBVW_SHOWDETALLETAREAEJECU_GetRecord;
-GO
 
-CREATE PROCEDURE WSXML_SFG.SFGWEBVW_SHOWDETALLETAREAEJECU_GetRecord(
-   @pk_ID_DETALLETAREAEJECUTADA NUMERIC(22,0)
 
-    )
-AS
-BEGIN
-    DECLARE @l_count INTEGER;
- 
-SET NOCOUNT ON;
 
-    -- Get the rowcount first and make sure
-    -- only one row is returned
-    SELECT @l_count = count(*)
-    FROM WSXML_SFG.VW_SHOWDETALLETAREAEJECU
-    WHERE ID_DETALLETAREAEJECUTADA = @pk_ID_DETALLETAREAEJECUTADA;
-
-    IF @l_count = 0
-    BEGIN
-        RAISERROR ('-20054 The record no longer exists.', 16, 1);
-		RETURN 0
-    END 
-
-    IF @l_count > 1
-    BEGIN
-        RAISERROR ('-20053 Duplicate object instances.', 16, 1);
-		RETURN 0
-    END 
-
-    -- Get the row from the query.  Checksum value will be
-    -- returned along the row data to support concurrency.
-         SELECT
-        FECHAEJECUCION,
-        TOTALREGISTROS,
-        COUNTREGISTROS,
-        NOMDETALLETAREA,
-        NOMESTADOTAREA,
-        FECHAHORAESTADO,
-        DURACION,
-        PORCENT_AVANCE,
-        IMAGEN,
-        ID_ESTADODETALLETAREAEJ,
-        ID_DETALLETAREAEJECUTADA,
-        ID_DETALLETAREA,
-        CODTAREA,
-        CODTAREAEJECUTADA,
-        FECHAHORAMODIFICACION,
-        DESCRIPCIONFINAL
-    FROM WSXML_SFG.VW_SHOWDETALLETAREAEJECU
-    WHERE ID_DETALLETAREAEJECUTADA = @pk_ID_DETALLETAREAEJECUTADA;  
-END;
-GO
