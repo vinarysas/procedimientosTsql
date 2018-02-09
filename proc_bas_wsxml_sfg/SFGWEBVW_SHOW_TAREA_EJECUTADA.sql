@@ -539,3 +539,54 @@ SET NOCOUNT ON;
 
 END;
 
+GO
+
+IF OBJECT_ID('WSXML_SFG.SFGWEBVW_SHOW_TAREA_EJECUTADA_GetRecord', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGWEBVW_SHOW_TAREA_EJECUTADA_GetRecord;
+GO
+
+CREATE PROCEDURE WSXML_SFG.SFGWEBVW_SHOW_TAREA_EJECUTADA_GetRecord(
+   @pk_ID_TAREAEJECUTADA NUMERIC(22,0)
+
+    )
+AS
+BEGIN
+    DECLARE @l_count INTEGER;
+ 
+SET NOCOUNT ON;
+
+    -- Get the rowcount first and make sure
+    -- only one row is returned
+    SELECT @l_count = count(*)
+    FROM WSXML_SFG.VW_SHOW_TAREA_EJECUTADA
+    WHERE ID_TAREAEJECUTADA = @pk_ID_TAREAEJECUTADA;
+
+    IF @l_count = 0
+    BEGIN
+        RAISERROR ('-20054 The record no longer exists.', 16, 1);
+    END 
+
+    IF @l_count > 1
+    BEGIN
+        RAISERROR ('-20053 Duplicate object instances.', 16, 1);
+    END 
+
+    -- Get the row from the query.  Checksum value will be
+    -- returned along the row data to support concurrency.
+         SELECT
+        ID_TAREA,
+        ID_TAREAEJECUTADA,
+        NOMTAREA,
+        NOMESTADOTAREA,
+        PORCENT_AVANCE,
+        FECHAHORAMODIFICACION,
+        FECHAEJECUCION,
+        DURACION,
+        IMAGENES,
+        IMGENQUEUEABLE,
+        ENQUEUEABLE,
+        PROGRAMADOPOR
+    FROM WSXML_SFG.VW_SHOW_TAREA_EJECUTADA
+    WHERE ID_TAREAEJECUTADA = @pk_ID_TAREAEJECUTADA;  
+END;
+GO

@@ -131,11 +131,68 @@ GO
 
 
 
- IF OBJECT_ID('WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF', 'P') IS NOT NULL
-  DROP PROCEDURE WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF;
+
+ IF EXISTS (
+    SELECT * FROM sys.objects WHERE OBJECT_NAME(object_id) = N'SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF'
+    AND type IN (N'FN', N'IF', N'TF')
+)
+    DROP FUNCTION  WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF
 GO
 
-  CREATE PROCEDURE WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF(@pk_ID_TAREAEJECUTADA NUMERIC(22,0), @returnvalue NUMERIC(22,0) OUT )  AS
+  CREATE FUNCTION WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF(@pk_ID_TAREAEJECUTADA NUMERIC(22,0)/*, @p_ENQUEUABLE_out NUMERIC(22,0) OUT*/) RETURNS NUMERIC(22,0) AS
+  BEGIN
+
+		DECLARE @p_ENQUEUABLE_out NUMERIC(22,0) = 1; -- Default is yes
+		/* Check for execution (current - running) */
+		  DECLARE @xCurrentExecutionState NUMERIC(22,0);
+		BEGIN
+		  SELECT @xCurrentExecutionState = MAX(CODESTADOTAREA) FROM WSXML_SFG.ESTADOTAREAEJECUTADA WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA AND ACTIVE = 1;
+		  -- Only FAILED, ABORTED AND WARNING STATES ARE ENQUEUABLE
+		  IF @xCurrentExecutionState NOT IN (4, 5, 7) BEGIN
+			RETURN 0;
+			--RETURN CAST('-20030 La tarea no se encuentra en un estado reprocesable' AS INT);
+		  END 
+			IF @@ROWCOUNT = 0 BEGIN
+				RETURN 0;
+				--RETURN CAST('-20031 No se puede determinar el estado de la tarea y por tanto no se puede afirmar si es reprocesable' AS INT);
+			END
+		END;
+		/* Check for number of enqueuable subtasks */
+		  DECLARE @xCountEnqueuable NUMERIC(22,0);
+		BEGIN
+		  SELECT @xCountEnqueuable = COUNT(1) FROM WSXML_SFG.DETALLETAREAEJECUTADA
+		  INNER JOIN (SELECT CODDETALLETAREAEJECUTADA, MAX(CODESTADOTAREA) AS CODESTADOTAREAACTUAL 
+						FROM WSXML_SFG.ESTADODETALLETAREAEJECUTADA 
+						WHERE ACTIVE = 1
+					  GROUP BY CODDETALLETAREAEJECUTADA) t
+					  ON (t.CODDETALLETAREAEJECUTADA = ID_DETALLETAREAEJECUTADA)
+		  WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA;
+		  IF @xCountEnqueuable = 0 BEGIN
+			RETURN 0;
+			--RETURN CAST('-20032 La tarea no tiene detalles reprocesables' AS INT);
+		  END 
+		END;
+		/* Check for not already enqueued */
+		  DECLARE @xCountExists NUMERIC(22,0);
+		BEGIN
+		  SELECT @xCountExists = COUNT(1) FROM WSXML_SFG.TAREAREPROCESO
+		  WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA AND CODESTADOTAREA IN (1, 2);
+		  IF @xCountExists > 0 BEGIN
+			RETURN 0;
+			--RETURN CAST ('-20033 Ya se ha activado un reproceso de esta tarea' AS INT);
+		  END 
+		END;
+
+		RETURN @p_ENQUEUABLE_out
+
+  END; 
+GO
+ 
+  IF OBJECT_ID('WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF_1', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF_1;
+GO
+
+  CREATE PROCEDURE WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF_1(@pk_ID_TAREAEJECUTADA NUMERIC(22,0), @returnvalue NUMERIC(22,0) OUT )  AS
  BEGIN
     EXEC WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExec @pk_ID_TAREAEJECUTADA, @returnvalue OUT
   
