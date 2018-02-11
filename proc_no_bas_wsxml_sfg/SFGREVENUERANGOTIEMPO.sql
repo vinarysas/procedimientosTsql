@@ -84,8 +84,10 @@ CREATE     FUNCTION WSXML_SFG.SFGREVENUERANGOTIEMPO_CumplePeriodicidad(@p_FECHAE
       BEGIN
         IF @p_CALENDARIO = 1 BEGIN
           -- si es calendario .. solo tengo que validar la fecha de evaluacion sea la ultima fecha del mes
-          
-              EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @p_FECHAEVALUACION, @v_FECHAINICIO OUT, @v_FECHAFIN OUT
+			
+			--EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @p_FECHAEVALUACION, @v_FECHAINICIO OUT, @v_FECHAFIN OUT
+			SELECT @v_FECHAINICIO = FRSTDATE, @v_FECHAFIN = LASTDATE FROM WSXML_SFG.SFG_PACKAGE_GetMonthRange_F(@p_FECHAEVALUACION)
+            
           
 /*          p_NEWFECHAINICIO := WSXML_SFG.DATEADD('dd',
                                                 -1,
@@ -196,6 +198,82 @@ CREATE     PROCEDURE WSXML_SFG.SFGREVENUERANGOTIEMPO_GetPeriodicidadRango (@p_FE
   END;                                 
 GO
                                 
+IF EXISTS (
+    SELECT * FROM sys.objects WHERE OBJECT_NAME(object_id) = N'SFGREVENUERANGOTIEMPO_GetPeriodicidadRango_F'
+    AND type IN (N'FN', N'IF', N'TF')
+)
+    DROP FUNCTION WSXML_SFG.SFGREVENUERANGOTIEMPO_GetPeriodicidadRango_F
+GO
+
+CREATE     FUNCTION WSXML_SFG.SFGREVENUERANGOTIEMPO_GetPeriodicidadRango_F (
+							     @p_FECHAEVALUACION DATETIME,
+                                 @p_CODPERIODICIDAD NUMERIC(22,0),
+                                 @p_FRECUENCIA      NUMERIC(22,0),
+                                 @p_CALENDARIO      NUMERIC(22,0)
+                                 ) 
+  RETURNS @fechas TABLE (FECHAINICIO DATETIME ,FECHAFIN    DATETIME ) AS
+
+  BEGIN
+		DECLARE @p_FECHAINICIO_out DATETIME ,@p_FECHAFIN_out    DATETIME ;
+
+        IF @p_CODPERIODICIDAD = 1 BEGIN
+          --Diaria
+          SET @p_FECHAINICIO_out = @p_FECHAEVALUACION - @p_FRECUENCIA;
+          SET @p_FECHAINICIO_out = @p_FECHAINICIO_out + 1;
+          SET @p_FECHAFIN_out    = @p_FECHAEVALUACION;
+        END
+        ELSE IF @p_CODPERIODICIDAD = 2 BEGIN
+          --Semanal
+          IF @p_CALENDARIO = 1 BEGIN
+            --De domingo a sabado
+            --p_FECHAINICIO_out := NEXT_DAY(P_FECHAEVALUACION, 'sabado') - 6;
+            --p_FECHAFIN_out    := NEXT_DAY(P_FECHAEVALUACION, 'sabado');
+            SET @p_FECHAFIN_out    = @p_FECHAEVALUACION;
+            SET @p_FECHAINICIO_out = (@p_FECHAEVALUACION -
+                             (7 * @p_FRECUENCIA)) + 1;
+          END
+          ELSE BEGIN
+            --del dia -6
+            --p_FECHAINICIO_out := P_FECHAEVALUACION - 6;
+            --p_FECHAFIN_out    := P_FECHAEVALUACION;
+            SET @p_FECHAFIN_out    = @p_FECHAEVALUACION;
+            SET @p_FECHAINICIO_out = (@p_FECHAEVALUACION -
+                             (7 * @p_FRECUENCIA)) + 1;
+          END 
+        END
+        ELSE IF @p_CODPERIODICIDAD = 3 BEGIN
+          --Mensual
+          IF @p_CALENDARIO = 1 BEGIN
+            --De domingo a sabado
+            SET @p_FECHAINICIO_out = WSXML_SFG.DATESERIAL(1,
+                                                  MONTH(
+                                                          --addmonth('mm',P_FECHAEVALUACION),
+                                                          WSXML_SFG.DATEADD('mm',
+                                                                  (@p_FRECUENCIA - 1) * -1,
+                                                                  @p_FECHAEVALUACION)),
+                                                  YEAR(
+                                                          -- P_FECHAEVALUACION));
+                                                          WSXML_SFG.DATEADD('mm',
+                                                                  (@p_FRECUENCIA - 1) * -1,
+                                                                  @p_FECHAEVALUACION)));
+            SET @p_FECHAFIN_out    = dbo.LAST_DAY(@p_FECHAEVALUACION);
+          END
+          ELSE BEGIN
+            --del dia -6
+            SET @p_FECHAINICIO_out = WSXML_SFG.DATEADD('mm', -1, @p_FECHAEVALUACION) + 1;
+            SET @p_FECHAFIN_out    = @p_FECHAEVALUACION;
+          END 
+        END
+        ELSE BEGIN
+			INSERT INTO @fechas VALUES (@p_FECHAINICIO_out ,CAST('-20053 Tipo de periodicidad no valido' AS INT));
+			RETURN
+        END 
+
+		INSERT INTO @fechas VALUES (@p_FECHAINICIO_out ,@p_FECHAFIN_out);
+		RETURN;
+  END;                                 
+GO
+								
   IF OBJECT_ID('WSXML_SFG.SFGREVENUERANGOTIEMPO_CalcularRevenueRangoTiempo', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGREVENUERANGOTIEMPO_CalcularRevenueRangoTiempo;
 GO
