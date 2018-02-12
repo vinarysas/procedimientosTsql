@@ -129,7 +129,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGPRODUCTOREVENUE_GetProductBalance(@p_CODPRODUC
   END;
 GO
 
-  IF OBJECT_ID('WSXML_SFG.SFGPRODUCTOREVENUE_GetProductBalanceDetail', 'P') IS NOT NULL
+ IF OBJECT_ID('WSXML_SFG.SFGPRODUCTOREVENUE_GetProductBalanceDetail', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGPRODUCTOREVENUE_GetProductBalanceDetail;
 GO
 
@@ -176,12 +176,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGPRODUCTOREVENUE_GetProductBalanceDetail(@p_COD
 	  FETCH NEXT FROM icx INTO @icx__ID,@icx__VALUE
 	  WHILE (@@FETCH_STATUS = 0)
       BEGIN
-			SET @CostSubQuery    = ISNULL(@CostSubQuery, '')    + ', SUM(CASE WHEN CODCOSTOCALCULADO = ' + @icx__ID + ' THEN VALORCOSTO END) AS COST' + ISNULL(RIGHT(REPLICATE('0', 3) + LEFT(@icx__ID, 3), 3), '');
-			SET @CostQueryHeader = ISNULL(@CostQueryHeader, '') + ', ROUND(SUM(NVL(RCT.COST' + ISNULL(RIGHT(REPLICATE('0', 3) + LEFT(@icx__ID, 3), 3), '') + ', 0)), 6) AS xb' + ISNULL(@icx__VALUE, '') + '';
+			SET @CostSubQuery    = ISNULL(@CostSubQuery, '')    + ', SUM(CASE WHEN CODCOSTOCALCULADO = ' + CONVERT(VARCHAR,@icx__ID) + ' THEN VALORCOSTO END) AS COST' + ISNULL(dbo.lpad_numeric2(@icx__ID, 3,'0'),'');
+			SET @CostQueryHeader = ISNULL(@CostQueryHeader, '') + ', ROUND(SUM(ISNULL(RCT.COST' + ISNULL(dbo.lpad_numeric2(@icx__ID, 3,'0'), '') + ', 0)), 6) AS "xb' + ISNULL(@icx__VALUE, '') + '"';
 			FETCH NEXT FROM icx INTO @icx__ID,@icx__VALUE
 	  END;
       CLOSE icx;
       DEALLOCATE icx;
+
+	  
 
       DECLARE itx CURSOR FOR SELECT ID, VALUE FROM @ContractList--.First..ContractList.Last LOOP
 	  OPEN itx
@@ -189,33 +191,36 @@ CREATE     PROCEDURE WSXML_SFG.SFGPRODUCTOREVENUE_GetProductBalanceDetail(@p_COD
 	  FETCH NEXT FROM itx INTO @itx__ID,@itx__VALUE
 
 	  WHILE (@@FETCH_STATUS = 0) BEGIN
-			SET @ContractQHeader = ISNULL(@ContractQHeader, '') + ', ROUND(SUM(CASE WHEN REG.CODTIPOCONTRATOPDV = ' + ISNULL(@itx__ID, '') + ' THEN REG.VALORCOMISION ELSE 0 END), 6) AS xb' + ISNULL(dbo.InitCap(@itx__VALUE),'') + '';
+			SET @ContractQHeader = ISNULL(@ContractQHeader, '') + ', ROUND(SUM(CASE WHEN REG.CODTIPOCONTRATOPDV = ' + ISNULL(CONVERT(VARCHAR,@itx__ID), '') + ' THEN REG.VALORCOMISION ELSE 0 END), 6) AS "xb' + ISNULL(dbo.InitCap(@itx__VALUE),'') + '"';
 			FETCH NEXT FROM itx INTO @itx__ID,@itx__VALUE
       END
       CLOSE itx;
       DEALLOCATE itx;
+
+	  --SELECT @CostSubQuery, @CostQueryHeader, @ContractQHeader
     END
     ELSE BEGIN
       RAISERROR('-20083 No existe la lista de costos calculados para el servicio o no existen tipos de contrato configurados en el sistema.', 16, 1);
+	  RETURN 0
     END 
     /* Obtener reglas de chequeo desde registro */
     SET @sql = 
-      ' SELECT TPR.NOMTIPOREGISTRO                               AS Tipo Registro '     +
+      ' SELECT TPR.NOMTIPOREGISTRO                               AS "Tipo Registro" '     +
              ', ROUND(SUM(REG.NUMTRANSACCIONES), 6)              AS Tx '                +
              ', ROUND(SUM(REG.VALORTRANSACCION), 6)              AS Valor '             +
-             ', ROUND(SUM(REG.VALORVENTABRUTANOREDONDEADO), 6)   AS Valor Sin IVA '     +
-             ', ROUND(SUM(REG.VALORCOMISION), 6)                 AS Comision POS '      + ISNULL(@ContractQHeader, '') +
-             ', ROUND(SUM(NVL(REV.REVENUETOTAL, 0)), 6)          AS Revenue Bruto '     +
-             ', ROUND(SUM(NVL(REV.VALORCOMISIONESTANDAR, 0)), 6) AS Comision Estandar ' +
-             ', ROUND(SUM(NVL(REV.INGRESOCORPORATIVO, 0)), 6)    AS Ingreso Corp. '     +
-             ', ROUND(SUM(NVL(REV.INGRESOLOCAL, 0)), 6)          AS Ingreso Local '     +
-             ', ROUND(SUM(NVL(REV.EGRESOLOCAL, 0)), 6)           AS Costo de Venta '    + ISNULL(@CostQueryHeader, '') +
-             ', ROUND(SUM(NVL(CASE WHEN AJS.AJUSTES_CASTIGO <>0 THEN  ROUND(REG.VALORTRANSACCION, 6)  ELSE 0 END , 0)), 6)          AS Castigo Ajuste '  +
-             ', ROUND(SUM(NVL(CASE WHEN AJS.AJUSTES_NO_CASTIGO <>0 THEN  REV.REVENUETOTAL ELSE 0 END , 0)), 6)                AS No Castigo Ajuste '  +
-             ', ROUND(SUM(NVL(REV.UTILIDADPARCIAL, 0)), 6)       AS Utilidad Parcial '  +
+             ', ROUND(SUM(REG.VALORVENTABRUTANOREDONDEADO), 6)   AS "Valor Sin IVA" '     +
+             ', ROUND(SUM(REG.VALORCOMISION), 6)                 AS "Comision POS" '      + ISNULL(@ContractQHeader, '') +
+             ', ROUND(SUM(ISNULL(REV.REVENUETOTAL, 0)), 6)          AS "Revenue Bruto" '     +
+             ', ROUND(SUM(ISNULL(REV.VALORCOMISIONESTANDAR, 0)), 6) AS "Comision Estandar" ' +
+             ', ROUND(SUM(ISNULL(REV.INGRESOCORPORATIVO, 0)), 6)    AS "Ingreso Corp." '     +
+             ', ROUND(SUM(ISNULL(REV.INGRESOLOCAL, 0)), 6)          AS "Ingreso Local" '     +
+             ', ROUND(SUM(ISNULL(REV.EGRESOLOCAL, 0)), 6)           AS "Costo de Venta" '    + ISNULL(@CostQueryHeader, '') +
+             ', ROUND(SUM(ISNULL(CASE WHEN AJS.AJUSTES_CASTIGO <>0 THEN  ROUND(REG.VALORTRANSACCION, 6)  ELSE 0 END , 0)), 6)          AS "Castigo Ajuste" '  +
+             ', ROUND(SUM(ISNULL(CASE WHEN AJS.AJUSTES_NO_CASTIGO <>0 THEN  REV.REVENUETOTAL ELSE 0 END , 0)), 6)                AS "No Castigo Ajuste" '  +
+             ', ROUND(SUM(ISNULL(REV.UTILIDADPARCIAL, 0)), 6)       AS "Utilidad Parcial" '  +
       ' FROM WSXML_SFG.ENTRADAARCHIVOCONTROL CTR ' +
       ' INNER JOIN WSXML_SFG.TIPOREGISTRO             TPR ON (TPR.ID_TIPOREGISTRO          IN (1, 2, 3, 4)) '               +
-      ' INNER JOIN WSXML_SFG.PRODUCTO                 PRD ON (PRD.ID_PRODUCTO              = ' + ISNULL(@p_CODPRODUCTO, '') + ') '     +
+      ' INNER JOIN WSXML_SFG.PRODUCTO                 PRD ON (PRD.ID_PRODUCTO              = ' + ISNULL(CONVERT(VARCHAR,@p_CODPRODUCTO), '') + ') '     +
       ' LEFT OUTER JOIN WSXML_SFG.REGISTROFACTURACION REG ON (REG.CODENTRADAARCHIVOCONTROL = CTR.ID_ENTRADAARCHIVOCONTROL ' +
       '                                         AND REG.CODTIPOREGISTRO          = TPR.ID_TIPOREGISTRO '          +
       '                                         AND REG.CODPRODUCTO              = PRD.ID_PRODUCTO) '             +
@@ -230,7 +235,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGPRODUCTOREVENUE_GetProductBalanceDetail(@p_COD
       '                    ) AJS ON AJS.CODREGISTROFACTURACION = REG.ID_REGISTROFACTURACION                       '  +
       ' LEFT OUTER JOIN (SELECT CODREGISTROREVENUE' + ISNULL(@CostSubQuery, '') +
       '                  FROM WSXML_SFG.REGISTROREVCOSTOCALCULADO GROUP BY CODREGISTROREVENUE) RCT ON (RCT.CODREGISTROREVENUE = REV.ID_REGISTROREVENUE)' +
-      ' WHERE CTR.REVERSADO = 0 AND CTR.FECHAARCHIVO BETWEEN CONVERT(DATETIME, CONVERT(DATE,''' + ISNULL(FORMAT(@p_FECHAINICIO, 'dd/MM/yyyy'), '') + ''')) AND CONVERT(DATETIME, CONVERT(DATE,''' + ISNULL(FORMAT(@p_FECHAFIN, 'dd/MM/yyyy'), '') + ''')) AND TIPOARCHIVO = ' + ISNULL(@serviceID, '') +
+      ' WHERE CTR.REVERSADO = 0 AND CTR.FECHAARCHIVO BETWEEN CONVERT(DATETIME, CONVERT(DATE,''' + ISNULL(FORMAT(@p_FECHAINICIO, 'dd/MM/yyyy'), '') + ''')) AND CONVERT(DATETIME, CONVERT(DATE,''' + ISNULL(FORMAT(@p_FECHAFIN, 'dd/MM/yyyy'), '') + ''')) AND TIPOARCHIVO = ' + ISNULL(CONVERT(VARCHAR,@serviceID), '') +
       ' GROUP BY PRD.ID_PRODUCTO, ID_TIPOREGISTRO, TPR.NOMTIPOREGISTRO ORDER BY TPR.ID_TIPOREGISTRO';
     EXECUTE sp_executesql @sql;
   END;

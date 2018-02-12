@@ -2359,7 +2359,7 @@ GO
           SET @countrecords = @countrecords + 1;
           IF (@countrecords % @waitnrecords) = 0 BEGIN
             EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_DETALLETAREAEJECUTADA, @countrecords
-            COMMIT;
+            --COMMIT;
           END 
 
         END;

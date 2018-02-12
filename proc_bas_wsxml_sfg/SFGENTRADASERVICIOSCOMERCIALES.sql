@@ -416,7 +416,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGENTRADASERVICIOSCOMERCIALES_ReprocessOrphans(@
           -- Eliminar huerfano
           DELETE FROM HUERFANOSERVICIOSCOMERCIALES WHERE ID_HUERFANOSERVICIOSCOMERCIALS = @orphID;
 
-          COMMIT;
+          --COMMIT;
 
           -- Concatenar huerfanos dependiendo de donde quedo la entrada huerfana
           IF (SELECT COUNT(*) FROM @entryREFERENCES) > 0 BEGIN
@@ -516,7 +516,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGENTRADASERVICIOSCOMERCIALES_ReprocessOrphans(@
             SET @cCOUNTREGISTROS = @cCOUNTREGISTROS + @cMODLREGISTROS;
             EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA, @cCOUNTREGISTROS
             SET @cMODLREGISTROS = 0;
-            COMMIT;
+            --COMMIT;
           END 
         END;
 

@@ -45,7 +45,7 @@ SET NOCOUNT ON;
         );
        SET
             @p_ID_CON_NO_CONCILIA_ALI_out = SCOPE_IDENTITY() ;
-COMMIT;
+--COMMIT;
 END;
 GO
 
