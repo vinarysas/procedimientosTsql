@@ -770,10 +770,10 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRedPDV(@p_ACTIVE
      WHERE CANALNEGOCIO.CODIGO = @p_CODIGOCANALNEGOCIO;
   
     IF @vCOUNT = 0 BEGIN
-      SET @MSGERROERROR = 'No se puede sincronizar la red ' + ISNULL(@p_NOMREDPDV, '') +
+      SET @MSGERROERROR = '-20000 No se puede sincronizar la red ' + ISNULL(@p_NOMREDPDV, '') +
                       ' , por que no existe un canal de negocio con el codigo ' +
                       ISNULL(@p_CODIGOCANALNEGOCIO, '');
-      RAISERROR(-20000, @MSGERROERROR, 16, 1);
+      RAISERROR(@MSGERROERROR, 16, 1);
     END
     ELSE BEGIN
       SELECT @vID_CANALNEGOCIO = CANALNEGOCIO.ID_CANALNEGOCIO
