@@ -277,3 +277,31 @@ begin
 
 end
 GO
+
+
+
+IF EXISTS (
+    SELECT * FROM sys.objects WHERE OBJECT_NAME(object_id) = N'rpad_varchar2'
+    AND type IN (N'FN', N'IF', N'TF')
+)
+	DROP FUNCTION dbo.rpad_varchar2;
+GO
+  
+
+create FUNCTION dbo.rpad_varchar2(
+    @string as varchar(max), 
+    @length as int, 
+    @pad as varchar(max) = ' '
+	)
+returns varchar(max)
+
+begin
+	
+	IF LEN(@string) > @length BEGIN		
+		RETURN @string
+	END
+
+		RETURN LEFT(LEFT(@string, @length) + REPLICATE(@pad, @length), @length);
+
+end
+GO
