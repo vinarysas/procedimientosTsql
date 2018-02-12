@@ -117,7 +117,55 @@ CREATE PROCEDURE WSXML_SFG.SFGPREMIOSL1LIAB_AddL1liabTotalesporproducto( @pCodCo
                                        @pCANTPREMIOSPENDPAGOMAYOR60 NUMERIC(22,0),
                                        @pPREMIOSCADUCOSMAYOR365 NUMERIC(22,0),
                                        @pID_L1liabTotalproducto_out NUMERIC(22,0) out) as
+ begin 
+declare @vcodproducto NUMERIC(22,0);
+declare @vcodcategoria NUMERIC(22,0);
+ 
+set nocount on;
+  --Consulta idproducto con el nombre
+  EXEC WSXML_SFG.SFGPREMIOSL1LIAB_GetProductobyNombre @pNOMBREPRODUCTO, @vcodproducto OUT
+  --Consulta idcategoria por nombre de division
+  EXEC WSXML_SFG.SFGPREMIOSL1LIAB_GetCategoriabyDivision @pCATEGORIA, @vcodcategoria OUT
+  --inserta l1liabtotalesporproducto
+  INSERT INTO WSXML_SFG.L1liabTotalesporproducto(
+                                        CODCONTROLL1LIAB,
+                                        CODPRODUCTO,
+                                        CODCATEGORIA,
+                                        TOTALNUMEROGANADORES,
+                                        PREMIOSTOTALES,
+                                        PREMIOSPAGADOSHOY,
+                                        CANTIDADPREMIOSPAGADOSHOY,
+                                        PREMIOSPENDPAGOMENOR60,
+                                        CANTPREMIOSPENDPAGOMENOR60,
+                                        PREMIOSPENDIENTESMAYOR60,
+                                        PREMIOSPAGADOSHOYMAYOR60,
+                                        CANTPREMIOSPAGADOSHOYMAYOR60,
+                                        PREMIOSPENDPAGOMAYOR60,
+                                        CANTPREMIOSPENDPAGOMAYOR60,
+                                        PREMIOSCADUCOSMAYOR365)
+        VALUES(
+               @pCodControlL1liab,
+               @vcodproducto,
+               @vcodcategoria,
+               @pTOTALNUMEROGANADORES,
+               @pPREMIOSTOTALESPORSORTEO,
+               @pPREMIOSPAGADOSHOY,
+               @pCANTIDADPREMIOSPAGADOSHOY,
+               @pPREMIOSPENDPAGOMENOR60,
+               @pCANTPREMIOSPENDPAGOMENOR60,
+               @pPREMIOSPENDIENTESMAYOR60,
+               @pPREMIOSPAGADOSHOYMAYOR60,
+               @pCANTPREMIOSPAGADOSHOYMAYOR60,
+               @pPREMIOSPENDPAGOMAYOR60,
+               @pCANTPREMIOSPENDPAGOMAYOR60,
+               @pPREMIOSCADUCOSMAYOR365);
+               SET
+                @pID_L1liabTotalproducto_out = SCOPE_IDENTITY();
+     
+END
 GO
+
+
 
 
 IF OBJECT_ID('WSXML_SFG.SFGPREMIOSL1LIAB_AddL1liabpremiosporsorteo', 'P') IS NOT NULL
