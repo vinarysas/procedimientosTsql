@@ -920,13 +920,16 @@ CREATE     FUNCTION WSXML_SFG.SFGPRODUCTOCONTRATO_ResolverRangoComision(@p_CODRA
                   DECLARE @v_VALORREVENUE              FLOAT;
                 BEGIN
                 
-                  EXEC WSXML_SFG.SFGREVENUERANGOTIEMPO_GetPeriodicidadRango @p_FECHA,
+                  /*EXEC WSXML_SFG.SFGREVENUERANGOTIEMPO_GetPeriodicidadRango @p_FECHA,
                                                              @v_CODPERIODICIDAD,
                                                              @v_FRECUENCIA,
                                                              @v_CALENDARIO,
                                                              @v_FECHAINICIO OUT,
-                                                             @v_FECHAFIN OUT
-                
+                                                             @v_FECHAFIN OUT*/
+                  
+				  SELECT @v_FECHAINICIO = FECHAINICIO,  @v_FECHAFIN = FECHAFIN 
+				  FROM WSXML_SFG.SFGREVENUERANGOTIEMPO_GetPeriodicidadRango_F(@p_FECHA,@v_CODPERIODICIDAD, @v_FRECUENCIA, @v_CALENDARIO)
+															 
                   SELECT @v_COUNT = COUNT(1)
                     FROM WSXML_SFG.COSTOASOCIADO
                    WHERE COSTOASOCIADO.CODTARIFAVALORASOCIADA =
@@ -1035,7 +1038,7 @@ CREATE     FUNCTION WSXML_SFG.SFGPRODUCTOCONTRATO_ResolverRangoComision(@p_CODRA
                       
                       --Obtener el valor del revenue que debe tener para todo el periodo
                     
-                      SET @v_VALORREVENUE = SFGREVENUERANGOTIEMPO.GetValorRevenueParaCostos(@v_CODCOMISIONRANGOTIEMPO,
+                      SET @v_VALORREVENUE = WSXML_SFG.SFGREVENUERANGOTIEMPO_GetValorRevenueParaCostos(@v_CODCOMISIONRANGOTIEMPO,
                                                                                         @v_MONTO,
                                                                                         @v_TRX,
                                                                                         @v_MONTOGRUPO,
