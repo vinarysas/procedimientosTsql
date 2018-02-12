@@ -202,7 +202,7 @@ go
 create PROCEDURE WSXML_SFG.SFGPREMIOSL1LIAB_Reversepremiosl1liab(@pCDC NUMERIC(22,0)) as
   begin
   set nocount on; 
-    delete from controlpremiosl1liab where cdc = @pCDC;
+    delete from WSXML_SFG.controlpremiosl1liab where cdc = @pCDC;
   end;                                       
 
 GO
