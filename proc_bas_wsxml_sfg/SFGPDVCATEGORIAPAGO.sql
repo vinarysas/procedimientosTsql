@@ -129,6 +129,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGPDVCATEGORIAPAGO_LoadDifferentialTransRecord(@
 		IF @@ROWCOUNT  = 0 BEGIN
 			DECLARE @thisMODIFIER FLOAT = @p_COMISIONGENERICA - @cBASETRANSDEFAULT;
 			BEGIN
+				DECLARE @NOMCATEGORIAPAGO VARCHAR(50) = 'Auto: ' + ISNULL(CONVERT(VARCHAR,@p_COMISIONGENERICA), '')
 				INSERT INTO WSXML_SFG.CATEGORIAPAGO (
                                      NOMCATEGORIAPAGO,
                                      DIASHABILESPAGOGTECH,
@@ -139,8 +140,15 @@ CREATE     PROCEDURE WSXML_SFG.SFGPDVCATEGORIAPAGO_LoadDifferentialTransRecord(@
                                      BASEPORCENTUAL,
                                      BASETRANSACCIONAL)
 				VALUES (
-					  'Auto: ' + ISNULL(@p_COMISIONGENERICA, ''),
-					0, 0, 0, @thisMODIFIER, 0, 0, @cBASETRANSDEFAULT);
+									@NOMCATEGORIAPAGO,
+									0, 
+									0, 
+									0, 
+									@thisMODIFIER, 
+									0, 
+									0, 
+									@cBASETRANSDEFAULT
+					);
 				SET @cCODCATEGORIAPAGO = SCOPE_IDENTITY();
 			END;
 
@@ -215,12 +223,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGPDVCATEGORIAPAGO_LoadDifferentialTransRecord(@
     END 
 
 	IF @@ROWCOUNT  = 0 BEGIN
-		DECLARE @msg VARCHAR(2000) = '-20000 El punto de venta ' + ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') + ' no existe';
+		DECLARE @msg VARCHAR(2000) = '-20000 El punto de venta ' + ISNULL(CONVERT(VARCHAR,@p_CODIGOGTECHPUNTODEVENTA), '') + ' no existe';
 		RAISERROR(@msg, 16, 1);
 	END
   END;
 GO
-
 
 
 
