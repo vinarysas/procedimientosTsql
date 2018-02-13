@@ -1412,42 +1412,40 @@ GO
  BEGIN
     DECLARE @returnval VARCHAR(2000);
    
-    IF CAST(DATEPART(YEAR,@iniDATE) AS INT) =
-       CAST(DATEPART(YEAR,@endDATE) AS INT) BEGIN
-      IF CAST(DATEPART(MONTH,@iniDATE) AS INT) =
-         CAST(DATEPART(MONTH,@endDATE) AS INT) BEGIN
-        IF CAST(DATEPART(DAY,@iniDATE) AS INT) =
-           CAST(DATEPART(DAY,@endDATE) AS INT) BEGIN
+    IF CAST(DATEPART(YEAR,@iniDATE) AS INT) = CAST(DATEPART(YEAR,@endDATE) AS INT) BEGIN
+      IF CAST(DATEPART(MONTH,@iniDATE) AS INT) = CAST(DATEPART(MONTH,@endDATE) AS INT) BEGIN
+        IF CAST(DATEPART(DAY,@iniDATE) AS INT) = CAST(DATEPART(DAY,@endDATE) AS INT) BEGIN
           SET @returnval = ISNULL(RTRIM(LTRIM(dbo.InitCap(WSXML_SFG.SFG_PACKAGE_GetWeekMonthName(@iniDATE)))), '') + ' ' +
-                       ISNULL(CAST(DATEPART(DAY,@iniDATE) AS INT), '') + '-' +
-                       ISNULL(datepart(yy,@endDATE), '');
+                       ISNULL(CAST(DATEPART(DAY,@iniDATE) AS VARCHAR), '') + '-' +
+                       ISNULL(CAST(datepart(yy,@endDATE) AS VARCHAR), '');
         END
         ELSE BEGIN
           SET @returnval = ISNULL(RTRIM(LTRIM(dbo.InitCap(WSXML_SFG.SFG_PACKAGE_GetWeekMonthName(@iniDATE)))), '') + ' ' +
-                       ISNULL(CAST(datepart(day,@iniDATE) as int), '') + ' a ' +
-                       ISNULL(CAST(datepart(day, @endDATE) as int), '') + '-' +
-                       ISNULL(datepart(yy,@endDATE), '');
+                       ISNULL(CAST(datepart(day,@iniDATE) AS VARCHAR), '') + ' a ' +
+                       ISNULL(CAST(datepart(day, @endDATE) AS VARCHAR), '') + '-' +
+                       ISNULL(CAST(datepart(yy,@endDATE) AS VARCHAR), '');
         END 
       END
       ELSE BEGIN
         SET @returnval = ISNULL(RTRIM(LTRIM(dbo.InitCap(WSXML_SFG.SFG_PACKAGE_GetWeekMonthName(@iniDATE)))), '') + ' ' +
-                     ISNULL(cast(datepart(day,@iniDATE) as int), '') + ' a ' +
+                     ISNULL(cast(datepart(day,@iniDATE) AS VARCHAR), '') + ' a ' +
                      ISNULL(RTRIM(LTRIM(dbo.InitCap(WSXML_SFG.SFG_PACKAGE_GetWeekMonthName(@endDATE)))), '') + ' ' +
-                     ISNULL(cast(datepart(dd,@endDATE) as int), '') + '-' +
-                     ISNULL(datepart(yy,@endDATE), '');
+                     ISNULL(CAST(datepart(dd,@endDATE) AS VARCHAR), '') + '-' +
+                     ISNULL(CAST(datepart(yy,@endDATE) AS VARCHAR), '');
       END 
     END
     ELSE BEGIN
       SET @returnval = ISNULL(RTRIM(LTRIM(dbo.InitCap(WSXML_SFG.SFG_PACKAGE_GetWeekMonthName(@iniDATE)))), '') + ' ' +
-                   ISNULL(cast(datepart(dd,@iniDATE) as int), '') + '-' +
+                   ISNULL(cast(datepart(dd,@iniDATE) as VARCHAR), '') + '-' +
                    ISNULL(datepart(yy,@endDATE), '') + ' a ' +
                    ISNULL(RTRIM(LTRIM(dbo.InitCap(WSXML_SFG.SFG_PACKAGE_GetWeekMonthName(@endDATE)))), '') + ' ' +
-                   ISNULL(CAST(DATEPART(DAY,@endDATE) AS INT), '') + '-' +
-                   ISNULL(DATEPART(yy,@endDATE), '');
+                   ISNULL(CAST(DATEPART(DAY,@endDATE) AS VARCHAR), '') + '-' +
+                   ISNULL(CAST(DATEPART(yy,@endDATE) AS VARCHAR), '');
     END 
     RETURN @returnval;
   END;
 GO
+
 
 IF OBJECT_ID('WSXML_SFG.SFG_PACKAGE_DaysInMonth', 'FN') IS NOT NULL
   DROP FUNCTION WSXML_SFG.SFG_PACKAGE_DaysInMonth;
