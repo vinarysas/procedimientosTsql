@@ -1148,6 +1148,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocialStree
                       ' por que no existe un tipo de persona con el nombre' +
                       ISNULL(@p_NOMBRETIPOPERSONA, '');
       RAISERROR( @MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_TIPOPERSONA = TIPOPERSONATRIBUTARIA.ID_TIPOPERSONATRIBUTARIA
@@ -1169,6 +1170,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocialStree
                       ' por que no existe un regimen con id ' +
                       ISNULL(CONVERT(VARCHAR, @p_CODREGIMEN), '');
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_REGIMEN = REGIMEN.ID_REGIMEN
@@ -1186,6 +1188,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocialStree
   
     IF @vCOUNT = 0 BEGIN
       -- El registro no existe y debe ser creado 
+
       EXEC WSXML_SFG.SFGRAZONSOCIAL_AddRecord @p_CODIGOGTECHRAZONSOCIAL,
                                @p_NOMBRERAZONSOCIAL,
                                @p_IDENTIFICACION,
@@ -1223,7 +1226,6 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocialStree
   
   END;
 GO
-
 
   IF OBJECT_ID('WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller;
@@ -1286,11 +1288,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
      WHERE RAZONSOCIAL.CODIGOGTECHRAZONSOCIAL = @p_CODIGOGTECHRAZONSOCIAL;
   
     IF @vCOUNT = 0 BEGIN
-      SET @MSGERROR = ' No se puede crear el punto de venta ' +
+      SET @MSGERROR = '-20000 No se puede crear el punto de venta ' +
                   ISNULL(@p_CODIGOPDVMOVIL, '') +
                   ' , por que no existe una razon social con el codigo  ' +
                   ISNULL(CONVERT(VARCHAR, @p_CODIGOGTECHRAZONSOCIAL), '');
-      RAISERROR(-20000, @MSGERROR, 16, 1);
+      RAISERROR(@MSGERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_RAZONSOCIAL = RAZONSOCIAL.ID_RAZONSOCIAL,
@@ -1310,11 +1313,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
      WHERE CIUDAD.CIUDADDANE = @vDANECOMPLENTO;
   
     IF @vCOUNT = 0 BEGIN
-      SET @MSGERROR = ' No se puede crear el punto de venta   ' +
+      SET @MSGERROR = '-20000 No se puede crear el punto de venta   ' +
                   ISNULL(@p_CODIGOPDVMOVIL, '') +
                   ' , por que no existe una ciudad con el codigo dane  ' +
                   ISNULL(CONVERT(VARCHAR, @vDANECOMPLENTO), '');
-      RAISERROR(-20000, @MSGERROR, 16, 1);
+      RAISERROR(@MSGERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_CIUDAD = CIUDAD.ID_CIUDAD
@@ -1328,10 +1332,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
      WHERE RUTAPDV.NOMRUTAPDV = @p_RUTA;
   
     IF @vCOUNT = 0 BEGIN
-      SET @MSGERROR = ' No se puede crear el punto de venta   ' +
+      SET @MSGERROR = '-20000 No se puede crear el punto de venta   ' +
                   ISNULL(@p_CODIGOPDVMOVIL, '') +
                   ' , por que no existe una ruta con el nombre  ' + ISNULL(@p_RUTA, '');
-      RAISERROR(-20000, @MSGERROR, 16, 1);
+      RAISERROR(@MSGERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_RUTAPDV = RUTAPDV.ID_RUTAPDV, @vID_REGIONAL = RUTAPDV.CODREGIONAL
@@ -1345,11 +1350,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
      WHERE TIPONEGOCIO.ID_TIPONEGOCIO = @P_CODTIPONEGOCIO;
   
     IF @vCOUNT = 0 BEGIN
-      SET @MSGERROR = ' No se puede crear el punto de venta   ' +
+      SET @MSGERROR = '-20000 No se puede crear el punto de venta   ' +
                   ISNULL(@p_CODIGOPDVMOVIL, '') +
                   ' , por que no existe un tipo de negocio con el codigo ' +
                   ISNULL(CONVERT(VARCHAR, @P_CODTIPONEGOCIO), '');
-      RAISERROR(-20000, @MSGERROR, 16, 1);
+      RAISERROR(@MSGERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_TIPONEGOCIO = TIPONEGOCIO.ID_TIPONEGOCIO
@@ -1464,11 +1470,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
     AND RANGOCOMISIONDETALLE.VALORPORCENTUAL = @p_PORCENTAJECOMISIONVIAMOVIL;
     
     IF @vCOUNT = 0 BEGIN
-      SET @MSGERROR = ' No se puede crear el punto de venta   ' +
+      SET @MSGERROR = '-20000 No se puede crear el punto de venta   ' +
                   ISNULL(@p_CODIGOPDVMOVIL, '') +
                   ' , por que no existe un rango comision con el valor   ' +
                   ISNULL(CONVERT(VARCHAR, @p_PORCENTAJECOMISIONVIAMOVIL), '') + '%' ;
-      RAISERROR(-20000, @MSGERROR, 16, 1);
+      RAISERROR(@MSGERROR, 16, 1);
+	  RETURN 0
     END 
     
     SELECT @vCODRANGOCOMISION = MAX(RANGOCOMISIONDETALLE.CODRANGOCOMISION)
@@ -1507,6 +1514,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
                                   ISNULL(@p_CODIGOPDVMOVIL, '') +
                                   ' no existe: ' + ISNULL(ERROR_MESSAGE ( ) , '');
 			RAISERROR(@tmpERROR, 16, 1);
+			RETURN 0
 		  END
       END;
   
@@ -2017,11 +2025,13 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePDVRedExterna(@p
       IF @vCURRENTCODEXTERNO<>@p_CODIGOPUNTODEVENTARED BEGIN 
           SET @MSGERROR = ' No se puede crear el punto de venta  ' + ISNULL(@p_CODIGOPUNTODEVENTA, '') + ' por que cambiaria el codigo externo del punto.';
           RAISERROR(-20000, @MSGERROR, 16, 1);
+		  RETURN 0
       END 
       
       IF @vCURRENTCODDUENOPDV<>@p_CODDUENOPUNTODEVENTA BEGIN 
           SET @MSGERROR = ' No se puede crear el punto de venta  ' + ISNULL(@p_CODIGOPUNTODEVENTA, '') + ' por que cambiaria el due?o del punto.';
           RAISERROR(-20000, @MSGERROR, 16, 1);
+		  
       END 
       
       -- Si llega hasta aqui entonces se actualiza el punto de venta
