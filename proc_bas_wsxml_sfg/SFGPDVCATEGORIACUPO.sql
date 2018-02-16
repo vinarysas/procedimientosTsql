@@ -302,28 +302,33 @@ CREATE     PROCEDURE WSXML_SFG.SFGPDVCATEGORIACUPO_ObtenerIDPorValor(@p_VALORCUP
   END;
   GO
   
-  
-  
-  IF OBJECT_ID('WSXML_SFG.SFGPDVCATEGORIACUPO_GetIDByValue', 'FN') IS NOT NULL
+IF OBJECT_ID('WSXML_SFG.SFGPDVCATEGORIACUPO_GetIDByValue', 'FN') IS NOT NULL
   DROP FUNCTION WSXML_SFG.SFGPDVCATEGORIACUPO_GetIDByValue;
 GO
 
-CREATE     FUNCTION WSXML_SFG.SFGPDVCATEGORIACUPO_GetIDByValue(@p_VALORCUPO FLOAT) RETURNS NUMERIC(22,0) AS
- BEGIN
-  DECLARE @result NUMERIC(22,0);
-   
-
-           select  @result = isnull(cc.id_categoriacupo,0) 
-            from WSXML_SFG.categoriacupo cc
-            where cc.valorcupo = @p_VALORCUPO;
-
-		--IF @@ROWCOUNT = 0 BEGIN
-            --EXEC WSXML_SFG.SFGCATEGORIACUPO_AddRecord 'CupoAutomatico: ' + ISNULL(@p_VALORCUPO, '') , @p_VALORCUPO, 1 , 0 , @result
-            --RETURN @result;
-		--END
-
-            RETURN @result;
-
-
-  END;
+CREATE FUNCTION WSXML_SFG.SFGPDVCATEGORIACUPO_GetIDByValue(
+  @p_VALORCUPO FLOAT
+) RETURNS NUMERIC(22,0) AS
+BEGIN
+  DECLARE @result NUMERIC(22,0) = 0
+  DECLARE @msg    NVARCHAR(2000) = ''
+  
+  SELECT @result = isnull(cc.id_categoriacupo,0) 
+  FROM WSXML_SFG.categoriacupo cc
+  WHERE cc.valorcupo = @p_VALORCUPO
+  
+  IF @@ROWCOUNT = 0 
+  BEGIN
+    SET @msg = 'CupoAutomatico: ' + @p_VALORCUPO
+    EXEC WSXML_SFG.SFGCATEGORIACUPO_AddRecord 
+      @msg,
+      @p_VALORCUPO, 
+      1, 
+      0, 
+      @result out
+  END 
+  
+  RETURN @result
+  
+END
 GO
