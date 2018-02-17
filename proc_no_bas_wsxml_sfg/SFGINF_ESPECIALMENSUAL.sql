@@ -142,13 +142,50 @@ BEGIN
 END
 GO
 
-  IF OBJECT_ID('WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensual', 'P') IS NOT NULL
+ IF OBJECT_ID('WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensual', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensual;
 GO
 
 CREATE     PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensual(@ID_DETALLETAREAEJECUTADA NUMERIC(22,0),
-                      @DIA                      DATETIME
-                       ) AS
+                       @DIA                      DATETIME) AS
+ BEGIN
+    DECLARE @sFECHAFRST DATETIME;
+    DECLARE @sFECHALAST DATETIME;
+   
+  SET NOCOUNT ON;
+    EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @DIA, @sFECHAFRST OUT, @sFECHALAST OUT
+      SELECT ALIADOESTRATEGICO.NOMALIADOESTRATEGICO AS "Aliado Estrategico",
+             producto.nomproducto AS "Producto",
+             FORMAT(abs(PUNTODEVENTA.NUMEROTERMINAL), '00000') AS "Terminal",
+             ENTRADAARCHIVOCONTROL.FECHAARCHIVO AS "Fecha Archivo",
+             REGISTROFACTREFERENCIA.VALORTRANSACCION AS "Valor Transaccion",
+             SUBSTRING(CIUDAD.CIUDADDANE, 3, 3) AS "Ciudad Dane",
+             SUBSTRING(CIUDAD.CIUDADDANE, 1, 2) AS "Departamento Dane"
+        FROM WSXML_SFG.REGISTROFACTREFERENCIA
+       INNER JOIN WSXML_SFG.REGISTROFACTURACION
+          ON REGISTROFACTREFERENCIA.CODREGISTROFACTURACION =
+             REGISTROFACTURACION.ID_REGISTROFACTURACION
+       INNER JOIN WSXML_SFG.ENTRADAARCHIVOCONTROL
+          ON REGISTROFACTURACION.CODENTRADAARCHIVOCONTROL =
+             ENTRADAARCHIVOCONTROL.ID_ENTRADAARCHIVOCONTROL
+       INNER JOIN WSXML_SFG.PUNTODEVENTA
+          ON REGISTROFACTURACION.CODPUNTODEVENTA =
+             PUNTODEVENTA.ID_PUNTODEVENTA
+       INNER JOIN WSXML_SFG.PRODUCTO
+          ON REGISTROFACTURACION.CODPRODUCTO = PRODUCTO.ID_PRODUCTO
+       INNER JOIN WSXML_SFG.ALIADOESTRATEGICO
+          ON PRODUCTO.CODALIADOESTRATEGICO =
+             ALIADOESTRATEGICO.ID_ALIADOESTRATEGICO
+       INNER JOIN WSXML_SFG.CIUDAD
+          ON REGISTROFACTURACION.CODCIUDAD = CIUDAD.ID_CIUDAD
+       WHERE ENTRADAARCHIVOCONTROL.FECHAARCHIVO BETWEEN
+             convert(datetime, convert(date,@sFECHAFRST)) AND convert(datetime, convert(date,@sFECHALAST))
+         AND REGISTROFACTURACION.CODTIPOREGISTRO = 1
+         AND REGISTROFACTURACION.CODPRODUCTO IN
+             (SELECT ID_PRODUCTO
+                FROM WSXML_SFG.PRODUCTO P
+               WHERE P.CODALIADOESTRATEGICO IN (918, 949));
+  END;
 GO
 
 
@@ -157,9 +194,34 @@ GO
 GO
 
 CREATE     PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensualNoMasivo(@ID_DETALLETAREAEJECUTADA NUMERIC(22,0),
-                              @DIA                      DATETIME
-                               ) AS
-
+                               @DIA                      DATETIME) AS
+ BEGIN
+    DECLARE @sFECHAFRST DATETIME;
+    DECLARE @sFECHALAST DATETIME;
+   
+  SET NOCOUNT ON;
+    EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @DIA, @sFECHAFRST OUT, @sFECHALAST OUT
+      select P.CODIGOGTECHPUNTODEVENTA,
+             rfR.fechahoratransaccion  AS FECHA,
+             rfR.recibo                as SPRN,
+             rfR.suscriptor            AS NURA,
+             rfR.valortransaccion      AS MONTO,
+             rfR.estado,
+             rfR.ARRN
+        from WSXML_SFG.registrofactreferencia rfR,
+             WSXML_SFG.PUNTODEVENTA P,
+             (select r.id_registrofacturacion, R.CODPUNTODEVENTA
+                from WSXML_SFG.registrofacturacion r
+               where r.codtiporegistro = 1
+                 and r.codproducto = 1953
+                 and r.codentradaarchivocontrol in
+                     (select e.id_entradaarchivocontrol
+                        from WSXML_SFG.entradaarchivocontrol e
+                       where e.tipoarchivo = 1
+                         and e.fechaarchivo between @sFECHAFRST and @sFECHALAST)) RF
+       where rfR.codregistrofacturacion = RF.id_registrofacturacion
+         AND P.ID_PUNTODEVENTA = RF.CODPUNTODEVENTA;
+  END;
 GO
 
 
