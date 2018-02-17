@@ -1951,14 +1951,16 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePDVRedExterna(@p
       SELECT    @vID_AGRUPACIONPDV = CODAGRUPACIONPUNTODEVENTA,@vID_RAZONSOCIAL = CODRAZONSOCIAL 
                      FROM WSXML_SFG.DUENOPUNTODEVENTA WHERE ID_DUENOPUNTODEVENTA = @p_CODDUENOPUNTODEVENTA;
 		IF @@ROWCOUNT = 0 BEGIN
-			SET @MSGERROR='No se encontro un due?o de puntos de venta con el codigo ' + ISNULL(CONVERT(VARCHAR, @p_CODDUENOPUNTODEVENTA), '');
-			RAISERROR(-20000, @MSGERROR, 16, 1);
+			SET @MSGERROR='-20000 No se encontro un dueño de puntos de venta con el codigo ' + ISNULL(CONVERT(VARCHAR, @p_CODDUENOPUNTODEVENTA), '');
+			RAISERROR(@MSGERROR, 16, 1);
+			RETURN 0
 		END
     END;  
     
     IF @vID_AGRUPACIONPDV IS NULL BEGIN 
-        SET @MSGERROR='No se encontro una cadena configurada en el dueno de punto de venta codigo :' + ISNULL(CONVERT(VARCHAR, @p_CODDUENOPUNTODEVENTA), '');
-        RAISERROR(-20000, @MSGERROR, 16, 1);
+        SET @MSGERROR='-20000 No se encontro una cadena configurada en el dueno de punto de venta codigo :' + ISNULL(CONVERT(VARCHAR, @p_CODDUENOPUNTODEVENTA), '');
+        RAISERROR(@MSGERROR, 16, 1);
+		RETURN 0
     END 
     
     --- Get vID_REDPDV
@@ -1967,8 +1969,8 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePDVRedExterna(@p
     WHERE ID_AGRUPACIONPUNTODEVENTA =@vID_AGRUPACIONPDV ;
     
     IF @vID_RAZONSOCIAL IS NULL BEGIN 
-        SET @MSGERROR='No se encontro una cadena configurada en el dueno de punto de venta codigo :' + ISNULL(CONVERT(VARCHAR, @p_CODDUENOPUNTODEVENTA), '');
-        RAISERROR(-20000, @MSGERROR, 16, 1);
+        SET @MSGERROR='-20000 No se encontro una cadena configurada en el dueno de punto de venta codigo :' + ISNULL(CONVERT(VARCHAR, @p_CODDUENOPUNTODEVENTA), '');
+        RAISERROR(@MSGERROR, 16, 1);
     END 
     
     
@@ -1986,11 +1988,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePDVRedExterna(@p
      WHERE CIUDAD.CIUDADDANE = @vDANECOMPLETO;
   
     IF @vCOUNT = 0 BEGIN
-      SET @MSGERROR = ' No se puede crear el punto de venta   ' +
+      SET @MSGERROR = '-20000 No se puede crear el punto de venta   ' +
                   ISNULL(@p_CODIGOPUNTODEVENTA, '') +
                   ' , por que no existe una ciudad con el codigo dane  ' +
                   ISNULL(CONVERT(VARCHAR, @vDANECOMPLETO), '');
-      RAISERROR(-20000, @MSGERROR, 16, 1);
+      RAISERROR(@MSGERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_CIUDAD = CIUDAD.ID_CIUDAD
@@ -2006,8 +2009,9 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePDVRedExterna(@p
           WHERE NOMREGIONAL = @p_NOMREGIONAL;
           
 			IF @@ROWCOUNT = 0 BEGIN
-              SET @MSGERROR = ' No se puede crear el punto de venta   ' + ISNULL(@p_CODIGOPUNTODEVENTA, '') + ' por que no existe una regional con el nombre : ' + ISNULL(@p_NOMREGIONAL, '');
-              RAISERROR(-20000, @MSGERROR, 16, 1);
+              SET @MSGERROR = '-20000 No se puede crear el punto de venta   ' + ISNULL(@p_CODIGOPUNTODEVENTA, '') + ' por que no existe una regional con el nombre : ' + ISNULL(@p_NOMREGIONAL, '');
+              RAISERROR(@MSGERROR, 16, 1);
+			  RETURN 0
 			END
       END;
     ELSE 
@@ -2023,15 +2027,15 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePDVRedExterna(@p
       
       --El punto de venta existe , entonces validamos que el codigo externo de punto de venta y el dueno de terminal es el mismo .
       IF @vCURRENTCODEXTERNO<>@p_CODIGOPUNTODEVENTARED BEGIN 
-          SET @MSGERROR = ' No se puede crear el punto de venta  ' + ISNULL(@p_CODIGOPUNTODEVENTA, '') + ' por que cambiaria el codigo externo del punto.';
-          RAISERROR(-20000, @MSGERROR, 16, 1);
+          SET @MSGERROR = '-20000 No se puede crear el punto de venta  ' + ISNULL(@p_CODIGOPUNTODEVENTA, '') + ' por que cambiaria el codigo externo del punto.';
+          RAISERROR(@MSGERROR, 16, 1);
 		  RETURN 0
       END 
       
       IF @vCURRENTCODDUENOPDV<>@p_CODDUENOPUNTODEVENTA BEGIN 
-          SET @MSGERROR = ' No se puede crear el punto de venta  ' + ISNULL(@p_CODIGOPUNTODEVENTA, '') + ' por que cambiaria el due?o del punto.';
-          RAISERROR(-20000, @MSGERROR, 16, 1);
-		  
+          SET @MSGERROR = '-20000 No se puede crear el punto de venta  ' + ISNULL(@p_CODIGOPUNTODEVENTA, '') + ' por que cambiaria el due?o del punto.';
+          RAISERROR(@MSGERROR, 16, 1);
+		  RETURN 0
       END 
       
       -- Si llega hasta aqui entonces se actualiza el punto de venta
@@ -2164,11 +2168,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocialExter
       SET @vCODCOMPANIAJUEGOS=3;
     END
     ELSE BEGIN
-      SET @MSGERROERROR = 'No se puede sincronizar la razon social  ' +
+      SET @MSGERROERROR = '-20000 No se puede sincronizar la razon social  ' +
                       ISNULL(CONVERT(VARCHAR, @p_CODIGOGTECHRAZONSOCIAL), '') +
                       ' por que no se reconoce el tipo de contrato  ' +
                       ISNULL(@p_TIPOCONTRATOJUEGOS, '');
-      RAISERROR(-20000, @MSGERROERROR, 16, 1);
+      RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
     
     IF RTRIM(LTRIM(@p_TIPOCONTRATOSERVICIOS)) ='ADMINISTRACION IGT FOREIGN' BEGIN 
@@ -2196,34 +2201,33 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocialExter
       SET @vCODCOMPANIASERVICIOS=3;
     END
     ELSE BEGIN
-      SET @MSGERROERROR = 'No se puede sincronizar la razon social  ' +
+      SET @MSGERROERROR = '-20000 No se puede sincronizar la razon social  ' +
                       ISNULL(CONVERT(VARCHAR, @p_CODIGOGTECHRAZONSOCIAL), '') +
                       ' por que no se reconoce el tipo de contrato  ' +
                       ISNULL(@p_TIPOCONTRATOSERVICIOS, '');
-      RAISERROR(-20000, @MSGERROERROR, 16, 1);
+      RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
-    
-
-  
   
     --Verificando consistencias 
-	SET @MSGERROERROR = 'Sincronizando razon social : ' +ISNULL(@p_CODIGOGTECHRAZONSOCIAL, '')
+	SET @MSGERROERROR = 'Sincronizando razon social : ' +ISNULL(CONVERT(VARCHAR,@p_CODIGOGTECHRAZONSOCIAL), '')
     EXEC WSXML_SFG.sfgtmptrace_tracelog @MSGERROERROR
 
-  
+
     --find the city
     SELECT @vCOUNT = COUNT(1)
       FROM WSXML_SFG.CIUDAD
      WHERE CIUDAD.CIUDADDANE = @p_CODDANECIUDADRAZONSOCIAL;
-  
+
     IF ISNULL(@vCOUNT, 0) = 0 BEGIN
       -- It does not exist. Throw Error
     
-      SET @MSGERROERROR = 'No se puede sincronizar la razon social  ' +
+      SET @MSGERROERROR = '-20000 No se puede sincronizar la razon social  ' +
                       ISNULL(CONVERT(VARCHAR, @p_CODIGOGTECHRAZONSOCIAL), '') +
                       ' por que no existe una ciudad con el codigo dane ' +
                       ISNULL(@p_CODDANECIUDADRAZONSOCIAL, '');
-      RAISERROR(-20000, @MSGERROERROR, 16, 1);
+      RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_CIUDAD = CIUDAD.ID_CIUDAD
@@ -2231,7 +2235,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocialExter
      WHERE CIUDAD.CIUDADDANE = @p_CODDANECIUDADRAZONSOCIAL;
   
     --find the regimen
-  
+
     SELECT @vCOUNT = COUNT(1)
       FROM WSXML_SFG.REGIMEN
      WHERE REGIMEN.ID_REGIMEN = @p_CODREGIMEN;
@@ -2239,13 +2243,15 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocialExter
     IF ISNULL(@vCOUNT, 0) = 0 BEGIN
       -- It does not exist. Throw Error
     
-      SET @MSGERROERROR = 'No se puede sincronizar la razon social  ' +
+      SET @MSGERROERROR = '-20000 No se puede sincronizar la razon social  ' +
                       ISNULL(CONVERT(VARCHAR, @p_CODIGOGTECHRAZONSOCIAL), '') +
                       ' por que no existe un regimen con id ' +
                       ISNULL(CONVERT(VARCHAR, @p_CODREGIMEN), '');
-      RAISERROR(-20000, @MSGERROERROR, 16, 1);
+      RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
   
+
     SELECT @vID_REGIMEN = REGIMEN.ID_REGIMEN
       FROM WSXML_SFG.REGIMEN
      WHERE REGIMEN.ID_REGIMEN = @p_CODREGIMEN;
@@ -2338,7 +2344,8 @@ GO
 
 
 
-  IF OBJECT_ID('WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocial', 'P') IS NOT NULL
+
+ IF OBJECT_ID('WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocial', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocial;
 GO
 
@@ -2408,11 +2415,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocial(@p_C
       SET @vCODCOMPANIAJUEGOS=1;            
     END
     ELSE BEGIN
-      SET @MSGERROERROR = 'No se puede sincronizar la razon social  ' +
+      SET @MSGERROERROR = '-20000 No se puede sincronizar la razon social  ' +
                       ISNULL(CONVERT(VARCHAR, @p_CODIGOGTECHRAZONSOCIAL), '') +
                       ' por que no se reconoce el tipo de contrato  ' +
                       ISNULL(@p_TIPOCONTRATOJUEGOS, '');
-      RAISERROR(-20000, @MSGERROERROR, 16, 1);
+      RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
     
     IF RTRIM(LTRIM(@p_TIPOCONTRATOSERVICIOS)) ='ADMINISTRACION IGT FOREIGN' BEGIN 
@@ -2453,6 +2461,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocial(@p_C
                       ' por que no se reconoce el tipo de contrato  ' +
                       ISNULL(@p_TIPOCONTRATOSERVICIOS, '');
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
     
 
@@ -2460,7 +2469,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocial(@p_C
   
     --Verificando consistencias 
 	SET @MSGERROERROR = 'Sincronizando razon social : ' +
-                         ISNULL(@p_CODIGOGTECHRAZONSOCIAL, '')
+                         ISNULL(CONVERT(VARCHAR,@p_CODIGOGTECHRAZONSOCIAL), '')
     EXEC WSXML_SFG.sfgtmptrace_tracelog @MSGERROERROR
 
   
@@ -2477,6 +2486,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocial(@p_C
                       ' por que no existe una ciudad con el codigo dane ' +
                       ISNULL(@p_CODDANECIUDADRAZONSOCIAL, '');
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_CIUDAD = CIUDAD.ID_CIUDAD
@@ -2497,6 +2507,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocial(@p_C
                       ' por que no existe un regimen con id ' +
                       ISNULL(CONVERT(VARCHAR, @p_CODREGIMEN), '');
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END 
   
     SELECT @vID_REGIMEN = REGIMEN.ID_REGIMEN
@@ -2593,5 +2604,6 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRazonSocial(@p_C
   
   END;
   GO
+
 
   
