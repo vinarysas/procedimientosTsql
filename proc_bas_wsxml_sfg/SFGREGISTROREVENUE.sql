@@ -3539,7 +3539,6 @@ END
 GO
 
 
-
   IF OBJECT_ID('WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenueRegistro', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenueRegistro;
 GO
@@ -3639,6 +3638,7 @@ GO
 		
 		IF @@ROWCOUNT = 0
           RAISERROR('-20010 No se pudo resolver los valores del ajuste para el calculo de revenue', 16, 1);
+		  RETURN 0
       END;
 
     
@@ -3841,6 +3841,7 @@ GO
 		 SET @errormsg = '-20060 Maximo numero de advertencias alcanzado: ' +
                                   isnull(ERROR_MESSAGE ( )  , '')
           RAISERROR(@errormsg, 16, 1);
+		  RETURN 0
 		END CATCH
       END;
 
@@ -4097,6 +4098,7 @@ GO
 				  SET @errormsg = '-20060 Maximo numero de advertencias alcanzado: ' +
                                           isnull(ERROR_MESSAGE ( )  , '')					  
                   RAISERROR(@errormsg, 16, 1);
+				  RETURN 0
 				END CATCH 
               END 
               -- Calcular (Emular) Comision POS Estandar
@@ -4140,6 +4142,7 @@ GO
 					SET @errormsg = '-20080 No existe comision estandar configurada para el producto ' +
                                           WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO) + '. No se puede continuar'
 					RAISERROR(@errormsg, 16, 1);
+					RETURN 0
 				END
                 
                   
@@ -4273,6 +4276,7 @@ GO
 										1
 				SET @errormsg = '-20060 Maximo numero de advertencias alcanzado: ' + isnull(ERROR_MESSAGE ( )  , '')
 				RAISERROR(@errormsg, 16, 1);
+				RETURN 0
 			END 
         END;
 
@@ -4330,6 +4334,7 @@ GO
 										ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO), '') +
 										'. No se puede continuar'
 				RAISERROR(@errormsg, 16, 1);
+				RETURN 0
 		  END
         END;
 
@@ -5241,6 +5246,7 @@ GO
 				END TRY
 				BEGIN CATCH --EXCEPTION WHEN OTHERS THEN
                   RAISERROR('-20054 No se pueden calcular las formulas de costos a partir de las configuraciones', 16, 1);
+				  RETURN 0
 				END CATCH
               END 
             
@@ -5343,6 +5349,7 @@ GO
 
 
  GO
+
 
 
 
@@ -8281,9 +8288,11 @@ GO
 
     IF @servicecount <> (SELECT COUNT(*) FROM @salesfilelist) BEGIN
       RAISERROR('-20052 No se puede revisar los costos para la fecha, ya que no se ha calculado el revenue para esta', 16, 1);
+	  RETURN 0
     END
     ELSE IF (SELECT COUNT(*) FROM @salesfilelist) = 0 BEGIN
       RAISERROR('-20051 No se han cargado archivos para la fecha', 16, 1);
+	  RETURN 0
     END
     
 	ELSE BEGIN
@@ -8603,6 +8612,7 @@ GO
 							END TRY
 							BEGIN CATCH
 	                            RAISERROR('-20054 No se pueden calcular las formulas de costos a partir de las configuraciones', 16, 1);
+								RETURN 0
 							END CATCH
                         END 
                       --END WHILE 1=1 
@@ -8650,6 +8660,7 @@ GO
 
   END;
 GO
+
 
  
 
