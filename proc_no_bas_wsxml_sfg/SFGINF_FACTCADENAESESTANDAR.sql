@@ -4,118 +4,102 @@ USE SFGPRODU;
 
   /* PACKAGE BODY WSXML_SFG.SFGINF_FACTCADENAESESTANDAR */ 
 
-  IF OBJECT_ID('WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEAGRUPADOLINEANEGOCIO', 'P') IS NOT NULL
+IF OBJECT_ID('WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEAGRUPADOLINEANEGOCIO', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEAGRUPADOLINEANEGOCIO;
 GO
 
-CREATE     PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEAGRUPADOLINEANEGOCIO(@P_CADENA                 NUMERIC(22,0),
-                                        @P_CODCICLOFACTURACIONPDV NUMERIC(22,0),
-                                       @P_NIT                    NVARCHAR(2000)) AS
- BEGIN
-    DECLARE @V_CODCICLOFACTURACIONPDV NUMERIC(22,0);
-  
-   
+CREATE PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEAGRUPADOLINEANEGOCIO(
+  @P_CADENA NUMERIC(22,0), 
+  @P_CODCICLOFACTURACIONPDV NUMERIC(22,0), 
+  @P_NIT NVARCHAR(2000)
+) AS
+BEGIN
+
+  DECLARE @V_CODCICLOFACTURACIONPDV NUMERIC(22,0);
+     
   SET NOCOUNT ON;
-  
-    IF @P_CODCICLOFACTURACIONPDV = -1
-        SET @V_CODCICLOFACTURACIONPDV = WSXML_SFG.ULTIMO_CICLOFACTURACION(GETDATE());
-      ELSE
-        SET @V_CODCICLOFACTURACIONPDV = @P_CODCICLOFACTURACIONPDV;
-    
-  
-    
-      SELECT LINEADENEGOCIO.NOMCORTOLINEADENEGOCIO AS "Linea de Negocio",
-             ISNULL(VENTAS, 0) AS Ventas,
-             ISNULL(ANULACIONES, 0) AS Anulaciones,
-             ISNULL(IVA, 0) AS Iva,
-             ISNULL(DESCUENTOS, 0) AS Descuentos,
-             ISNULL("VENTAS BRUTAS", 0) AS "Ventas Brutas",
-             ISNULL("PAGO PREMIOS", 0) AS "Pagos Premios",
-             ISNULL("INGRESO BRUTO", 0) AS "Ingreso bruto",
-             ISNULL("IVA INGRESO", 0) AS "Iva ingreso",
-             ISNULL(RETEFUENTE, 0) AS Retefuente,
-             ISNULL(RETEICA, 0) AS ReteICA,
-             ISNULL(RETEIVA, 0) AS ReteIVA,
-             ISNULL(RETECREE, 0) AS ReteCREE,
-             ISNULL(INGRESONETO, 0) AS "Ingreso Neto",
-             ISNULL("TOTAL A GTECH", 0) AS "Total Gtech",
-             ISNULL("TOTAL A ETESA", 0) AS "Total Fiducia"
-        FROM WSXML_SFG.LINEADENEGOCIO
-        LEFT OUTER JOIN (SELECT LN.ID_LINEADENEGOCIO AS CODLINEADENEGOCIO,
-                                SUM(ISNULL(VPD.VALORVENTA, 0)) AS VENTAS,
-                                SUM(ISNULL(VPD.VALORANULACION, 0)) AS ANULACIONES,
-                                SUM(ISNULL(VPD.IMPUESTO_IVA, 0)) AS IVA,
-                                SUM(ISNULL(VPD.DESCUENTOS, 0)) AS DESCUENTOS,
-                                SUM(ISNULL(VPD.VALORVENTABRUTA, 0)) AS "VENTAS BRUTAS",
-                                SUM(ISNULL(VPD.VALORPREMIOPAGO, 0)) AS "PAGO PREMIOS",
-                                SUM(ISNULL(VPD.VALORCOMISION, 0)) AS "INGRESO BRUTO",
-                                SUM(ISNULL(VPD.VATCOMISION, 0)) AS "IVA INGRESO",
-                                SUM(ISNULL(VPD.RETENCION_RENTA, 0)) AS RETEFUENTE,
-                                SUM(ISNULL(VPD.RETENCION_RETEICA, 0)) AS RETEICA,
-                                SUM(ISNULL(VPD.RETENCION_RETEIVA, 0)) AS RETEIVA,
-                                SUM(ISNULL(VPD.RETENCION_RETECREE, 0)) AS RETECREE,
-                                SUM(ISNULL(VPD.VALORCOMISIONNETA, 0)) AS INGRESONETO,
-                                CASE
-                                  WHEN LN.ID_LINEADENEGOCIO = 4 /*Retiros*/
-                                   THEN
-                                   SUM(ISNULL(VPD.FACTURADOENCONTRAGTECH +
-                                           (VPD.FACTURADOAFAVORGTECH * -1),
-                                           0)) - SUM(ISNULL(VPD.VALORVENTA, 0))
-                                  ELSE
-                                   SUM(ISNULL(VPD.FACTURADOENCONTRAGTECH +
-                                           (VPD.FACTURADOAFAVORGTECH * -1),
-                                           0))
-                                END AS "TOTAL A GTECH",
-                                SUM(ISNULL(VPD.FACTURADOENCONTRAFIDUCIA +
-                                        (FACTURADOAFAVORFIDUCIA * -1),
-                                        0)) AS "TOTAL A ETESA"
-                         
-                           FROM WSXML_SFG.VW_SHOW_PDVFACTURACION VPD
-                          INNER JOIN WSXML_SFG.LINEADENEGOCIO LN
-                             ON LN.ID_LINEADENEGOCIO = VPD.CODLINEADENEGOCIO
-                          INNER JOIN WSXML_SFG.RAZONSOCIAL RZS
-                             ON VPD.CODRAZONSOCIAL = RZS.ID_RAZONSOCIAL
-                          WHERE VPD.CODAGRUPACIONPUNTODEVENTA = @P_CADENA
-                            AND VPD.ID_CICLOFACTURACIONPDV =
-                                @V_CODCICLOFACTURACIONPDV
-                            AND ISNULL(RZS.IDENTIFICACION, '') + '-' +
-                                ISNULL(RZS.DIGITOVERIFICACION, '') = @P_NIT
-                            AND NOT (VPD.CODRANGOCOMISION IN
-                                 (SELECT RANGOCOMISION.ID_RANGOCOMISION
-                                        FROM WSXML_SFG.RANGOCOMISIONDETALLE
-                                       INNER JOIN RANGOCOMISION
-                                          ON RANGOCOMISIONDETALLE.CODRANGOCOMISION =
-                                             RANGOCOMISION.ID_RANGOCOMISION
-                                       WHERE VALORTRANSACCIONAL = CASE
-                                               WHEN CODTIPOCOMISION IN (2) THEN
-                                                0
-                                               ELSE
-                                                VALORTRANSACCIONAL
-                                             END
-                                         AND VALORPORCENTUAL = CASE
-                                               WHEN CODTIPOCOMISION IN (1) THEN
-                                                0
-                                               ELSE
-                                                VALORPORCENTUAL
-                                             END
-                                         AND RANGOCOMISION.CODTIPOCOMISION IN
-                                             (1, 2)
-                                       GROUP BY RANGOCOMISION.ID_RANGOCOMISION) AND
-                                 VPD.VALORVENTABRUTA = 0)
-                          GROUP BY LN.ID_LINEADENEGOCIO) DET
-          ON DET.CODLINEADENEGOCIO = LINEADENEGOCIO.ID_LINEADENEGOCIO
-       ORDER BY LINEADENEGOCIO.ID_LINEADENEGOCIO;
-  
-  END; 
-  GO
+
+  IF @P_CODCICLOFACTURACIONPDV = -1
+  BEGIN
+    SET @V_CODCICLOFACTURACIONPDV = WSXML_SFG.ULTIMO_CICLOFACTURACION(GETDATE());
+  END
+  ELSE
+  BEGIN
+    SET @V_CODCICLOFACTURACIONPDV = @P_CODCICLOFACTURACIONPDV;
+  END
+      
+  SELECT 
+    LINEADENEGOCIO.NOMCORTOLINEADENEGOCIO AS "Linea de Negocio",
+    ISNULL(VENTAS, 0) AS Ventas,
+    ISNULL(ANULACIONES, 0) AS Anulaciones,
+    ISNULL(IVA, 0) AS Iva,
+    ISNULL(DESCUENTOS, 0) AS Descuentos,
+    ISNULL("VENTAS BRUTAS", 0) AS "Ventas Brutas",
+    ISNULL("PAGO PREMIOS", 0) AS "Pagos Premios",
+    ISNULL("INGRESO BRUTO", 0) AS "Ingreso bruto",
+    ISNULL("IVA INGRESO", 0) AS "Iva ingreso",
+    ISNULL(RETEFUENTE, 0) AS Retefuente,
+    ISNULL(RETEICA, 0) AS ReteICA,
+    ISNULL(RETEIVA, 0) AS ReteIVA,
+    ISNULL(RETECREE, 0) AS ReteCREE,
+    ISNULL(INGRESONETO, 0) AS "Ingreso Neto",
+    ISNULL("TOTAL A GTECH", 0) AS "Total Gtech",
+    ISNULL("TOTAL A ETESA", 0) AS "Total Fiducia"
+  FROM WSXML_SFG.LINEADENEGOCIO
+  LEFT OUTER JOIN (
+    SELECT 
+      LN.ID_LINEADENEGOCIO AS CODLINEADENEGOCIO,
+      SUM(ISNULL(VPD.VALORVENTA, 0)) AS VENTAS,
+      SUM(ISNULL(VPD.VALORANULACION, 0)) AS ANULACIONES,
+      SUM(ISNULL(VPD.IMPUESTO_IVA, 0)) AS IVA,
+      SUM(ISNULL(VPD.DESCUENTOS, 0)) AS DESCUENTOS,
+      SUM(ISNULL(VPD.VALORVENTABRUTA, 0)) AS "VENTAS BRUTAS",
+      SUM(ISNULL(VPD.VALORPREMIOPAGO, 0)) AS "PAGO PREMIOS",
+      SUM(ISNULL(VPD.VALORCOMISION, 0)) AS "INGRESO BRUTO",
+      SUM(ISNULL(VPD.VATCOMISION, 0)) AS "IVA INGRESO",
+      SUM(ISNULL(VPD.RETENCION_RENTA, 0)) AS RETEFUENTE,
+      SUM(ISNULL(VPD.RETENCION_RETEICA, 0)) AS RETEICA,
+      SUM(ISNULL(VPD.RETENCION_RETEIVA, 0)) AS RETEIVA,
+      SUM(ISNULL(VPD.RETENCION_RETECREE, 0)) AS RETECREE,
+      SUM(ISNULL(VPD.VALORCOMISIONNETA, 0)) AS INGRESONETO,
+      CASE
+        WHEN LN.ID_LINEADENEGOCIO = 4 /*Retiros*/
+         THEN
+          SUM(ISNULL(VPD.FACTURADOENCONTRAGTECH + (VPD.FACTURADOAFAVORGTECH * -1), 0)) - SUM(ISNULL(VPD.VALORVENTA, 0))
+        ELSE
+          SUM(ISNULL(VPD.FACTURADOENCONTRAGTECH + (VPD.FACTURADOAFAVORGTECH * -1), 0))
+      END AS "TOTAL A GTECH",
+      SUM(ISNULL(VPD.FACTURADOENCONTRAFIDUCIA + (FACTURADOAFAVORFIDUCIA * -1), 0)) AS "TOTAL A ETESA"
+    FROM WSXML_SFG.VW_SHOW_PDVFACTURACION VPD
+    INNER JOIN WSXML_SFG.LINEADENEGOCIO LN ON LN.ID_LINEADENEGOCIO = VPD.CODLINEADENEGOCIO
+    INNER JOIN WSXML_SFG.RAZONSOCIAL RZS ON VPD.CODRAZONSOCIAL = RZS.ID_RAZONSOCIAL
+    WHERE VPD.CODAGRUPACIONPUNTODEVENTA = @P_CADENA
+      AND VPD.ID_CICLOFACTURACIONPDV = @V_CODCICLOFACTURACIONPDV
+      AND CONCAT(RZS.IDENTIFICACION, '-',RZS.DIGITOVERIFICACION) = @P_NIT
+      AND NOT (VPD.CODRANGOCOMISION IN (
+        SELECT 
+          RANGOCOMISION.ID_RANGOCOMISION
+        FROM WSXML_SFG.RANGOCOMISIONDETALLE
+        INNER JOIN WSXML_SFG.RANGOCOMISION ON RANGOCOMISIONDETALLE.CODRANGOCOMISION = RANGOCOMISION.ID_RANGOCOMISION
+        WHERE VALORTRANSACCIONAL = CASE WHEN CODTIPOCOMISION IN (2) THEN 0 ELSE VALORTRANSACCIONAL END
+          AND VALORPORCENTUAL = CASE WHEN CODTIPOCOMISION IN (1) THEN 0 ELSE VALORPORCENTUAL END
+          AND RANGOCOMISION.CODTIPOCOMISION IN (1, 2)
+        GROUP BY RANGOCOMISION.ID_RANGOCOMISION
+      ) AND VPD.VALORVENTABRUTA = 0)
+    GROUP BY LN.ID_LINEADENEGOCIO
+  ) DET ON DET.CODLINEADENEGOCIO = LINEADENEGOCIO.ID_LINEADENEGOCIO
+  ORDER BY LINEADENEGOCIO.ID_LINEADENEGOCIO
+
+END 
+GO
 
 
-    IF OBJECT_ID('WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONCADENA', 'P') IS NOT NULL
+IF OBJECT_ID('WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONCADENA', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONCADENA;
 GO
 
 
-  CREATE PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONCADENA(@P_NIT                    NVARCHAR(2000),
+CREATE PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONCADENA(@P_NIT                    NVARCHAR(2000),
                                     @P_CODCICLOFACTURACIONPDV NUMERIC(22,0)) AS
  BEGIN
     DECLARE @V_LINEASNEGOCIO          WSXML_SFG.IDSTRINGVALUE;
@@ -136,11 +120,10 @@ GO
   
     SELECT @V_REGISTROS = COUNT(*)
       FROM WSXML_SFG.RAZONSOCIAL
-     WHERE ISNULL(RAZONSOCIAL.IDENTIFICACION, '') + '-' +
-           ISNULL(RAZONSOCIAL.DIGITOVERIFICACION, '') = @P_NIT;
+     WHERE CONCAT(RAZONSOCIAL.IDENTIFICACION,'-',RAZONSOCIAL.DIGITOVERIFICACION) = @P_NIT;
   
     IF @V_REGISTROS = 0 BEGIN
-      RAISERROR('-20054 El Nit ingresado no corresponde a una Raz�n Social', 16, 1);
+      RAISERROR('-20054 El Nit ingresado no corresponde a una Razón Social', 16, 1);
     END
     ELSE BEGIN
     
@@ -148,8 +131,7 @@ GO
      INSERT INTO @V_LSTRAZONSOCIAL
 	  SELECT ID_RAZONSOCIAL
         FROM WSXML_SFG.RAZONSOCIAL
-       WHERE ISNULL(RAZONSOCIAL.IDENTIFICACION, '') + '-' +
-             ISNULL(RAZONSOCIAL.DIGITOVERIFICACION, '') = @P_NIT;
+       WHERE CONCAT(RAZONSOCIAL.IDENTIFICACION,'-',RAZONSOCIAL.DIGITOVERIFICACION) = @P_NIT;
     
       DECLARE ix CURSOR FOR SELECT IDVALUE FROM @V_LSTRAZONSOCIAL
 	  
@@ -160,10 +142,10 @@ GO
 	 WHILE @@FETCH_STATUS=0
 	 BEGIN
         IF @V_REGISTROS = 1 BEGIN
-          SET @V_RAZONESSOCIALES = ISNULL(@V_RAZONESSOCIALES, '') + ISNULL(@ix__IDVALUE, '');
+          SET @V_RAZONESSOCIALES = CONCAT(@V_RAZONESSOCIALES, @ix__IDVALUE);
         END
         ELSE BEGIN
-          SET @V_RAZONESSOCIALES = ISNULL(@V_RAZONESSOCIALES, '') + ISNULL(@ix__IDVALUE, '') + ', ';
+          SET @V_RAZONESSOCIALES = CONCAT(@V_RAZONESSOCIALES,@ix__IDVALUE, ', ');
         END 
         SET @V_REGISTROS = @V_REGISTROS - 1;
       FETCH ix INTO @ix__IDVALUE;
@@ -177,7 +159,7 @@ GO
         FROM WSXML_SFG.LINEADENEGOCIO
        ORDER BY ID_LINEADENEGOCIO;
     
-      ---- Recorre el arreblo para realizar la consulta din�micamente
+      ---- Recorre el arreblo para realizar la consulta dinï¿½micamente
       IF @@ROWCOUNT > 0 BEGIN
         DECLARE iax CURSOR FOR SELECT ID, VALUE FROM @V_LINEASNEGOCIO
 		OPEN iax;
@@ -186,88 +168,92 @@ GO
 		FETCH iax INTO @iax__ID, @iax__VALUE
  WHILE @@FETCH_STATUS=0
  BEGIN
-          SET @V_CONSULTA = ISNULL(@V_CONSULTA, '') +
-                        ', CAST(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.NUMINGRESOS,0) ELSE 0 END) AS NUMERIC(38,0)) AS Tx_' + ISNULL(@iax__ID, '') + '' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.INGRESOS,0) ELSE 0 END),2) AS Valor_' + ISNULL(@iax__ID, '') + '' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.DESCUENTOS,0) ELSE 0 END),2) AS Descuentos_' + ISNULL(@iax__ID, '') + '' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.INGRESOSBRUTOS,0) ELSE 0 END),2) AS "Valor Sin IVA_' + ISNULL(@iax__ID, '') + '"' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.COMISION,0) ELSE 0 END),2) AS Ingresos PDV_' + ISNULL(@iax__ID, '') + '' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.IVAPRODUCTO,0) ELSE 0 END),2) AS "IVA Ingreso_' + ISNULL(@iax__ID, '') + '"' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.RETEFUENTE,0) ELSE 0 END),2) AS ReteFuente_' + ISNULL(@iax__ID, '') + '' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.RETEICA,0) ELSE 0 END),2) AS ReteICA_' + ISNULL(@iax__ID, '') + '' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.RETEIVA,0) ELSE 0 END),2) AS ReteIVA_' + ISNULL(@iax__ID, '') + '' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.RETECREE,0) ELSE 0 END),2) AS ReteCREE_' + ISNULL(@iax__ID, '') + '' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.COMISIONNETA,0) ELSE 0 END),2) AS "Ingresos Netos_' + ISNULL(@iax__ID, '') + '"' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        '  THEN ISNULL(VPD.PREMIOSPAGADOS,0) ELSE 0 END),2) AS "Premios Pagos_' + ISNULL(@iax__ID, '') + '"' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.VALORAPAGARGTECH,0) ELSE 0 END),0) AS "Total Pagar Gtech_' + ISNULL(@iax__ID, '') + '"' +
-                        ', (SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + ISNULL(@iax__ID, '') +
-                        ' THEN ISNULL(VPD.VALORAPAGARFIDUCIA,0) ELSE 0 END),0) AS "Total Pagar Fiducia_' + ISNULL(@iax__ID, '') + '"';
+          SET @V_CONSULTA = CONCAT(@V_CONSULTA,
+                        ', CAST(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' + CAST(CAST(@iax__ID AS NVARCHAR(MAX)) AS NVARCHAR(MAX)),
+                        ' THEN VPD.NUMINGRESOS ELSE 0 END) AS NUMERIC(38,0)) AS Tx_' , CAST(@iax__ID AS NVARCHAR(MAX)), '' ,
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' , CAST(@iax__ID AS NVARCHAR(MAX)),
+                        ' THEN VPD.INGRESOS ELSE 0 END),2) AS Valor_' , CAST(@iax__ID AS NVARCHAR(MAX)), '' ,
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' , CAST(@iax__ID AS NVARCHAR(MAX)),
+                        ' THEN VPD.DESCUENTOS ELSE 0 END),2) AS Descuentos_' , CAST(@iax__ID AS NVARCHAR(MAX)), '' ,
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' , CAST(@iax__ID AS NVARCHAR(MAX)),
+                        ' THEN VPD.INGRESOSBRUTOS ELSE 0 END),2) AS "Valor Sin IVA_',CAST(@iax__ID AS NVARCHAR(MAX)), '"',
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' ,CAST(@iax__ID AS NVARCHAR(MAX)), 
+                        ' THEN VPD.COMISION ELSE 0 END),2) AS "Ingresos PDV_' ,CAST(@iax__ID AS NVARCHAR(MAX)), '"',
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' ,CAST(@iax__ID AS NVARCHAR(MAX)),
+                        ' THEN VPD.IVAPRODUCTO ELSE 0 END),2) AS "IVA Ingreso_' , CAST(@iax__ID AS NVARCHAR(MAX)), '"' ,
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' , CAST(@iax__ID AS NVARCHAR(MAX)),
+                        ' THEN VPD.RETEFUENTE ELSE 0 END),2) AS ReteFuente_' , CAST(@iax__ID AS NVARCHAR(MAX)), '' ,
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' , CAST(@iax__ID AS NVARCHAR(MAX)), 
+                        ' THEN VPD.RETEICA ELSE 0 END),2) AS ReteICA_' , CAST(@iax__ID AS NVARCHAR(MAX)), '' ,
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' ,CAST(@iax__ID AS NVARCHAR(MAX)), 
+                        ' THEN ISNULL(VPD.RETEIVA,0) ELSE 0 END),2) AS ReteIVA_' , CAST(@iax__ID AS NVARCHAR(MAX)), '' ,
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' , CAST(@iax__ID AS NVARCHAR(MAX)),
+                        ' THEN ISNULL(VPD.RETECREE,0) ELSE 0 END),2) AS ReteCREE_' , CAST(@iax__ID AS NVARCHAR(MAX)), '',
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' , CAST(@iax__ID AS NVARCHAR(MAX)), 
+                        ' THEN ISNULL(VPD.COMISIONNETA,0) ELSE 0 END),2) AS "Ingresos Netos_' , CAST(@iax__ID AS NVARCHAR(MAX)),  '"' ,
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' , CAST(@iax__ID AS NVARCHAR(MAX)),
+                        '  THEN ISNULL(VPD.PREMIOSPAGADOS,0) ELSE 0 END),2) AS "Premios Pagos_' , CAST(@iax__ID AS NVARCHAR(MAX)), '"' ,
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' , CAST(@iax__ID AS NVARCHAR(MAX)),
+                        ' THEN ISNULL(VPD.VALORAPAGARGTECH,0) ELSE 0 END),0) AS "Total Pagar Gtech_' , CAST(@iax__ID AS NVARCHAR(MAX)), '"',
+                        ', ROUND(SUM(CASE WHEN VPD.CODLINEADENEGOCIO= ' ,CAST(@iax__ID AS NVARCHAR(MAX)),
+                        ' THEN ISNULL(VPD.VALORAPAGARFIDUCIA,0) ELSE 0 END),0) AS "Total Pagar Fiducia_' , CAST(@iax__ID AS NVARCHAR(MAX)),  '"'
+                        )
         FETCH iax INTO @iax__ID, @iax__VALUE
         END;
         CLOSE iax;
         DEALLOCATE iax;
       END 
       --- Consulta
-      SET @sql =  '   SELECT   CAST(AG.CODIGOAGRUPACIONGTECH AS NUMERIC(38,0)) AS Cadena ' + 
-                     '  ,AG.NOMAGRUPACIONPUNTODEVENTA  AS Nombre Cadena ' + 
-                     '  ,PV.CODIGOGTECHPUNTODEVENTA  AS PDV ' + 
-                     '  ,PV.NOMPUNTODEVENTA  AS Nombre PDV ' + 
-                     '  ,ENT.FECHAARCHIVO AS Fecha ' + 
-                     '  ' + ISNULL(@V_CONSULTA, '') + 
-                     '  FROM         WSXML_SFG.AGRUPACIONPUNTODEVENTA     AG ' + 
-                     '  INNER JOIN  WSXML_SFG.PUNTODEVENTA         PV     ON    PV.CODAGRUPACIONPUNTODEVENTA = AG.ID_AGRUPACIONPUNTODEVENTA ' + 
-                     '  INNER JOIN  WSXML_SFG.VW_PREFACTURACION_DIARIA    VPD   ON    VPD.CODPUNTODEVENTA = PV.ID_PUNTODEVENTA ' + 
-                     '  INNER JOIN  ENTRADAARCHIVOCONTROL     ENT    ON    VPD.ID_ENTRADAARCHIVOCONTROL = ENT.ID_ENTRADAARCHIVOCONTROL ' 
-                     + '  WHERE       VPD.CODRAZONSOCIAL   IN (   ' 
-                     + ISNULL(@V_RAZONESSOCIALES, '') + 
-                     ') ' + 
-                     '  AND         VPD.CODCICLOFACTURACIONPDV = ' + ISNULL(@V_CODCICLOFACTURACIONPDV, '') + 
-                     '  AND NOT(    ' + 
-                     '                 VPD.CODRANGOCOMISION IN ( ' + 
-                     '                                     SELECT RANGOCOMISION.ID_RANGOCOMISION ' + 
-                     '                                    FROM WSXML_SFG.RANGOCOMISIONDETALLE  ' + 
-                     '                                    INNER JOIN WSXML_SFG.RANGOCOMISION ON RANGOCOMISIONDETALLE.CODRANGOCOMISION= RANGOCOMISION.ID_RANGOCOMISION ' + 
-                     '                                    WHERE VALORTRANSACCIONAL = CASE WHEN CODTIPOCOMISION IN(2) THEN 0 ELSE VALORTRANSACCIONAL END AND ' + 
-                     '                                    VALORPORCENTUAL = CASE WHEN CODTIPOCOMISION IN (1) THEN 0 ELSE VALORPORCENTUAL END   ' + 
-                     '                                    AND RANGOCOMISION.CODTIPOCOMISION IN (1,2) ' + 
-                     '                                    GROUP BY RANGOCOMISION.ID_RANGOCOMISION  ' + 
-                     '                                    ) AND   ' + 
-                     '                                    VPD.INGRESOSBRUTOSVENTAS =0  ' + 
-                     '             ) ' + 
-                     '  GROUP BY      CAST(AG.CODIGOAGRUPACIONGTECH AS NUMERIC(38,0)) ' + 
-                     '  ,PV.CODIGOGTECHPUNTODEVENTA ' + 
-                     '  ,ENT.FECHAARCHIVO ' + '  ,AG.NOMAGRUPACIONPUNTODEVENTA  ' + 
-                     '  ,PV.NOMPUNTODEVENTA  ' + 
-                     '   ORDER BY     CAST(AG.CODIGOAGRUPACIONGTECH AS NUMERIC(38,0)),  PV.CODIGOGTECHPUNTODEVENTA, ENT.FECHAARCHIVO';
+      SET @sql =  CONCAT(
+                     '   SELECT   CAST(AG.CODIGOAGRUPACIONGTECH AS NUMERIC(38,0)) AS Cadena ' , 
+                     '  ,AG.NOMAGRUPACIONPUNTODEVENTA  AS "Nombre Cadena" ' , 
+                     '  ,PV.CODIGOGTECHPUNTODEVENTA  AS PDV ' , 
+                     '  ,PV.NOMPUNTODEVENTA  AS "Nombre PDV" ' , 
+                     '  ,ENT.FECHAARCHIVO AS Fecha ' , 
+                     '  ' , @V_CONSULTA , 
+                     '  FROM         WSXML_SFG.AGRUPACIONPUNTODEVENTA     AG ' , 
+                     '  INNER JOIN  WSXML_SFG.PUNTODEVENTA         PV     ON    PV.CODAGRUPACIONPUNTODEVENTA = AG.ID_AGRUPACIONPUNTODEVENTA ' , 
+                     '  INNER JOIN  WSXML_SFG.VW_PREFACTURACION_DIARIA    VPD   ON    VPD.CODPUNTODEVENTA = PV.ID_PUNTODEVENTA ' , 
+                     '  INNER JOIN  WSXML_SFG.ENTRADAARCHIVOCONTROL     ENT    ON    VPD.ID_ENTRADAARCHIVOCONTROL = ENT.ID_ENTRADAARCHIVOCONTROL ' 
+                     , '  WHERE       VPD.CODRAZONSOCIAL   IN (   ' 
+                     , @V_RAZONESSOCIALES , 
+                     ') ' , 
+                     '  AND         VPD.CODCICLOFACTURACIONPDV = ' , @V_CODCICLOFACTURACIONPDV , 
+                     '  AND NOT(    ' , 
+                     '                 VPD.CODRANGOCOMISION IN ( ' , 
+                     '                                     SELECT RANGOCOMISION.ID_RANGOCOMISION ' , 
+                     '                                    FROM WSXML_SFG.RANGOCOMISIONDETALLE  ' , 
+                     '                                    INNER JOIN WSXML_SFG.RANGOCOMISION ON RANGOCOMISIONDETALLE.CODRANGOCOMISION= RANGOCOMISION.ID_RANGOCOMISION ' , 
+                     '                                    WHERE VALORTRANSACCIONAL = CASE WHEN CODTIPOCOMISION IN(2) THEN 0 ELSE VALORTRANSACCIONAL END AND ' , 
+                     '                                    VALORPORCENTUAL = CASE WHEN CODTIPOCOMISION IN (1) THEN 0 ELSE VALORPORCENTUAL END   ' , 
+                     '                                    AND RANGOCOMISION.CODTIPOCOMISION IN (1,2) ' , 
+                     '                                    GROUP BY RANGOCOMISION.ID_RANGOCOMISION  ' , 
+                     '                                    ) AND   ' , 
+                     '                                    VPD.INGRESOSBRUTOSVENTAS =0  ' , 
+                     '             ) ' , 
+                     '  GROUP BY      CAST(AG.CODIGOAGRUPACIONGTECH AS NUMERIC(38,0)) ' , 
+                     '  ,PV.CODIGOGTECHPUNTODEVENTA ' , 
+                     '  ,ENT.FECHAARCHIVO ' , '  ,AG.NOMAGRUPACIONPUNTODEVENTA  ' , 
+                     '  ,PV.NOMPUNTODEVENTA  ' , 
+                     '   ORDER BY     CAST(AG.CODIGOAGRUPACIONGTECH AS NUMERIC(38,0)),  PV.CODIGOGTECHPUNTODEVENTA, ENT.FECHAARCHIVO'
+                  )
+      --SELECT  @sql         
       EXECUTE sp_executesql @sql;
     
     END 
   
   END; 
+
 GO
 
-
-
-    IF OBJECT_ID('WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODUCTO', 'P') IS NOT NULL
+IF OBJECT_ID('WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODUCTO', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODUCTO;
 GO
 
-
-  CREATE PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODUCTO(@P_NIT                    NVARCHAR(2000),
-                                      @P_CODCICLOFACTURACIONPDV NUMERIC(22,0)) AS
+CREATE PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODUCTO(
+  @P_NIT                    NVARCHAR(2000),
+  @P_CODCICLOFACTURACIONPDV NUMERIC(22,0)
+) AS
  BEGIN
     DECLARE @V_CODCICLOFACTURACIONPDV NUMERIC(22,0);
     DECLARE @V_REGISTROS              NUMERIC(22,0);
@@ -283,7 +269,7 @@ GO
     SELECT @V_REGISTROS = COUNT(*)
       FROM WSXML_SFG.RAZONSOCIAL
      WHERE /*RAZONSOCIAL.IDENTIFICACION || '-' ||*/
-           ISNULL(RAZONSOCIAL.IDENTIFICACION, '') + '-' + ISNULL(RAZONSOCIAL.DIGITOVERIFICACION, '')= @P_NIT;
+           CONCAT(RAZONSOCIAL.IDENTIFICACION, '-', RAZONSOCIAL.DIGITOVERIFICACION) = @P_NIT;
          --RAZONSOCIAL.IDENTIFICACION = P_NIT;
   
     IF @V_REGISTROS = 0 BEGIN
@@ -334,7 +320,7 @@ GO
             ON VPD.CODPRODUCTO = PR.ID_PRODUCTO
          INNER JOIN WSXML_SFG.RANGOCOMISION CO
             ON VPD.CODRANGOCOMISION = CO.ID_RANGOCOMISION
-         WHERE ISNULL(VPD.IDENTIFICACION, '') + '-' + ISNULL(VPD.DIGITOVERIFICACION, '') = @P_NIT
+         WHERE CONCAT(VPD.IDENTIFICACION,'-',VPD.DIGITOVERIFICACION) = @P_NIT
            AND VPD.CODCICLOFACTURACIONPDV = @V_CODCICLOFACTURACIONPDV
            AND NOT (VPD.CODRANGOCOMISION IN
                 (SELECT RANGOCOMISION.ID_RANGOCOMISION
@@ -374,6 +360,7 @@ GO
     END 
   
   END
+
 GO
 
 
@@ -919,13 +906,13 @@ GO
   GO
   
   
-    IF OBJECT_ID('WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODDIARIO', 'P') IS NOT NULL
+IF OBJECT_ID('WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODDIARIO', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODDIARIO;
 GO
 
-
-  CREATE PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODDIARIO(@P_NIT                    NVARCHAR(2000),
-                                       @P_FECHA DATETIME) AS
+CREATE PROCEDURE WSXML_SFG.SFGINF_FACTCADENAESESTANDAR_REPORTEFACTURACIONPRODDIARIO(
+	@P_NIT                    NVARCHAR(2000),
+    @P_FECHA DATETIME) AS
  BEGIN 
     DECLARE @V_REGISTROS              NUMERIC(22,0);
    
@@ -934,8 +921,7 @@ GO
  
     SELECT @V_REGISTROS = COUNT(*)
       FROM WSXML_SFG.RAZONSOCIAL
-     WHERE ISNULL(RAZONSOCIAL.IDENTIFICACION, '') + '-' +
-           ISNULL(RAZONSOCIAL.DIGITOVERIFICACION, '') = @P_NIT;
+     WHERE CONCAT(RAZONSOCIAL.IDENTIFICACION, '-', RAZONSOCIAL.DIGITOVERIFICACION) = @P_NIT;
   
     IF @V_REGISTROS = 0 BEGIN
       RAISERROR('-20054 El Nit ingresado no corresponde a una Razon Social', 16, 1);
@@ -984,7 +970,7 @@ GO
             ON VPD.CODPRODUCTO = PR.ID_PRODUCTO
          INNER JOIN WSXML_SFG.RANGOCOMISION CO
             ON VPD.CODRANGOCOMISION = CO.ID_RANGOCOMISION
-         WHERE ISNULL(VPD.IDENTIFICACION, '') + '-' + ISNULL(VPD.DIGITOVERIFICACION, '') = @P_NIT
+         WHERE CONCAT(VPD.IDENTIFICACION,'-',VPD.DIGITOVERIFICACION) = @P_NIT
            AND ENT.FECHAARCHIVO = @P_FECHA
            AND NOT (VPD.CODRANGOCOMISION IN
                 (SELECT RANGOCOMISION.ID_RANGOCOMISION
@@ -1025,6 +1011,7 @@ GO
     END 
   
   END
+
 GO
 
 
