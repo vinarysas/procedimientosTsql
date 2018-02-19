@@ -2369,8 +2369,8 @@ CREATE PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_VentasMensualesPorTodosPDV(
              tipocontratopdv.nomtipocontratopdv as "Tipo de Contrato",
              razonsocial.telefonocontacto as "Telefono",
              razonsocial.direccioncontacto as "Direccion",
-             isnull(razonsocial.identificacion, '') + '-' +
-             isnull(razonsocial.digitoverificacion, '') as "NIT",
+             isnull(CONVERT(VARCHAR,razonsocial.identificacion), '') + '-' +
+             isnull(CONVERT(VARCHAR,razonsocial.digitoverificacion), '') as "NIT",
              regimen.nomregimen as "Regimen",
              ciudad.nomciudad as "Ciudad Domicilio Principal",
              ciudad.ciudaddane as "Cod Dane Municipio",
@@ -2546,13 +2546,13 @@ CREATE PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_VentasMensualesPorTodosPDV(
                                       else
                                        0
                                     end) as ReteCREE
-                           from retencionregfacturacion
+                           from WSXML_SFG.retencionregfacturacion
                           group by codregistrofacturacion) retenciones
           on retenciones.codregistrofacturacion =
              registrofacturacion.id_registrofacturacion
         left outer join (select codregistrofacturacion,
                                 sum(retuvtregfacturacion.valorretencion) as ReteUVT
-                           from retuvtregfacturacion
+                           from WSXML_SFG.retuvtregfacturacion
                           group by codregistrofacturacion) retuvt
           on retuvt.codregistrofacturacion =
              registrofacturacion.id_registrofacturacion
@@ -2565,8 +2565,8 @@ CREATE PROCEDURE WSXML_SFG.SFGINF_REPORTESESPECIALES_VentasMensualesPorTodosPDV(
                 tipocontratopdv.nomtipocontratopdv,
                 razonsocial.telefonocontacto,
                 razonsocial.direccioncontacto,
-                isnull(razonsocial.identificacion, '') + '-' +
-                isnull(razonsocial.digitoverificacion, ''),
+                isnull(CONVERT(VARCHAR,razonsocial.identificacion), '') + '-' +
+                isnull(CONVERT(VARCHAR,razonsocial.digitoverificacion), ''),
                 regimen.nomregimen,
                 ciudad.nomciudad,
                 ciudad.ciudaddane,

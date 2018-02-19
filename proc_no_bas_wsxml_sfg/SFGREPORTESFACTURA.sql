@@ -531,18 +531,18 @@ GO
       /*Filtro Where*/
       IF Len(@StrSqlWhere) = 7 BEGIN
         IF @p_CODCICLOFACT =-1 BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codciclofacturacionpdv>'+ISNULL(@p_CODCICLOFACT, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codciclofacturacionpdv>'+ISNULL(CONVERT(VARCHAR,@p_CODCICLOFACT), '');
         END
         ELSE BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codciclofacturacionpdv='+ISNULL(@p_CODCICLOFACT, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codciclofacturacionpdv='+ISNULL(CONVERT(VARCHAR,@p_CODCICLOFACT), '');
         END 
       END
       ELSE BEGIN
         IF @p_CODCICLOFACT =-1 BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codciclofacturacionpdv>'+ISNULL(@p_CODCICLOFACT, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codciclofacturacionpdv>'+ISNULL(CONVERT(VARCHAR,@p_CODCICLOFACT), '');
         END
         ELSE BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codciclofacturacionpdv='+ISNULL(@p_CODCICLOFACT, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codciclofacturacionpdv='+ISNULL(CONVERT(VARCHAR,@p_CODCICLOFACT), '');
         END 
       END 
     END 
@@ -556,18 +556,18 @@ GO
       /*Filtro Where*/
       IF Len(@StrSqlWhere) = 7 BEGIN
         IF @p_CODPUNTODEVENTA =-1 BEGIN
-        set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.CODPUNTODEVENTA>'+ISNULL(@p_CODPUNTODEVENTA, '');
+        set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.CODPUNTODEVENTA>'+ISNULL(CONVERT(VARCHAR,@p_CODPUNTODEVENTA), '');
         END
         ELSE BEGIN
-        set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.CODPUNTODEVENTA='+ISNULL(@p_CODPUNTODEVENTA, '');
+        set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.CODPUNTODEVENTA='+ISNULL(CONVERT(VARCHAR,@p_CODPUNTODEVENTA), '');
         END 
       END
       ELSE BEGIN
         IF @p_CODPUNTODEVENTA =-1 BEGIN
-        set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mf.CODPUNTODEVENTA>'+ISNULL(@p_CODPUNTODEVENTA, '');
+        set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mf.CODPUNTODEVENTA>'+ISNULL(CONVERT(VARCHAR,@p_CODPUNTODEVENTA), '');
         END
         ELSE BEGIN
-        set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mf.CODPUNTODEVENTA='+ISNULL(@p_CODPUNTODEVENTA, '');
+        set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mf.CODPUNTODEVENTA='+ISNULL(CONVERT(VARCHAR,@p_CODPUNTODEVENTA), '');
         END 
       END 
     END 
@@ -581,18 +581,18 @@ GO
       /*Filtro Where*/
       IF Len(@StrSqlWhere) = 7 BEGIN
         IF @p_CODLINEANEGOCIO =-1 BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codlineadenegocio>'+ISNULL(@p_CODLINEANEGOCIO, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codlineadenegocio>'+ISNULL(CONVERT(VARCHAR,@p_CODLINEANEGOCIO), '');
         END
         ELSE BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codlineadenegocio='+ISNULL(@p_CODLINEANEGOCIO, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mf.codlineadenegocio='+ISNULL(CONVERT(VARCHAR,@p_CODLINEANEGOCIO), '');
         END 
       END
       ELSE BEGIN
         IF @p_CODLINEANEGOCIO =-1 BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mf.codlineadenegocio>'+ISNULL(@p_CODLINEANEGOCIO, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mf.codlineadenegocio>'+ISNULL(CONVERT(VARCHAR,@p_CODLINEANEGOCIO), '');
         END
         ELSE BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mf.codlineadenegocio='+ISNULL(@p_CODLINEANEGOCIO, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mf.codlineadenegocio='+ISNULL(CONVERT(VARCHAR,@p_CODLINEANEGOCIO), '');
         END 
       END 
     END 
@@ -611,18 +611,18 @@ GO
       /*Filtro Where*/
       IF Len(@StrSqlWhere) = 7 BEGIN
         IF @p_CODCIUDAD =-1 BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mun.ID_CIUDAD>'+ISNULL(@p_CODCIUDAD, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mun.ID_CIUDAD>'+ISNULL(CONVERT(VARCHAR,@p_CODCIUDAD), '');
         END
         ELSE BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mun.ID_CIUDAD='+ISNULL(@p_CODCIUDAD, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' mun.ID_CIUDAD='+ISNULL(CONVERT(VARCHAR,@p_CODCIUDAD), '');
         END 
       END
       ELSE BEGIN
         IF @p_CODCIUDAD =-1 BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mun.ID_CIUDAD>'+ISNULL(@p_CODCIUDAD, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mun.ID_CIUDAD>'+ISNULL(CONVERT(VARCHAR,@p_CODCIUDAD), '');
         END
         ELSE BEGIN
-            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mun.ID_CIUDAD='+ISNULL(@p_CODCIUDAD, '');
+            set @StrSqlWhere = ISNULL(@StrSqlWhere, '') + ' AND mun.ID_CIUDAD='+ISNULL(CONVERT(VARCHAR,@p_CODCIUDAD), '');
         END 
       END 
     END 
@@ -701,6 +701,7 @@ GO
 
   END
 GO
+
 
   IF OBJECT_ID('WSXML_SFG.SFGREPORTESFACTURA_PremioPagado', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGREPORTESFACTURA_PremioPagado;

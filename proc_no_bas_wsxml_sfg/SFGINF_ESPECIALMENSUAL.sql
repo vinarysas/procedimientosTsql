@@ -142,13 +142,50 @@ BEGIN
 END
 GO
 
-  IF OBJECT_ID('WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensual', 'P') IS NOT NULL
+ IF OBJECT_ID('WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensual', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensual;
 GO
 
 CREATE     PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensual(@ID_DETALLETAREAEJECUTADA NUMERIC(22,0),
-                      @DIA                      DATETIME
-                       ) AS
+                       @DIA                      DATETIME) AS
+ BEGIN
+    DECLARE @sFECHAFRST DATETIME;
+    DECLARE @sFECHALAST DATETIME;
+   
+  SET NOCOUNT ON;
+    EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @DIA, @sFECHAFRST OUT, @sFECHALAST OUT
+      SELECT ALIADOESTRATEGICO.NOMALIADOESTRATEGICO AS "Aliado Estrategico",
+             producto.nomproducto AS "Producto",
+             FORMAT(abs(PUNTODEVENTA.NUMEROTERMINAL), '00000') AS "Terminal",
+             ENTRADAARCHIVOCONTROL.FECHAARCHIVO AS "Fecha Archivo",
+             REGISTROFACTREFERENCIA.VALORTRANSACCION AS "Valor Transaccion",
+             SUBSTRING(CIUDAD.CIUDADDANE, 3, 3) AS "Ciudad Dane",
+             SUBSTRING(CIUDAD.CIUDADDANE, 1, 2) AS "Departamento Dane"
+        FROM WSXML_SFG.REGISTROFACTREFERENCIA
+       INNER JOIN WSXML_SFG.REGISTROFACTURACION
+          ON REGISTROFACTREFERENCIA.CODREGISTROFACTURACION =
+             REGISTROFACTURACION.ID_REGISTROFACTURACION
+       INNER JOIN WSXML_SFG.ENTRADAARCHIVOCONTROL
+          ON REGISTROFACTURACION.CODENTRADAARCHIVOCONTROL =
+             ENTRADAARCHIVOCONTROL.ID_ENTRADAARCHIVOCONTROL
+       INNER JOIN WSXML_SFG.PUNTODEVENTA
+          ON REGISTROFACTURACION.CODPUNTODEVENTA =
+             PUNTODEVENTA.ID_PUNTODEVENTA
+       INNER JOIN WSXML_SFG.PRODUCTO
+          ON REGISTROFACTURACION.CODPRODUCTO = PRODUCTO.ID_PRODUCTO
+       INNER JOIN WSXML_SFG.ALIADOESTRATEGICO
+          ON PRODUCTO.CODALIADOESTRATEGICO =
+             ALIADOESTRATEGICO.ID_ALIADOESTRATEGICO
+       INNER JOIN WSXML_SFG.CIUDAD
+          ON REGISTROFACTURACION.CODCIUDAD = CIUDAD.ID_CIUDAD
+       WHERE ENTRADAARCHIVOCONTROL.FECHAARCHIVO BETWEEN
+             convert(datetime, convert(date,@sFECHAFRST)) AND convert(datetime, convert(date,@sFECHALAST))
+         AND REGISTROFACTURACION.CODTIPOREGISTRO = 1
+         AND REGISTROFACTURACION.CODPRODUCTO IN
+             (SELECT ID_PRODUCTO
+                FROM WSXML_SFG.PRODUCTO P
+               WHERE P.CODALIADOESTRATEGICO IN (918, 949));
+  END;
 GO
 
 
@@ -157,9 +194,34 @@ GO
 GO
 
 CREATE     PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ATHMensualNoMasivo(@ID_DETALLETAREAEJECUTADA NUMERIC(22,0),
-                              @DIA                      DATETIME
-                               ) AS
-
+                               @DIA                      DATETIME) AS
+ BEGIN
+    DECLARE @sFECHAFRST DATETIME;
+    DECLARE @sFECHALAST DATETIME;
+   
+  SET NOCOUNT ON;
+    EXEC WSXML_SFG.SFG_PACKAGE_GetMonthRange @DIA, @sFECHAFRST OUT, @sFECHALAST OUT
+      select P.CODIGOGTECHPUNTODEVENTA,
+             rfR.fechahoratransaccion  AS FECHA,
+             rfR.recibo                as SPRN,
+             rfR.suscriptor            AS NURA,
+             rfR.valortransaccion      AS MONTO,
+             rfR.estado,
+             rfR.ARRN
+        from WSXML_SFG.registrofactreferencia rfR,
+             WSXML_SFG.PUNTODEVENTA P,
+             (select r.id_registrofacturacion, R.CODPUNTODEVENTA
+                from WSXML_SFG.registrofacturacion r
+               where r.codtiporegistro = 1
+                 and r.codproducto = 1953
+                 and r.codentradaarchivocontrol in
+                     (select e.id_entradaarchivocontrol
+                        from WSXML_SFG.entradaarchivocontrol e
+                       where e.tipoarchivo = 1
+                         and e.fechaarchivo between @sFECHAFRST and @sFECHALAST)) RF
+       where rfR.codregistrofacturacion = RF.id_registrofacturacion
+         AND P.ID_PUNTODEVENTA = RF.CODPUNTODEVENTA;
+  END;
 GO
 
 
@@ -320,14 +382,71 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_FacturacionProcesa(@ID_DET
 GO
 
   
-   IF OBJECT_ID('WSXML_SFG.SFGINF_ESPECIALMENSUAL_ConsolmensualTxLogueoTerminal', 'P') is not null
+  IF OBJECT_ID('WSXML_SFG.SFGINF_ESPECIALMENSUAL_ConsolmensualTxLogueoTerminal', 'P') is not null
   drop PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ConsolmensualTxLogueoTerminal;
 go
 
 create       PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ConsolmensualTxLogueoTerminal(@ID_DETALLETAREAEJEUTADA NUMERIC(22,0), 
                                       @DIA DATETIME,
-                                     @pCODPRODUCTO NUMERIC(22,0))
+                                      @pCODPRODUCTO NUMERIC(22,0))
   as
+  begin 
+    declare @sFECHAFRST DATETIME;
+    declare @sFECHALAST DATETIME;
+    declare @sWEEKDAY INT;
+   
+  set nocount on;
+   EXEC  WSXML_SFG.SFG_PACKAGE_GetMonthRange @DIA, @sFECHAFRST OUT, @sFECHALAST OUT
+	select fechaarchivo  as "Fecha Archivo", codigogtechpuntodeventa as "Numero PDV",
+        nompuntodeventa as "Nombre PDV", suscriptor as "Numero Cedula", horas as "Horas", minutos as "Minutos", 
+        totalminutos as "Total minutos", sum(numerotransacciones) as "Numero Transacciones", 
+        sum(montoventa) as "Monto Venta" , nomregional as "Regional", ciudad as "Ciudad"
+    from ( 
+            SELECT distinct reg.codpuntodeventa,  convert(varchar, e.fechaarchivo) as fechaarchivo, p.codigogtechpuntodeventa ,
+            p.nompuntodeventa,
+            rfr.suscriptor, 
+            cast(round(WSXML_SFG.datediff('mi',max(rfr.fechahoratransaccion), min(rfr.fechahoratransaccion)) /60 ,0) as integer)*-1 as horas,
+            case when 
+            round((cast(round(WSXML_SFG.datediff('mi',min(rfr.fechahoratransaccion), max(rfr.fechahoratransaccion)) /60 ,3) as float) -
+            cast(round(WSXML_SFG.datediff('mi',min(rfr.fechahoratransaccion), max(rfr.fechahoratransaccion)) /60 ,0) as float)) * 60, 0) < 0 then 
+            round((cast(round(WSXML_SFG.datediff('mi',min(rfr.fechahoratransaccion), max(rfr.fechahoratransaccion)) /60 ,3) as float) -
+            cast(round(WSXML_SFG.datediff('mi',min(rfr.fechahoratransaccion), max(rfr.fechahoratransaccion)) /60 ,0) as float)) * 60, 0)*-1
+            else round((cast(round(WSXML_SFG.datediff('mi',min(rfr.fechahoratransaccion), max(rfr.fechahoratransaccion)) /60 ,3) as float) -
+            cast(round(WSXML_SFG.datediff('mi',min(rfr.fechahoratransaccion), max(rfr.fechahoratransaccion)) /60 ,0) as float)) * 60, 0) end as minutos,
+            cast(round(WSXML_SFG.datediff('mi',max(rfr.fechahoratransaccion), min(rfr.fechahoratransaccion)) ,0) as integer) * -1 as totalminutos,
+            isnull(case when reg.codpuntodeventa = rf.codpuntodeventa --and rfr.suscriptor = reg.suscriptor
+              then  sum(reg.totaltx)  end, 0) as numerotransacciones, 
+             isnull(case when reg.codpuntodeventa = rf.codpuntodeventa  
+                then  isnull(sum(reg.totalventas), 0) end, 0)  as Montoventa,
+            r.nomregional , 
+            (case when min(CONVERT(VARCHAR(8), rfr.fechahoratransaccion,108)) = min(CONVERT(VARCHAR(8), rfr.fechahoratransaccion,108)) 
+            then c.nomciudad end) as ciudad 
+            FROM WSXML_SFG.REGISTROFACTREFERENCIA rfr
+            inner join WSXML_SFG.registrofacturacion rf on rf.id_registrofacturacion = rfr.codregistrofacturacion
+            inner join WSXML_SFG.entradaarchivocontrol e on rf.codentradaarchivocontrol = e.id_entradaarchivocontrol 
+            inner join WSXML_SFG.puntodeventa p on p.id_puntodeventa = rf.codpuntodeventa
+            inner join WSXML_SFG.regional r on r.id_regional = p.codregional 
+            inner join WSXML_SFG.ciudad c on c.id_ciudad = p.codciudad
+            left outer join (select case when codtiporegistro in (1,3) then sum(regf.numtransacciones) else 0 end as totaltx, 
+                 case when codtiporegistro in (1,3) then sum(regf.valortransaccion) else 0 end as totalventas, 
+                 regf.codentradaarchivocontrol, regf.codpuntodeventa, rfr.fechahoratransaccion, rfr.suscriptor
+                 from WSXML_SFG.registrofacturacion regf 
+                 inner join WSXML_SFG.entradaarchivocontrol ent on ent.id_entradaarchivocontrol = regf.codentradaarchivocontrol
+                 inner join WSXML_SFG.registrofactreferencia rfr on rfr.codregistrofacturacion = regf.id_registrofacturacion
+                 where ent.fechaarchivo BETWEEN @sFECHAFRST AND @sFECHALAST and regf.codproducto <> @pCODPRODUCTO
+                 group by regf.codentradaarchivocontrol, regf.codtiporegistro,regf.codciudad, regf.codpuntodeventa, 
+                 rfr.fechahoratransaccion, rfr.suscriptor
+                ) reg on reg.codpuntodeventa = rf.codpuntodeventa
+            where fechaarchivo BETWEEN @sFECHAFRST AND @sFECHALAST and rf.codproducto = @pCODPRODUCTO
+            group by e.fechaarchivo, rf.codpuntodeventa,p.codigogtechpuntodeventa,
+             r.nomregional, rfr.suscriptor, c.nomciudad, p.nompuntodeventa,  reg.codpuntodeventa, 
+             reg.suscriptor
+             ) T
+         group by codpuntodeventa, fechaarchivo, codigogtechpuntodeventa,
+          nompuntodeventa, suscriptor, horas, totalminutos, nomregional, ciudad, minutos
+          order by 1;
+
+END
 GO
 
 

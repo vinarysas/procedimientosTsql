@@ -71,6 +71,7 @@ BEGIN
     BEGIN
       DECLARE @msg VARCHAR(2000)= '-20054 No existe el ciclo de facturación No. ' + CAST(@p_SECUENCIACICLO AS NVARCHAR(MAX))
       RAISERROR(@msg, 16, 1)  
+	  RETURN 0
     END
     
     IF @COUNT_REGISTROS > 1
@@ -81,7 +82,6 @@ BEGIN
   END
 END
 GO
-
    
 IF OBJECT_ID('WSXML_SFG.SFGREPORTESTERMINAL_GetPagingParameters', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGREPORTESTERMINAL_GetPagingParameters;
