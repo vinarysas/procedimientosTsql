@@ -66,7 +66,7 @@ BEGIN
   DECLARE @sFECHACCLO        DATE
   DECLARE @sFECHAFRST        DATE
   DECLARE @sFECHALAST        DATE
-  DECLARE @ProductList       WSXML_SFG.IDSTRINGVALUELIST
+  DECLARE @ProductList       WSXML_SFG.IDSTRINGVALUE
   DECLARE @ProductString     NVARCHAR(MAX)
   DECLARE @ProductParentName NVARCHAR(MAX)
   DECLARE @ID                NUMERIC
@@ -96,7 +96,7 @@ BEGIN
   IF (SELECT COUNT(*) FROM @ProductList) > 0 
   BEGIN
     DECLARE ipx CURSOR FOR
-      SELECT ID, IDSTRINGVALUE
+      SELECT ID, VALUE
       FROM @ProductList
     OPEN ipx
     FETCH NEXT FROM ipx INTO @ID, @VALUE
@@ -288,7 +288,8 @@ BEGIN
           and p.id_puntodeventa = rf.codpuntodeventa
           and e.tipoarchivo = 1
           and rf.codtiporegistro = 1
-          and e.fechaarchivo between @sFECHAFRST and @sFECHALAST
+          and e.fechaarchivo >= @sFECHAFRST 
+		  and e.fechaarchivo <= @sFECHALAST
           and rf.codproducto in (@P_ID_PRODUCTO)
       ) tmp
       group by 
@@ -311,7 +312,8 @@ BEGIN
     and vw.id_puntodeventa = rf.codpuntodeventa
     and e.tipoarchivo = 1
     and rf.codtiporegistro = 1
-    and e.fechaarchivo between @sFECHAFRST and @sFECHALAST
+    and e.fechaarchivo >= @sFECHAFRST 
+	and e.fechaarchivo <= @sFECHALAST
     and rf.codproducto in (@P_ID_PRODUCTO)
   order by 
     repeticiones, 
