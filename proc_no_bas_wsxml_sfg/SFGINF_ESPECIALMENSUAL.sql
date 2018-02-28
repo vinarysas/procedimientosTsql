@@ -435,11 +435,11 @@ create       PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ConsolmensualTxLogueoTer
                  from WSXML_SFG.registrofacturacion regf 
                  inner join WSXML_SFG.entradaarchivocontrol ent on ent.id_entradaarchivocontrol = regf.codentradaarchivocontrol
                  inner join WSXML_SFG.registrofactreferencia rfr on rfr.codregistrofacturacion = regf.id_registrofacturacion
-                 where ent.fechaarchivo BETWEEN @sFECHAFRST AND @sFECHALAST and regf.codproducto <> @pCODPRODUCTO
+                 where ent.fechaarchivo >= @sFECHAFRST AND ent.fechaarchivo <= @sFECHALAST and regf.codproducto <> @pCODPRODUCTO
                  group by regf.codentradaarchivocontrol, regf.codtiporegistro,regf.codciudad, regf.codpuntodeventa, 
                  rfr.fechahoratransaccion, rfr.suscriptor
                 ) reg on reg.codpuntodeventa = rf.codpuntodeventa
-            where fechaarchivo BETWEEN @sFECHAFRST AND @sFECHALAST and rf.codproducto = @pCODPRODUCTO
+            where fechaarchivo >= @sFECHAFRST AND fechaarchivo <= @sFECHALAST and rf.codproducto = @pCODPRODUCTO
             group by e.fechaarchivo, rf.codpuntodeventa,p.codigogtechpuntodeventa,
              r.nomregional, rfr.suscriptor, c.nomciudad, p.nompuntodeventa,  reg.codpuntodeventa, 
              reg.suscriptor
@@ -449,6 +449,7 @@ create       PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ConsolmensualTxLogueoTer
           order by 1;
 
 END
+
 GO
 
 
