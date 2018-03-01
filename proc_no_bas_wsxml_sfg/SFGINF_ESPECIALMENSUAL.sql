@@ -66,7 +66,7 @@ BEGIN
   DECLARE @sFECHACCLO        DATE
   DECLARE @sFECHAFRST        DATE
   DECLARE @sFECHALAST        DATE
-  DECLARE @ProductList       WSXML_SFG.IDSTRINGVALUELIST
+  DECLARE @ProductList       WSXML_SFG.IDSTRINGVALUE
   DECLARE @ProductString     NVARCHAR(MAX)
   DECLARE @ProductParentName NVARCHAR(MAX)
   DECLARE @ID                NUMERIC
@@ -96,7 +96,7 @@ BEGIN
   IF (SELECT COUNT(*) FROM @ProductList) > 0 
   BEGIN
     DECLARE ipx CURSOR FOR
-      SELECT ID, IDSTRINGVALUE
+      SELECT ID, VALUE
       FROM @ProductList
     OPEN ipx
     FETCH NEXT FROM ipx INTO @ID, @VALUE
@@ -288,7 +288,8 @@ BEGIN
           and p.id_puntodeventa = rf.codpuntodeventa
           and e.tipoarchivo = 1
           and rf.codtiporegistro = 1
-          and e.fechaarchivo between @sFECHAFRST and @sFECHALAST
+          and e.fechaarchivo >= @sFECHAFRST 
+		  and e.fechaarchivo <= @sFECHALAST
           and rf.codproducto in (@P_ID_PRODUCTO)
       ) tmp
       group by 
@@ -311,7 +312,8 @@ BEGIN
     and vw.id_puntodeventa = rf.codpuntodeventa
     and e.tipoarchivo = 1
     and rf.codtiporegistro = 1
-    and e.fechaarchivo between @sFECHAFRST and @sFECHALAST
+    and e.fechaarchivo >= @sFECHAFRST 
+	and e.fechaarchivo <= @sFECHALAST
     and rf.codproducto in (@P_ID_PRODUCTO)
   order by 
     repeticiones, 
@@ -433,11 +435,11 @@ create       PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ConsolmensualTxLogueoTer
                  from WSXML_SFG.registrofacturacion regf 
                  inner join WSXML_SFG.entradaarchivocontrol ent on ent.id_entradaarchivocontrol = regf.codentradaarchivocontrol
                  inner join WSXML_SFG.registrofactreferencia rfr on rfr.codregistrofacturacion = regf.id_registrofacturacion
-                 where ent.fechaarchivo BETWEEN @sFECHAFRST AND @sFECHALAST and regf.codproducto <> @pCODPRODUCTO
+                 where ent.fechaarchivo >= @sFECHAFRST AND ent.fechaarchivo <= @sFECHALAST and regf.codproducto <> @pCODPRODUCTO
                  group by regf.codentradaarchivocontrol, regf.codtiporegistro,regf.codciudad, regf.codpuntodeventa, 
                  rfr.fechahoratransaccion, rfr.suscriptor
                 ) reg on reg.codpuntodeventa = rf.codpuntodeventa
-            where fechaarchivo BETWEEN @sFECHAFRST AND @sFECHALAST and rf.codproducto = @pCODPRODUCTO
+            where fechaarchivo >= @sFECHAFRST AND fechaarchivo <= @sFECHALAST and rf.codproducto = @pCODPRODUCTO
             group by e.fechaarchivo, rf.codpuntodeventa,p.codigogtechpuntodeventa,
              r.nomregional, rfr.suscriptor, c.nomciudad, p.nompuntodeventa,  reg.codpuntodeventa, 
              reg.suscriptor
@@ -447,6 +449,7 @@ create       PROCEDURE WSXML_SFG.SFGINF_ESPECIALMENSUAL_ConsolmensualTxLogueoTer
           order by 1;
 
 END
+
 GO
 
 
