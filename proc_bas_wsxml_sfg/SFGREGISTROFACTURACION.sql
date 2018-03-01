@@ -401,7 +401,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_CreateAnullmentRecord(@p_C
 			   WHERE NUMEROREFERENCIA = @p_NUMEROREFERENCIA;
 			END TRY
 			BEGIN CATCH
-				SET @msg = 'Error occured while retrieving customer info for reference ' +ISNULL(@p_NUMEROREFERENCIA, '')
+				SET @msg = 'Error occured while retrieving customer info for reference ' +ISNULL(CONVERT(VARCHAR,@p_NUMEROREFERENCIA), '')
 				EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @msg 
 			END CATCH
         END;
@@ -482,9 +482,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_UpdateRecord(@pk_ID_REGIST
 
     IF @@rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
+	  RETURN 0
     END 
     IF @@rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
+	  RETURN 0
     END 
 
   END;
@@ -659,7 +661,6 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_RecordProcessed(@pk_ID_REG
      WHERE ID_REGISTROFACTURACION = @pk_ID_REGISTROFACTURACION;
   END;
 GO
-
 
 
   IF OBJECT_ID('WSXML_SFG.SFGREGISTROFACTURACION_CalcularComisionesXRango', 'P') IS NOT NULL
@@ -990,7 +991,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_CalcularComisionesXRango(@
 									END 
 								END TRY
 								BEGIN CATCH
-									SET @msg = '-20054 No se pudo ingresar registro de retenci?n para el comisionamiento del punto de venta ' + ISNULL(WSXML_SFG.PUNTODEVENTA_CODIGO_F(@tFACTURACION__Codpuntodeventa), '') + ', producto ' + ISNULL(WSXML.PRODUCTO_NOMBRE_F(@tFACTURACION__Codproducto), '') 
+									SET @msg = '-20054 No se pudo ingresar registro de retención para el comisionamiento del punto de venta ' + ISNULL(CONVERT(VARCHAR,WSXML_SFG.PUNTODEVENTA_CODIGO_F(@tFACTURACION__Codpuntodeventa)), '') + ', producto ' + ISNULL(WSXML.PRODUCTO_NOMBRE_F(@tFACTURACION__Codproducto), '') 
 									RAISERROR(@msg, 16, 1);
 								END CATCH
 						  END;
@@ -1039,7 +1040,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_CalcularComisionesXRango(@
 
 			IF @@ROWCOUNT = 0 BEGIN
 				SET @msg = 'No se puede aplicar la comisi?n para el punto de venta ' +
-					 ISNULL(WSXML_SFG.PUNTODEVENTA_CODIGO_F(@tFACTURACION__Codpuntodeventa), '') +
+					 ISNULL(CONVERT(VARCHAR,WSXML_SFG.PUNTODEVENTA_CODIGO_F(@tFACTURACION__Codpuntodeventa)), '') +
 					 ', producto ' +
 					 ISNULL(WSXML_SFG.PRODUCTO_NOMBRE_F(@tFACTURACION__Codproducto), '');
 				EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOERROR, 'CALCULOCOMISIONESXRANGO', @msg, @cCODUSUARIOMODIFICACION
@@ -1077,6 +1078,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_CalcularComisionesXRango(@
 	END CATCH
   END;
 GO
+
 
 
 
@@ -1191,14 +1193,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_ReversarCargue(@p_CODENTRA
 		 WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA, @countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM HUERFANOSERVICIOSCOMERCIALES
 		 WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA, @countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		IF (SELECT COUNT(*) FROM @lstREGISTROSARCHIVO) > 0 BEGIN
 			DECLARE ix CURSOR FOR SELECT IDVALUE FROM @lstREGISTROSARCHIVO
@@ -1213,7 +1215,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_ReversarCargue(@p_CODENTRA
 				SET @countregistros = @countregistros + 1;
 				IF (@countregistros % @waitnregistros) = 0 BEGIN
 					EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA, @countregistros
-					COMMIT;
+					/*COMMIT;*/
 				END 
 				FETCH ix INTO @ix__IDVALUE;
 			END;
@@ -1307,39 +1309,39 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_ReversarCargue2(@p_CODENTR
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM WSXML_SFG.RETENCIONREGFACTURACION
 		 WHERE CODREGISTROFACTURACION IN
 			   (SELECT SWC_Value FROM WSXML_SFG.SFGREGISTROFACTURACION_RegistrosFromArchivo(@p_CODENTRADAARCHIVOCONTROL));
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM WSXML_SFG.RETUVTREGFACTURACION
 		 WHERE CODREGISTROFACTURACION IN
 			   (SELECT SWC_Value FROM WSXML_SFG.SFGREGISTROFACTURACION_RegistrosFromArchivo(@p_CODENTRADAARCHIVOCONTROL));
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM WSXML_SFG.HUERFANOJUEGOS
 		 WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM WSXML_SFG.HUERFANOSERVICIOSCOMERCIALES
 		 WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM REGISTROFACTURACION
 		 WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		UPDATE WSXML_SFG.ENTRADAARCHIVOCONTROL
 		   SET REVERSADO              = 1,
@@ -1428,33 +1430,33 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_ReversarCargue3(@p_CODENTR
 		SET @countregistros = @countregistros + @@ROWCOUNT;
     
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA, @countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM RETENCIONREGFACTURACION
 		 WHERE CODREGISTROFACTURACION IN (SELECT SWC_Value FROM WSXML_SFG.SFGREGISTROFACTURACION_RegistrosFromArchivo(@p_CODENTRADAARCHIVOCONTROL));
 		SET @countregistros = @countregistros + @@ROWCOUNT;
     
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM RETUVTREGFACTURACION
 		 WHERE CODREGISTROFACTURACION IN (SELECT SWC_Value FROM WSXML_SFG.SFGREGISTROFACTURACION_RegistrosFromArchivo(@p_CODENTRADAARCHIVOCONTROL));
 		SET @countregistros = @countregistros + @@ROWCOUNT;
     
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM WSXML_SFG.HUERFANOJUEGOS
 		 WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		DELETE FROM WSXML_SFG.HUERFANOSERVICIOSCOMERCIALES
 		 WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
 		SET @countregistros = @countregistros + @@ROWCOUNT;
 		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countregistros
-		COMMIT;
+		/*COMMIT;*/
 
 		  DECLARE @c               NUMERIC(22,0) = 0;
 		  DECLARE @transactionlist WSXML_SFG.LONGNUMBERARRAY;
@@ -1526,7 +1528,6 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_ReversarCargue3(@p_CODENTR
 	END CATCH
   END;
 GO
-
 
  
   IF OBJECT_ID('WSXML_SFG.SFGREGISTROFACTURACION_ReversarCargue4', 'P') IS NOT NULL
@@ -2406,14 +2407,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_ReversarCargue4(@p_CODENTR
 		 WHERE ID_ENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
 
 		SET @szSQLInstruction = 'UPDATE WSXML_SFG.PLANDEPAGOS SET CodEstadoPago = 4, CODENTRADAARCHIVOCONTROL = NULL, FECHA_ARCHIVO_VENTAS = NULL WHERE CODENTRADAARCHIVOCONTROL = ' +
-							ISNULL(@p_CODENTRADAARCHIVOCONTROL, '');
+							ISNULL(CONVERT(VARCHAR,@p_CODENTRADAARCHIVOCONTROL), '');
 
 	--    RESULT := DBMS_HS_PASSTHROUGH.EXECUTE_IMMEDIATE@DIFERIDOS(szSQLInstruction);
 
 		SET @RESULT = 0;
 
 		IF @RESULT > 0 BEGIN
-			SET @msg = '-20086 Error al intentar actualizar la tabla [Diferidos].[dbo].[PlanDePagos] de SQLServer durante la reversi?n de prefacturaci?n. ' +
+			SET @msg = '-20086 Error al intentar actualizar la tabla [Diferidos].[dbo].[PlanDePagos] de SQLServer durante la reversi?n de prefacturación. ' +
 								  ISNULL(@RESULT, '')
 		  RAISERROR(@msg, 16, 1);
 		END 
@@ -2897,7 +2898,7 @@ GO
 
 				END 
 					IF (@cPLANTILLA IS NULL) BEGIN
-				  SET @tmpmsg = '-20054 No se encontr? comisi?n ?nica para el punto de venta: ' + ISNULL(@tREGISTRO__ID_REGISTROFACTURACION, '') + ': ' +isnull(ERROR_MESSAGE ( ) , '');
+				  SET @tmpmsg = '-20054 No se encontró comisión única para el punto de venta: ' + ISNULL(CONVERT(VARCHAR,@tREGISTRO__ID_REGISTROFACTURACION), '') + ': ' +isnull(ERROR_MESSAGE ( ) , '');
 				  RAISERROR(@tmpmsg, 16, 1);
 				END 
 
@@ -2912,7 +2913,7 @@ GO
 					END TRY
 					BEGIN CATCH
 						SET @tmpmsg = '-20054 No se pudo actualizar el registro de venta: ' +
-												ISNULL(@tREGISTRO__ID_REGISTROFACTURACION, '') + ': ' +
+												ISNULL(CONVERT(VARCHAR,@tREGISTRO__ID_REGISTROFACTURACION), '') + ': ' +
 												isnull(ERROR_MESSAGE ( ) , '');
 						RAISERROR(@tmpmsg, 16, 1);
 					END CATCH
@@ -2985,9 +2986,9 @@ GO
 						   END TRY
 						   BEGIN CATCH
 
-								SET @tmpmsg = 'No se pudo ingresar registro de impuesto: : ' + ISNULL(@tREGISTRO__ID_REGISTROFACTURACION, '') + ': ' + isnull(ERROR_MESSAGE ( ) , '');
+								SET @tmpmsg = 'No se pudo ingresar registro de impuesto: : ' + ISNULL(CONVERT(VARCHAR,@tREGISTRO__ID_REGISTROFACTURACION), '') + ': ' + isnull(ERROR_MESSAGE ( ) , '');
 								EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @tmpmsg
-								SET @tmpmsg = '-20054 No se pudo ingresar registro de impuesto: ' + ISNULL(@tREGISTRO__ID_REGISTROFACTURACION, '') + ': ' + isnull(ERROR_MESSAGE ( ) , '')
+								SET @tmpmsg = '-20054 No se pudo ingresar registro de impuesto: ' + ISNULL(CONVERT(VARCHAR,@tREGISTRO__ID_REGISTROFACTURACION), '') + ': ' + isnull(ERROR_MESSAGE ( ) , '')
 								RAISERROR(@tmpmsg, 16, 1);
 							END CATCH
 				
@@ -3038,7 +3039,7 @@ GO
 							END TRY
 							BEGIN CATCH
 									  SET @tmpmsg = '-20054 No se pudo ingresar registro de descuentos : ' +
-															  ISNULL(@tREGISTRO__ID_REGISTROFACTURACION, '') + ': ' +
+															  ISNULL(CONVERT(VARCHAR,@tREGISTRO__ID_REGISTROFACTURACION), '') + ': ' +
 															  isnull(ERROR_MESSAGE ( ) , '');
 									  RAISERROR(@tmpmsg, 16, 1);
 							END CATCH
@@ -3286,7 +3287,7 @@ GO
 							  END TRY
 							  BEGIN CATCH
                         
-								SET @tmpmsg = '-20054 No se pudo ingresar registro de retención: ' + ISNULL(@tREGISTRO__ID_REGISTROFACTURACION, '') + ': ' + isnull(ERROR_MESSAGE ( ) , '');
+								SET @tmpmsg = '-20054 No se pudo ingresar registro de retención: ' + ISNULL(CONVERT(VARCHAR,@tREGISTRO__ID_REGISTROFACTURACION), '') + ': ' + isnull(ERROR_MESSAGE ( ) , '');
 								RAISERROR(@tmpmsg, 16, 1);
 							  END CATCH
 
@@ -3326,8 +3327,8 @@ GO
 																		 @cCODUSUARIOMODIFICACION
 					END TRY
 					BEGIN CATCH
-						  SET @tmpmsg = '-20054 No se pudo actualizar el valor de la comisi?n despues de calcular la retenci?n: ' +
-												  ISNULL(@tREGISTRO__ID_REGISTROFACTURACION, '') + ': ' +
+						  SET @tmpmsg = '-20054 No se pudo actualizar el valor de la comisi?n despues de calcular la retención: ' +
+												  ISNULL(CONVERT(VARCHAR,@tREGISTRO__ID_REGISTROFACTURACION), '') + ': ' +
 												  isnull(ERROR_MESSAGE ( ) , '');
 						  RAISERROR(@tmpmsg, 16, 1);
 
@@ -3422,23 +3423,24 @@ GO
 
  END TRY
  BEGIN CATCH
-      SET @msg            = 'ESFGALERTA_GenerarAlertarror al recalcular la prefacturación: ' + isnull(ERROR_MESSAGE ( ) , '');
+	
+      SET @msg            = 'Error al recalcular la prefacturación: ' + isnull(ERROR_MESSAGE ( ) , '');
+	  PRINT @msg
       SET @p_RETVALUE_out = @p_FINALIZADAFALLO
       EXEC WSXML_SFG.SFGALERTA_GenerarAlerta  @p_TIPOERROR, 'RECALCULAR_PREFACTURACION', @msg, 1;
       EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_FinalizeExecution  @p_CODDETALLETAREAEJECUTADA, @msg;
  END CATCH  
 END;
 GO
- 
 
 
-    IF OBJECT_ID('WSXML_SFG.SFGREGISTROFACTURACION_RecalcularPrefactRegistro', 'P') IS NOT NULL
+IF OBJECT_ID('WSXML_SFG.SFGREGISTROFACTURACION_RecalcularPrefactRegistro', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_RecalcularPrefactRegistro;
 GO
 
 
 
-  CREATE PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_RecalcularPrefactRegistro(@pk_ID_REGISTROFACTURACION NUMERIC(22,0),
+CREATE PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_RecalcularPrefactRegistro(@pk_ID_REGISTROFACTURACION NUMERIC(22,0),
                                       @p_RETVALUE_out            NUMERIC(22,0) OUT) AS
  BEGIN
     DECLARE @msg            VARCHAR(MAX);
@@ -3475,21 +3477,23 @@ GO
 	-- Obtener el identificador del archivo a recalcular
     DECLARE @xBilledFlag NUMERIC(22,0) = 0;
     BEGIN
-      SELECT @xControlFile = CTR.ID_ENTRADAARCHIVOCONTROL, @xBilledFlag = CTR.FACTURADO
-        FROM WSXML_SFG.ENTRADAARCHIVOCONTROL CTR
-       INNER JOIN WSXML_SFG.REGISTROFACTURACION REG
-          ON (REG.CODENTRADAARCHIVOCONTROL = CTR.ID_ENTRADAARCHIVOCONTROL)
-       WHERE REG.ID_REGISTROFACTURACION = @pk_ID_REGISTROFACTURACION;
+		SELECT @xControlFile = CTR.ID_ENTRADAARCHIVOCONTROL, @xBilledFlag = CTR.FACTURADO
+	    FROM WSXML_SFG.ENTRADAARCHIVOCONTROL CTR
+			INNER JOIN WSXML_SFG.REGISTROFACTURACION REG ON (REG.CODENTRADAARCHIVOCONTROL = CTR.ID_ENTRADAARCHIVOCONTROL)
+		WHERE REG.ID_REGISTROFACTURACION = @pk_ID_REGISTROFACTURACION;
 
-      IF @xBilledFlag = 1 BEGIN
-        RAISERROR('-20035 No se puede recalcular la prefacturacion para un archivo ya facturado', 16, 1);
-      END 
 		IF @@ROWCOUNT = 0 BEGIN
 			RAISERROR('-20054 El registro de prefacturacion es invalido', 16, 1);
+			RETURN 0
 		END
-      END;
 
-	  DECLARE @VENTAFACT SMALLINT,
+		IF @xBilledFlag = 1 BEGIN
+		    RAISERROR('-20035 No se puede recalcular la prefacturacion para un archivo ya facturado', 16, 1);
+			RETURN 0
+		END 
+    END;
+
+	DECLARE @VENTAFACT SMALLINT,
         @ANULACION SMALLINT,
 		@FREETICKT SMALLINT,
 		@PREMIOPAG SMALLINT,
@@ -3669,8 +3673,8 @@ GO
 
 			  END 
 			  IF (@cPLANTILLA IS NULL) BEGIN
-				SET @tmpmsg = '-20054 No se encontró comisión ?nica para el punto de venta: ' +
-										ISNULL(@pk_ID_REGISTROFACTURACION, '') + ': ' + isnull(ERROR_MESSAGE ( ) , '');
+				SET @tmpmsg = '-20054 No se encontró comisión Única para el punto de venta: ' +
+										ISNULL(CONVERT(VARCHAR,@pk_ID_REGISTROFACTURACION), '') + ': ' + isnull(ERROR_MESSAGE ( ) , '');
 				RAISERROR(@tmpmsg, 16, 1);
 			  END 
 
@@ -3745,11 +3749,11 @@ GO
 							  END TRY
 							  BEGIN CATCH
 								SET @tmpmsg = 'No se pudo ingresar registro de impuesto: : ' +
-															  ISNULL(@pk_ID_REGISTROFACTURACION, '') + ': ' +
+															  ISNULL(CONVERT(VARCHAR,@pk_ID_REGISTROFACTURACION), '') + ': ' +
 															  isnull(ERROR_MESSAGE ( ) , '');
 								EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @tmpmsg
 								SET @tmpmsg = '-20054 No se pudo ingresar registro de impuesto: ' +
-															  ISNULL(@pk_ID_REGISTROFACTURACION, '') + ': ' +
+															  ISNULL(CONVERT(VARCHAR,@pk_ID_REGISTROFACTURACION), '') + ': ' +
 															  isnull(ERROR_MESSAGE ( ) , '')
 								RAISERROR(@tmpmsg, 16, 1);
 							   END CATCH
@@ -3801,7 +3805,7 @@ GO
 						   END TRY
 						   BEGIN CATCH
 								SET @tmpmsg = '-20054 No se pudo ingresar registro de descuentos : ' +
-														ISNULL(@pk_ID_REGISTROFACTURACION, '') + ': ' +
+														ISNULL(CONVERT(VARCHAR,@pk_ID_REGISTROFACTURACION), '') + ': ' +
 														isnull(ERROR_MESSAGE ( ) , '');
 								RAISERROR(@tmpmsg, 16, 1);
 							END CATCH
@@ -3960,7 +3964,7 @@ GO
 					  SET @cVALORCOMISIONBRUTA = ROUND(@cVALORCOMISION,0) + ROUND(@cIVACOMISION,0);
 					END TRY
 					BEGIN CATCH
-							set @msg = '-20054 No se puede calcular la comision: ' + isnull(ERROR_MESSAGE ( ) , '');
+							set @msg = '-20054 No se puede calcular la comisión: ' + isnull(ERROR_MESSAGE ( ) , '');
 							RAISERROR(@msg, 16, 1);
 					END CATCH
 				END;
@@ -4036,8 +4040,8 @@ GO
 											END TRY
 											BEGIN CATCH
 
-												  SET @tmpmsg = '-20054 No se pudo ingresar registro de retenci?n: ' +
-																		  ISNULL(@pk_ID_REGISTROFACTURACION, '') + ': ' +
+												  SET @tmpmsg = '-20054 No se pudo ingresar registro de retención: ' +
+																		  ISNULL(CONVERT(VARCHAR,@pk_ID_REGISTROFACTURACION), '') + ': ' +
 																		  isnull(ERROR_MESSAGE ( ) , '');
 												  RAISERROR(@tmpmsg, 16, 1);
 											END CATCH
@@ -4082,8 +4086,8 @@ GO
 																	   @cCODUSUARIOMODIFICACION
 						END TRY
 						BEGIN CATCH
-								SET @tmpmsg = '-20054 No se pudo actualizar el valor de la comisi?n despues de calcular la retenci?n: ' +
-														ISNULL(@pk_ID_REGISTROFACTURACION, '') + ': ' +
+								SET @tmpmsg = '-20054 No se pudo actualizar el valor de la comisión despues de calcular la retención: ' +
+														ISNULL(CONVERT(VARCHAR,@pk_ID_REGISTROFACTURACION), '') + ': ' +
 														isnull(ERROR_MESSAGE ( ) , '');
 								RAISERROR(@tmpmsg, 16, 1);
 						END CATCH
@@ -4117,11 +4121,10 @@ GO
 GO
 
 
+
     IF OBJECT_ID('WSXML_SFG.SFGREGISTROFACTURACION_OverwriteConditionTransactions', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_OverwriteConditionTransactions;
 GO
-
-
 
 
   CREATE PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_OverwriteConditionTransactions(@pk_ID_REGISTROFACTURACION NUMERIC(22,0),
@@ -4425,12 +4428,12 @@ GO
   END;
 GO
 
-  IF OBJECT_ID('WSXML_SFG.SFGREGISTROFACTURACION_LimpiarArchivo', 'P') IS NOT NULL
+ IF OBJECT_ID('WSXML_SFG.SFGREGISTROFACTURACION_LimpiarArchivo', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_LimpiarArchivo;
 GO
 
 
-  CREATE PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_LimpiarArchivo(@p_CODENTRADAARCHIVOCONTROL FLOAT) AS
+CREATE PROCEDURE WSXML_SFG.SFGREGISTROFACTURACION_LimpiarArchivo(@p_CODENTRADAARCHIVOCONTROL NUMERIC(38,0)) AS
  BEGIN
     DECLARE @cREVERSADO FLOAT;
     DECLARE @cFACTURADO FLOAT;
@@ -4441,6 +4444,7 @@ GO
      WHERE ID_ENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
     IF @cREVERSADO <> 0 BEGIN
       RAISERROR('-20054 El archivo ya fue reversado', 16, 1);
+	  RETURN 0
     END 
 
     SELECT @cFACTURADO = FACTURADO
@@ -4448,29 +4452,30 @@ GO
      WHERE ID_ENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
     IF @cFACTURADO > 0 BEGIN
       RAISERROR('-20054 Uno o mas registros creados ya fueron considerados por el proceso de facturacion', 16, 1);
+	  RETURN 0
     END 
 
     DELETE FROM WSXML_SFG.HUERFANOJUEGOS
      WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
-    COMMIT;
+    /*COMMIT;*/
     DELETE FROM WSXML_SFG.HUERFANOSERVICIOSCOMERCIALES
      WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
-    COMMIT;
+    /*COMMIT;*/
     DELETE FROM WSXML_SFG.IMPUESTOREGFACTURACION
      WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
-    COMMIT;
+    /*COMMIT;*/
     DELETE FROM WSXML_SFG.RETENCIONREGFACTURACION
      WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
-    COMMIT;
+    /*COMMIT;*/
     DELETE FROM WSXML_SFG.RETUVTREGFACTURACION
      WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL;
-    COMMIT;
+    /*COMMIT;*/
     DELETE FROM WSXML_SFG.REGISTROFACTREFERENCIA
      WHERE CODREGISTROFACTURACION IN
            (SELECT ID_REGISTROFACTURACION
               FROM WSXML_SFG.REGISTROFACTURACION
              WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL);
-    COMMIT;
+    /*COMMIT;*/
     UPDATE WSXML_SFG.REGISTROFACTURACION
        SET NUMTRANSACCIONES          = 0,
            VALORTRANSACCION          = 0,
