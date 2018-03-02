@@ -717,6 +717,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGPUNTODEVENTA_CalcularDigitoVerificacion(@pk_ID
 	 WHERE ID_PUNTODEVENTA = @pk_ID_PUNTODEVENTA;	
 END
 GO
+
 IF OBJECT_ID('WSXML_SFG.SFGPUNTODEVENTA_ObtainBillingRules', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGPUNTODEVENTA_ObtainBillingRules;
 GO
@@ -779,10 +780,7 @@ GO
 					PRNOFACT.ACTIVE = 1
 					) 
      WHERE ID_PUNTODEVENTA = @p_CODPUNTODEVENTA;
-    IF @p_CODTIPOCONTRATOPRODUCTO IS NULL BEGIN
-		DECLARE @errmsg VARCHAR(2000) = '-20054 No existe contrato asociado para el producto ' + ISNULL(@cCODIGOPROD, '')
-		RAISERROR(@errmsg, 16, 1);
-    END 
+     
     -- Trampa de puntos de venta (razones sociales) sin contrato asociado para el producto
     --IF @p_CODTIPOCONTRATOPDV IS NULL BEGIN
     --  RAISE NO_DATA_FOUND;
@@ -834,7 +832,13 @@ GO
       EXCEPTION
         WHEN NO_DATA_FOUND THEN*/
           RAISERROR('-20000 El punto de venta no existe', 16, 1);
+		  RETURN 0;
 	END
+	
+	IF @p_CODTIPOCONTRATOPRODUCTO IS NULL BEGIN
+		DECLARE @errmsg VARCHAR(2000) = '-20054 No existe contrato asociado para el producto ' + ISNULL(@cCODIGOPROD, '')
+		RAISERROR(@errmsg, 16, 1);
+    END
 END
 GO
 
