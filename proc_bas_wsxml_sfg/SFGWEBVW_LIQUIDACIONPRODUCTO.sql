@@ -136,11 +136,13 @@ SET NOCOUNT ON;
     IF @l_count = 0
     BEGIN
         RAISERROR ('-20054 The record no longer exists.', 16, 1);
+		RETURN 0;
     END 
 
     IF @l_count > 1
     BEGIN
         RAISERROR ('-20053 Duplicate object instances.', 16, 1);
+		RETURN 0;
     END 
 
     -- Get the row from the query.  Checksum value will be
