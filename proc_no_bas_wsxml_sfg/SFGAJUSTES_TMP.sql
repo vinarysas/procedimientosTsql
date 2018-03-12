@@ -462,7 +462,7 @@ SET NOCOUNT ON;
                   WHERE CODREGISTROFACTURACION= @v_IDREGISTROFACTURACION;
                END 
 
-
+			   begin transaction
 
                --Insertamos los registros del ajuste
                --SET @v_ID_AJUSTE_TMP = AJUSTE_TMP_SEQ.NEXTVAL;
