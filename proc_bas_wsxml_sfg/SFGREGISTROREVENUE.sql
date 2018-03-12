@@ -2748,8 +2748,6 @@ GO
 					  END 
 					END TRY
 					BEGIN CATCH
-					
-					
 						SET @errormsg = 'No se pudo obtener valores para tarifa diferencial: Se prosigue con tarifa normal. ' + isnull(ERROR_MESSAGE ( ) , '');
 						EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOADVERTENCIA, 'REVENUE', @errormsg, 1
 						SET @errormsg = '-20060 Maximo numero de advertencias alcanzado: ' + isnull(ERROR_MESSAGE ( ) , '')
@@ -4141,14 +4139,9 @@ GO
 					END
 				END TRY
 				BEGIN CATCH
-                  SET @errormsg = 'No se pudo obtener valores para tarifa diferencial: Se prosigue con tarifa normal. ' +
-                                          isnull(ERROR_MESSAGE ( )  , '');
-                  EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOADVERTENCIA,
-                                          'REVENUE',
-                                          @errormsg,
-                                          1
-				  SET @errormsg = '-20060 Máximo numero de advertencias alcanzado: ' +
-                                          isnull(ERROR_MESSAGE ( )  , '')					  
+                  SET @errormsg = 'No se pudo obtener valores para tarifa diferencial: Se prosigue con tarifa normal. ' + isnull(ERROR_MESSAGE ( )  , '');
+                  EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOADVERTENCIA, 'REVENUE', @errormsg, 1
+				  SET @errormsg = '-20060 Máximo numero de advertencias alcanzado: ' + isnull(ERROR_MESSAGE ( )  , '')					  
                   RAISERROR(@errormsg, 16, 1);
 				  RETURN 0
 				END CATCH 
@@ -4165,7 +4158,16 @@ GO
                     ON (CODRANGOCOMISION = ID_RANGOCOMISION)
                  WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONESTANDAR;
 				 
-                IF @cpsvcodeTIPOCOMISION IN (1, 2, 3) BEGIN
+				IF @@ROWCOUNT = 0 BEGIN
+					SET @errormsg = '-20080 No existe comisión estandar configurada para el producto ' +
+                                          WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO) + '. No se puede continuar'
+					RAISERROR(@errormsg, 16, 1);
+					RETURN 0
+				END
+				
+				IF @@ROWCOUNT > 1 BEGIN
+					SET @tmpvCOMISIONPOSESTANDAR = 0;
+				END ELSE IF @cpsvcodeTIPOCOMISION IN (1, 2, 3) BEGIN
                   IF @cpsvcodeTIPOCOMISION = 1 BEGIN
                     -- Porcentual
                     SET @tmpvCOMISIONPOSESTANDAR = (@cpsvcalcVALORPORCENTUA *
@@ -4181,23 +4183,10 @@ GO
                                                @treference__VALORTRANSACCION) / 100) +
                                                (@cpsvcalcVALORTRANSCCNL * (1));
                   END 
-                END
-                ELSE BEGIN
+                END ELSE BEGIN
                   SET @tmpvCOMISIONPOSESTANDAR = 0;
                 END 
 				
-				IF @@ROWCOUNT > 1 BEGIN
-					SET @tmpvCOMISIONPOSESTANDAR = 0;
-				END
-              
-				IF @@ROWCOUNT = 0 BEGIN
-					SET @errormsg = '-20080 No existe comisión estandar configurada para el producto ' +
-                                          WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO) + '. No se puede continuar'
-					RAISERROR(@errormsg, 16, 1);
-					RETURN 0
-				END
-                
-                  
               END;
 
               SET @cmlCOMISIONPOSESTANDAR = @cmlCOMISIONPOSESTANDAR +
@@ -4304,28 +4293,33 @@ GO
       END ELSE
         -- Verificar si se encontro comision (tarifa) diferencial
         BEGIN
+			
+			DECLARE @rowcount NUMERIC(22,0) = 0;
 			IF @cCODRANGOCOMISIONDIFAGR <> 0 BEGIN
 				SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
 				  FROM WSXML_SFG.RANGOCOMISION
 				 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONDIFAGR;
+				 
+				SET @rowcount = @@ROWCOUNT;
 			END
 			ELSE IF @cCODRANGOCOMISIONDIFRED <> 0 BEGIN
 				SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
 				  FROM WSXML_SFG.RANGOCOMISION
 				 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONDIFRED;
+				
+				SET @rowcount = @@ROWCOUNT;
 			END
 			ELSE IF @cCODRANGOCOMISIONDIFDTO <> 0 BEGIN
 				SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
 				  FROM WSXML_SFG.RANGOCOMISION
 				 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONDIFDTO;
+				 
+				SET @rowcount = @@ROWCOUNT;
 			END 
 		  
-            IF @@ROWCOUNT = 0 BEGIN
+            IF @rowcount = 0 BEGIN
 				SET @errormsg = 'No se pudo obtener valores para tarifa diferencial: Se prosigue con tarifa normal. ' + isnull(ERROR_MESSAGE ( )  , '');
-				EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOADVERTENCIA,
-										'REVENUE',
-										@errormsg,
-										1
+				EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOADVERTENCIA, 'REVENUE', @errormsg, 1
 				SET @errormsg = '-20060 Máximo numero de advertencias alcanzado: ' + isnull(ERROR_MESSAGE ( )  , '')
 				RAISERROR(@errormsg, 16, 1);
 				RETURN 0
