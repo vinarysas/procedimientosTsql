@@ -1304,6 +1304,7 @@ GO
                                                              @cCODCOMPROBANTECONSIGNACION OUT
 
     /**** GENERACION DEL MAESTRO DE FACTURACION ***************************************/
+	BEGIN TRANSACTION
     BEGIN
 		BEGIN TRY
 		  EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_AddRecord @cCODCICLOFACTURACION,
