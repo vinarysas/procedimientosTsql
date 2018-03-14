@@ -127,7 +127,7 @@ GO
    
   SET NOCOUNT ON;
     /**** DATOS NECESARIOS PARA REALIZAR LA FACTURACION *******************************/
-    EXEC SFGMAESTROFACTURACIONCOMPCONSI_GenerateBillingTicketData @cCODCICLOFACTURACION,
+    EXEC WSXML_SFG.SFGMAESTROFACTURACIONCOMPCONSI_GenerateBillingTicketData @cCODCICLOFACTURACION,
                                                              @xCODPUNTODEVENTA,
                                                              @cCODTIPOAGRUPACION,
                                                              @cCODAGRUPACIONPUNTODEVENTA,
@@ -137,6 +137,7 @@ GO
                                                              @cCODCOMPROBANTECONSIGNACION OUT
 
     /**** GENERACION DEL MAESTRO DE FACTURACION ***************************************/
+	BEGIN TRANSACTION
     BEGIN
 		BEGIN TRY
 			EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_AddRecord @cCODCICLOFACTURACION,
@@ -1303,6 +1304,7 @@ GO
                                                              @cCODCOMPROBANTECONSIGNACION OUT
 
     /**** GENERACION DEL MAESTRO DE FACTURACION ***************************************/
+	BEGIN TRANSACTION
     BEGIN
 		BEGIN TRY
 		  EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_AddRecord @cCODCICLOFACTURACION,
@@ -2699,7 +2701,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_AddRecord(@p_CODCICLOFAC
          AND CODLINEADENEGOCIO = @p_CODLINEADENEGOCIO;
       IF @codEXISTINGMASTER > 0 BEGIN
         SET @p_ID_MAESTROFACTURACIONPDV_out = @codEXISTINGMASTER;
-		SET @msg = 'Existing master: ' + ISNULL(@codEXISTINGMASTER, '') +
+		SET @msg = 'Existing master: ' + CAST(@codEXISTINGMASTER AS NVARCHAR(MAX)) +
                              '. It will be cleaned. This is an error in billing cycle'
         EXEC WSXML_SFG.SFGTMPTRACE_TRACELOG  @msg
       END 
