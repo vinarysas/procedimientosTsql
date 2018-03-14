@@ -63,7 +63,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_AddRecord(@p_CODENTRADAARCHIVO
 	END TRY
 	BEGIN CATCH
 		DECLARE @msgRaiserror VARCHAR(2000) = '-20099 Ha ocurrido el siguiente Error en el calculo de revenue para el Registro Facturacion ' +
-                              ISNULL(@p_CODREGISTROFACTURACION, '') + ' --> ' +
+                              ISNULL(CONVERT(VARCHAR,@p_CODREGISTROFACTURACION), '') + ' --> ' +
                               isnull(ERROR_MESSAGE() , '')  
       RAISERROR(@msgRaiserror, 16, 1);
 	END CATCH
@@ -940,12 +940,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_ReverseRevenueByDate(@p_FECHA 
           
 			IF (SELECT COUNT(*) FROM @lstREVENUEREGISTRIES) > 0 BEGIN
 				-- Manual deletion of child objects, to ensure consistency
-				DELETE FROM AJUSTEREVENUE
+				DELETE FROM WSXML_SFG.AJUSTEREVENUE
 				WHERE CODREGISTROREVNORIGEN IN
                    (SELECT IDVALUE FROM @lstREVENUEREGISTRIES)
             
 				/*COMMIT;*/
-				DELETE FROM AJUSTEREVENUE
+				DELETE FROM WSXML_SFG.AJUSTEREVENUE
 				WHERE CODREGISTROREVNDESTINO IN
                    (SELECT IDVALUE FROM @lstREVENUEREGISTRIES)
 				
@@ -960,7 +960,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_ReverseRevenueByDate(@p_FECHA 
 				WHERE CODREGISTROREVENUE IN 
                    (SELECT IDVALUE FROM @lstREVENUEREGISTRIES)
             
-				COMMIT;
+				/*COMMIT;*/
 				DELETE FROM WSXML_SFG.REGISTROREVENUETRANSACCION
 				WHERE CODREGISTROREVENUE IN
                    (SELECT IDVALUE FROM @lstREVENUEREGISTRIES)
@@ -1003,18 +1003,18 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_ReverseRevenueByDate(@p_FECHA 
              WHERE CODREGISTROREVENUE IN
                    (SELECT IDVALUE FROM @lstREVENUEREGISTRIES);
             
-			COMMIT;
+			/*COMMIT;*/
             
 			DELETE FROM WSXML_SFG.REGISTROREVCOSTOCALCULADO
              WHERE CODREGISTROREVENUE IN
                    (SELECT IDVALUE FROM @lstREVENUEREGISTRIES)
 
-            COMMIT;
+            /*COMMIT;*/
             DELETE FROM WSXML_SFG.REGISTROREVENUETRANSACCION
              WHERE CODREGISTROREVENUE IN
                    (SELECT IDVALUE FROM @lstREVENUEREGISTRIES)
             
-			COMMIT;
+			/*COMMIT;*/
             -- Progressive deletion of referenced records
             DECLARE it CURSOR FOR SELECT IDVALUE FROM @lstREVENUEREGISTRIES
 			
@@ -1029,7 +1029,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_ReverseRevenueByDate(@p_FECHA 
 				DELETE FROM WSXML_SFG.REGISTROREVENUE
 				WHERE ID_REGISTROREVENUE = @l_it_idvalue
 				
-				COMMIT;
+				/*COMMIT;*/
 				
 				FETCH NEXT FROM it INTO @l_it_idvalue
 			  END;
@@ -1097,7 +1097,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_ReverseRevenueByDate(@p_FECHA 
 			DELETE FROM WSXML_SFG.PRODUCTOREVENUE
 			WHERE ID_PRODUCTOREVENUE = @l_ip_idvalue
 			
-			COMMIT;
+			/*COMMIT;*/
 			FETCH NEXT FROM _ip INTO @l_ip_idvalue
 		END;
 
@@ -2324,8 +2324,7 @@ GO
 											  isnull(ERROR_MESSAGE ( ),'')
 
 						EXEC SFGALERTA_GenerarAlerta   @p_TIPOADVERTENCIA, 'REVENUE', @errormsg, 1
-						SET @errormsg = '-20060 Maximo numero de advertencias alcanzado: ' + 
-											  isnull(ERROR_MESSAGE ( ),'')
+						SET @errormsg = '-20060 Maximo numero de advertencias alcanzado: ' + isnull(ERROR_MESSAGE ( ),'')
 						RAISERROR(@errormsg, 16, 1);
 						RETURN 0
 				END CATCH
@@ -2461,7 +2460,7 @@ GO
 								BEGIN CATCH
 								
 										SET @msg = 'No se pudo obtener los valores originales de transaccion para la referencia anulacion de id ' +
-															   ISNULL(@treference__ID_REGISTROFACTREFERENCIA, '')
+															   ISNULL(CONVERT(VARCHAR,@treference__ID_REGISTROFACTREFERENCIA), '')
 									  
 										EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @msg;
 										EXEC WSXML_SFG.SFGREGISTROREVENUE_GetRegistryRevenueValues
@@ -3880,16 +3879,10 @@ GO
 		BEGIN CATCH
 
           SET @errormsg = 'No es posible calcular el revenue para la entrada ' +
-                                  CONVERT(VARCHAR,@pk_ID_REGISTROFACTURACION) +
-                                  '. Puede existir un error en la configuración del contrato para el producto. ' +
+                                  CONVERT(VARCHAR,@pk_ID_REGISTROFACTURACION) + '. Puede existir un error en la configuración del contrato para el producto. ' +
                                   isnull(ERROR_MESSAGE ( )  , '');
-          EXEC WSXML_SFG.SFGALERTA_GenerarAlerta 
-								@p_TIPOADVERTENCIA,
-                                  'REVENUE',
-                                  @errormsg,
-                                  1
-		 SET @errormsg = '-20060 Máximo número de advertencias alcanzado: ' +
-                                  isnull(ERROR_MESSAGE ( )  , '')
+          EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOADVERTENCIA, 'REVENUE', @errormsg, 1
+		  SET @errormsg = '-20060 Máximo número de advertencias alcanzado: ' + isnull(ERROR_MESSAGE ( )  , '')
           RAISERROR(@errormsg, 16, 1);
 		  RETURN 0
 		END CATCH
@@ -4167,26 +4160,28 @@ GO
 				
 				IF @@ROWCOUNT > 1 BEGIN
 					SET @tmpvCOMISIONPOSESTANDAR = 0;
-				END ELSE IF @cpsvcodeTIPOCOMISION IN (1, 2, 3) BEGIN
-                  IF @cpsvcodeTIPOCOMISION = 1 BEGIN
-                    -- Porcentual
-                    SET @tmpvCOMISIONPOSESTANDAR = (@cpsvcalcVALORPORCENTUA *
-                                               @treference__VALORTRANSACCION) / 100;
-                  END
-                  ELSE IF @cpsvcodeTIPOCOMISION = 2 BEGIN
-                    -- Transaccional
-                    SET @tmpvCOMISIONPOSESTANDAR = @cpsvcalcVALORTRANSCCNL * (1);
-                  END
-                  ELSE IF @cpsvcodeTIPOCOMISION = 3 BEGIN
-                    -- Mixto
-                    SET @tmpvCOMISIONPOSESTANDAR = ((@cpsvcalcVALORPORCENTUA *
-                                               @treference__VALORTRANSACCION) / 100) +
-                                               (@cpsvcalcVALORTRANSCCNL * (1));
-                  END 
-                END ELSE BEGIN
-                  SET @tmpvCOMISIONPOSESTANDAR = 0;
-                END 
-				
+				END ELSE 
+				BEGIN
+					IF @cpsvcodeTIPOCOMISION IN (1, 2, 3) BEGIN
+					  IF @cpsvcodeTIPOCOMISION = 1 BEGIN
+						-- Porcentual
+						SET @tmpvCOMISIONPOSESTANDAR = (@cpsvcalcVALORPORCENTUA *
+												   @treference__VALORTRANSACCION) / 100;
+					  END
+					  ELSE IF @cpsvcodeTIPOCOMISION = 2 BEGIN
+						-- Transaccional
+						SET @tmpvCOMISIONPOSESTANDAR = @cpsvcalcVALORTRANSCCNL * (1);
+					  END
+					  ELSE IF @cpsvcodeTIPOCOMISION = 3 BEGIN
+						-- Mixto
+						SET @tmpvCOMISIONPOSESTANDAR = ((@cpsvcalcVALORPORCENTUA *
+												   @treference__VALORTRANSACCION) / 100) +
+												   (@cpsvcalcVALORTRANSCCNL * (1));
+					  END 
+					END ELSE BEGIN
+					  SET @tmpvCOMISIONPOSESTANDAR = 0;
+					END 
+				END
               END;
 
               SET @cmlCOMISIONPOSESTANDAR = @cmlCOMISIONPOSESTANDAR +
@@ -4293,37 +4288,37 @@ GO
       END ELSE
         -- Verificar si se encontro comision (tarifa) diferencial
         BEGIN
-			
-			DECLARE @rowcount NUMERIC(22,0) = 0;
-			IF @cCODRANGOCOMISIONDIFAGR <> 0 BEGIN
-				SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
-				  FROM WSXML_SFG.RANGOCOMISION
-				 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONDIFAGR;
-				 
-				SET @rowcount = @@ROWCOUNT;
-			END
-			ELSE IF @cCODRANGOCOMISIONDIFRED <> 0 BEGIN
-				SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
-				  FROM WSXML_SFG.RANGOCOMISION
-				 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONDIFRED;
-				
-				SET @rowcount = @@ROWCOUNT;
-			END
-			ELSE IF @cCODRANGOCOMISIONDIFDTO <> 0 BEGIN
-				SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
-				  FROM WSXML_SFG.RANGOCOMISION
-				 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONDIFDTO;
-				 
-				SET @rowcount = @@ROWCOUNT;
-			END 
-		  
-            IF @rowcount = 0 BEGIN
+			BEGIN TRY
+				DECLARE @rowcount NUMERIC(22,0) = 0;
+				IF @cCODRANGOCOMISIONDIFAGR <> 0 BEGIN
+					SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
+					  FROM WSXML_SFG.RANGOCOMISION
+					 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONDIFAGR;
+					 
+					SET @rowcount = @@ROWCOUNT;
+				END
+				ELSE IF @cCODRANGOCOMISIONDIFRED <> 0 BEGIN
+					SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
+					  FROM WSXML_SFG.RANGOCOMISION
+					 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONDIFRED;
+					
+					SET @rowcount = @@ROWCOUNT;
+				END
+				ELSE IF @cCODRANGOCOMISIONDIFDTO <> 0 BEGIN
+					SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
+					  FROM WSXML_SFG.RANGOCOMISION
+					 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONDIFDTO;
+					 
+					SET @rowcount = @@ROWCOUNT;
+				END 
+			END TRY
+			BEGIN CATCH
 				SET @errormsg = 'No se pudo obtener valores para tarifa diferencial: Se prosigue con tarifa normal. ' + isnull(ERROR_MESSAGE ( )  , '');
 				EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOADVERTENCIA, 'REVENUE', @errormsg, 1
 				SET @errormsg = '-20060 Máximo numero de advertencias alcanzado: ' + isnull(ERROR_MESSAGE ( )  , '')
 				RAISERROR(@errormsg, 16, 1);
 				RETURN 0
-			END 
+			END CATCH
         END;
 
 
@@ -4339,49 +4334,50 @@ GO
            INNER JOIN WSXML_SFG.RANGOCOMISIONDETALLE
               ON (CODRANGOCOMISION = ID_RANGOCOMISION)
            WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONESTANDAR;
-          -- Emular
-          IF @cpsvcodeTIPOCOMISION IN (1, 2, 3) BEGIN
-            IF @cpsvcodeTIPOCOMISION = 1 BEGIN
-              -- Porcentual
-              SET @vCOMISIONPOSESTANDAR = (@cpsvcalcVALORPORCENTUA *
-                                      @cTOTALVENTASBRUTAS) / 100;
-              SET @annulmntVCOMESTANDAR = (@cpsvcalcVALORPORCENTUA *
-                                      @annulmntVALORVENTAB) / 100;
-            END
-            ELSE IF @cpsvcodeTIPOCOMISION = 2 BEGIN
-              -- Transaccional
-              SET @vCOMISIONPOSESTANDAR = @cpsvcalcVALORTRANSCCNL *
-                                      @cNUMTRANSACCIONES;
-              SET @annulmntVCOMESTANDAR = @cpsvcalcVALORTRANSCCNL * @annulmntTX;
-            END
-            ELSE IF @cpsvcodeTIPOCOMISION = 3 BEGIN
-              -- Mixto
-              SET @vCOMISIONPOSESTANDAR = ((@cpsvcalcVALORPORCENTUA *
-                                      @cTOTALVENTASBRUTAS) / 100) +
-                                      (@cpsvcalcVALORTRANSCCNL *
-                                      @cNUMTRANSACCIONES);
-              SET @annulmntVCOMESTANDAR = ((@cpsvcalcVALORPORCENTUA *
-                                      @annulmntVALORVENTAB) / 100) +
-                                      (@cpsvcalcVALORTRANSCCNL * @annulmntTX);
-            END 
-          END
-          ELSE BEGIN
-            SET @vCOMISIONPOSESTANDAR = 0;
-            SET @annulmntVCOMESTANDAR = 0;
-          END 
-        
-		
+		   
+		   IF @@ROWCOUNT = 0 BEGIN
+			  SET @errormsg = '-20080 No existe comision estandar configurada para el producto ' + ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO), '') + '. No se puede continuar'
+				RAISERROR(@errormsg, 16, 1);
+				RETURN 0
+		   END
+		  
 		  IF @@ROWCOUNT > 1 BEGIN
             SET @vCOMISIONPOSESTANDAR = 0;
             SET @annulmntVCOMESTANDAR = 0;
-		  END
-		  IF @@ROWCOUNT = 0 BEGIN
-			  SET @errormsg = '-20080 No existe comision estandar configurada para el producto ' +
-										ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO), '') +
-										'. No se puede continuar'
-				RAISERROR(@errormsg, 16, 1);
-				RETURN 0
-		  END
+		  END ELSE 
+		  BEGIN
+		  
+			  -- Emular
+			  IF @cpsvcodeTIPOCOMISION IN (1, 2, 3) BEGIN
+				IF @cpsvcodeTIPOCOMISION = 1 BEGIN
+				  -- Porcentual
+				  SET @vCOMISIONPOSESTANDAR = (@cpsvcalcVALORPORCENTUA *
+										  @cTOTALVENTASBRUTAS) / 100;
+				  SET @annulmntVCOMESTANDAR = (@cpsvcalcVALORPORCENTUA *
+										  @annulmntVALORVENTAB) / 100;
+				END
+				ELSE IF @cpsvcodeTIPOCOMISION = 2 BEGIN
+				  -- Transaccional
+				  SET @vCOMISIONPOSESTANDAR = @cpsvcalcVALORTRANSCCNL *
+										  @cNUMTRANSACCIONES;
+				  SET @annulmntVCOMESTANDAR = @cpsvcalcVALORTRANSCCNL * @annulmntTX;
+				END
+				ELSE IF @cpsvcodeTIPOCOMISION = 3 BEGIN
+				  -- Mixto
+				  SET @vCOMISIONPOSESTANDAR = ((@cpsvcalcVALORPORCENTUA *
+										  @cTOTALVENTASBRUTAS) / 100) +
+										  (@cpsvcalcVALORTRANSCCNL *
+										  @cNUMTRANSACCIONES);
+				  SET @annulmntVCOMESTANDAR = ((@cpsvcalcVALORPORCENTUA *
+										  @annulmntVALORVENTAB) / 100) +
+										  (@cpsvcalcVALORTRANSCCNL * @annulmntTX);
+				END 
+			  END
+			  ELSE BEGIN
+				SET @vCOMISIONPOSESTANDAR = 0;
+				SET @annulmntVCOMESTANDAR = 0;
+			  END 
+  
         END;
 
 
@@ -5387,12 +5383,12 @@ GO
 
       --Marcar el producto y la fecha para verificacion en la carga a la bodega de datos
 		BEGIN
-			EXEC DWH_REPTRANS.DWHSFGREPROCESOREVENUE_AddRecord @cCODPRODUCTO,@cFECHA
-		END;
+			EXEC DWH_REPTRANS.DWHSFGREPROCESOREVENUE_AddRecord @cCODPRODUCTO, @cFECHA
+		END
 
 
-    END;
-
+    END
+END
 
  GO
 
@@ -6055,7 +6051,7 @@ GO
 
 
 IF OBJECT_ID('WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue', 'P') IS NOT NULL
-  DROP PROCEDURE "WSXML_SFG"."SFGREGISTROREVENUE_CalcularRevenue";
+  DROP PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue;
 GO
 
 CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA                    DATETIME,
@@ -6339,7 +6335,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
 								--EXCEPTION
 								--  WHEN OTHERS THEN
 									SET @errormsg = 'No es posible calcular el revenue para la entrada ' +
-															ISNULL(@ir__IDVALUE, '') +
+															ISNULL(CONVERT(VARCHAR,@ir__IDVALUE), '') +
 															'. Puede existir un error en la configuracion del contrato para el producto. ' +
 															isnull(ERROR_MESSAGE ( )  , '');
 															
@@ -7250,9 +7246,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
 						END TRY
 						BEGIN CATCH
 							  SET @errormsg = '-20080 Error calculando el revenue para el registro facturacion ' +
-													  ISNULL(@ir__IDVALUE, '') +
-													  '. No se puede continuar.' +
-													  isnull(ERROR_MESSAGE ( )  , '')
+													  ISNULL(CONVERT(VARCHAR,@ir__IDVALUE), '') + '. No se puede continuar.' + isnull(ERROR_MESSAGE ( )  , '')
 							  RAISERROR(@errormsg, 16, 1);
 						END CATCH
 
@@ -7490,9 +7484,9 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
 									   AND TIPOARCHIVO =
 										   (SELECT CODSERVICIO
 											  FROM WSXML_SFG.PRODUCTO
-											 INNER JOIN TIPOPRODUCTO
+											 INNER JOIN WSXML_SFG.TIPOPRODUCTO
 												ON (CODTIPOPRODUCTO = ID_TIPOPRODUCTO)
-											 INNER JOIN LINEADENEGOCIO
+											 INNER JOIN WSXML_SFG.LINEADENEGOCIO
 												ON (CODLINEADENEGOCIO =
 												   ID_LINEADENEGOCIO)
 											 WHERE ID_PRODUCTO =
@@ -7822,7 +7816,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
 								BEGIN CATCH
 
 										  SET @errormsg = '-20055 No es posible crear registros para asignar la comision fija de ' +
-																  ISNULL(@incentivo__VALORFIJO, '') +
+																  ISNULL(CONVERT(VARCHAR,@incentivo__VALORFIJO), '') +
 																  ' en la fecha ' +
 																  FORMAT(@p_FECHA,'dd/MM/yyyy') + ': ' +
 																  isnull(ERROR_MESSAGE ( )  , '');
@@ -8317,18 +8311,17 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
 			END 
 		
 
-		
 		END ELSE BEGIN
 		  RAISERROR('-20020 Ya se ha calculado el revenue para todas las entradas se la fecha', 16, 1);
 		END
 		
 	END TRY
 	BEGIN CATCH	
-			  SET @errormsg = ERROR_MESSAGE ( ) ;
-			  EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA,@errormsg
+		SET @errormsg = ERROR_MESSAGE ( ) ;
+		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA,@errormsg
 			  
-			 EXEC  WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOERROR, 'REVENUE', @errormsg, 1
-			  SET @p_RETVALUE_out = @p_FINALIZADAFALLO;
+		EXEC  WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOERROR, 'REVENUE', @errormsg, 1
+		SET @p_RETVALUE_out = @p_FINALIZADAFALLO;
 	END CATCH
 
 END
@@ -8768,11 +8761,6 @@ GO
   END;
 GO
 
-
- 
-
-
-
   IF OBJECT_ID('WSXML_SFG.SFGREGISTROREVENUE_CalcularRevTarifasRangosTiempo', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevTarifasRangosTiempo;
 GO
@@ -8827,7 +8815,7 @@ SET NOCOUNT ON;
 	
 		 SET @msg = CONVERT(VARCHAR, @RecordsToCalculate__ID_REGISTROFACTURACION)
 		 EXEC WSXML_SFG.sfgtmptrace_TraceLog @msg
-		 commit;
+		 /*commit;*/
 		 EXEC WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenueRegistro @RecordsToCalculate__ID_REGISTROFACTURACION
 
 
@@ -8864,7 +8852,8 @@ SET NOCOUNT ON;
  
 	WHILE @@FETCH_STATUS=0
 	BEGIN
-		IF not @p_FECHA in ('27/feb/2016','28/feb/2016','28/mar/2016','29/mar/2016','30/mar/2016') BEGIN
+		--IF not @p_FECHA in ('27/feb/2016','28/feb/2016','28/mar/2016','29/mar/2016','30/mar/2016') BEGIN
+		IF not @p_FECHA in ('2016-02-27 00:00:00','2016-02-28 00:00:00','2016-03-28 00:00:00','2016-03-29 00:00:00','2016-03-30 00:00:00') BEGIN
 			EXEC WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenueProducto @p_FECHA, @ProductoRec__ID_PRODUCTO, 1
 			
 			UPDATE WSXML_SFG.DETALLETAREAEJECUTADA SET COUNTREGISTROS = COUNTREGISTROS +1 
