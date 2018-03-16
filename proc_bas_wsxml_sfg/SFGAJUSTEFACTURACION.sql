@@ -259,6 +259,1598 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_AddRetencionRecord(@p_CODAJU
 GO
 
 
+
+IF OBJECT_ID('WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdjustment', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdjustment;
+GO
+
+CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdjustment(@p_FECHAINGRESOAJUSTE       DATETIME,
+                             @p_DESCRIPCION              NVARCHAR(2000),
+                             @p_CODTIPOAJUSTEFACTURACION NUMERIC(22,0),
+                             @p_NUMTRANSACCIONESAJUSTE   NUMERIC(22,0),
+                             @p_VALORTRANSACCIONAJUSTE   FLOAT,
+                             @p_FECHAREFERENCIA          DATETIME, -- En caso de ser error de producto (2), cambio de reglas de punto (3) o producto (4)
+                             @p_NUMEROREFERENCIA         NUMERIC(22,0), -- En caso de ser anulacion (1) de servicio referenciado
+                             @p_CODPUNTODEVENTA          NUMERIC(22,0), -- En caso de ser anulacion (1), punto (3) o avanzado (5)
+                             @p_CODPRODUCTO              NUMERIC(22,0), -- En caso de ser anulacion (1), reglas de producto (4) o avanzado (5)
+                             @p_CODUSUARIOMODIFICACION   NUMERIC(22,0),
+                             @p_FLETEANULACION           NUMERIC(22,0) = 0,
+                             @p_ID_AJUSTEFACTURACION_out NUMERIC(22,0) OUT) AS
+ BEGIN
+	
+	SET NOCOUNT ON;
+	
+    DECLARE @errmsg                NVARCHAR(2000);
+    DECLARE @limitmeasureimpuesto  WSXML_SFG.NUMBERARRAY;
+    DECLARE @limitmeasurecomision  INT = 0;
+    DECLARE @limitmeasurevat       INT = 1; -- NO CONSIDERAR CAMBIOS DE IVA DE COMISION
+    DECLARE @limitmeasureretencion WSXML_SFG.NUMBERARRAY; -- SOLO CONSIDERAR LOS CAMBIOS DE RETENCIONES DE ESTA LISTA
+
+	DECLARE @VENTAFACT SMALLINT, @ANULACION SMALLINT, @FREETICKT SMALLINT, @PREMIOPAG SMALLINT, @RGSTOTROS SMALLINT, @VENNOFACT SMALLINT
+
+	EXEC WSXML_SFG.SFGTIPOREGISTRO_CONSTANT
+                      @VENTAFACT OUT,
+                      @ANULACION OUT,
+					  @FREETICKT OUT,
+					  @PREMIOPAG OUT,
+					  @RGSTOTROS OUT,
+					  @VENNOFACT OUT
+
+	DECLARE @p_ANULACIONTRANSACCION INT, @p_CAMBIOPRODUCTO INT, @p_MODIFICAREGLASPUNTO INT, @p_MODIFICAREGLASALIADO INT, @p_MANUAL INT
+	EXEC WSXML_SFG.SFGAJUSTEFACTURACION_CONSTANT
+			@p_ANULACIONTRANSACCION OUTPUT, @p_CAMBIOPRODUCTO OUTPUT, @p_MODIFICAREGLASPUNTO OUTPUT, @p_MODIFICAREGLASALIADO OUTPUT, @p_MANUAL OUTPUT
+
+	DECLARE @FEEINQUIRY  SMALLINT, @FTRANSACTION     SMALLINT, @BOTH SMALLINT
+	EXEC WSXML_SFG.SFGREGISTROFACTTRANSAVANZADO_CONSTANT @FEEINQUIRY OUT, @FTRANSACTION  OUT, @BOTH OUT
+					  
+    IF @p_CODTIPOAJUSTEFACTURACION = @p_ANULACIONTRANSACCION BEGIN
+        DECLARE @cCODSERVICIO                NUMERIC(22,0);
+        DECLARE @cAGRUPAMIENTO               INT;
+        DECLARE @cCODPUNTODEVENTA            NUMERIC(22,0) = @p_CODPUNTODEVENTA;
+        DECLARE @cCODPRODUCTO                NUMERIC(22,0) = @p_CODPRODUCTO;
+        DECLARE @cCODENTRADAARCHIVOCONTROL   NUMERIC(22,0); -- Archivo transaccion original
+        DECLARE @cCODREGISTROFACTURACION     NUMERIC(22,0); -- Registro transaccion original
+        DECLARE @xNuevoENTRADAARCHIVOCONTROL NUMERIC(22,0);
+        DECLARE @xNuevoREGISTROFACTURACION   NUMERIC(22,0);
+        DECLARE @cNUMTRANSACCIONES           NUMERIC(22,0) = 1;
+        DECLARE @cVALORFINAL                 FLOAT = @p_VALORTRANSACCIONAJUSTE;
+        DECLARE @cTIPOPERSONATRIBUTARIA      NUMERIC(22,0);
+        -- Reglas a obtener
+        DECLARE @cCODRANGOCOMISION   NUMERIC(22,0);
+        DECLARE @cCODCATEGORIAPAGO   NUMERIC(22,0);
+        DECLARE @cCOMISIONANTICIPO   NUMERIC(22,0);
+        DECLARE @cVALORVAT           NUMERIC(22,0);
+        DECLARE @cCODCIUDAD          NUMERIC(22,0);
+        DECLARE @cCODREGIMEN         NUMERIC(22,0);
+        DECLARE @cCODCOMPANIA        NUMERIC(22,0);
+        DECLARE @cCODTIPOCONTRATOPDV NUMERIC(22,0);
+        DECLARE @cCODREFERENCIA      NUMERIC(22,0);
+        DECLARE @cANULADO            NUMERIC(22,0);
+        DECLARE @cFECHATRANSACCION   DATETIME;
+        DECLARE @cAJUSTESPORMONTO    NUMERIC(22,0);
+        DECLARE @cNUMEROREFERENCIA   NUMERIC(22,0);
+     
+        -- Busqueda de la referencia original / Reglas inicialmente facturadas
+        BEGIN
+			SELECT @cCODSERVICIO = ID_SERVICIO, @cAGRUPAMIENTO = AGRUPAMIENTO, @cAJUSTESPORMONTO = AJUSTESPORMONTO
+            FROM WSXML_SFG.PRODUCTO
+				INNER JOIN WSXML_SFG.TIPOPRODUCTO ON (CODTIPOPRODUCTO = ID_TIPOPRODUCTO)
+				INNER JOIN WSXML_SFG.LINEADENEGOCIO ON (CODLINEADENEGOCIO = ID_LINEADENEGOCIO)
+				INNER JOIN WSXML_SFG.SERVICIO ON (CODSERVICIO = ID_SERVICIO)
+			WHERE ID_PRODUCTO = @p_CODPRODUCTO;
+			
+			IF @@ROWCOUNT = 0 BEGIN
+				RAISERROR('-20054 No se reconoce el producto ingresado', 16, 1);
+				RETURN 0
+			END;
+
+			BEGIN
+				SELECT @xNuevoENTRADAARCHIVOCONTROL = ID_ENTRADAARCHIVOCONTROL
+				FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
+				WHERE REVERSADO = 0
+					AND CONVERT(DATETIME, CONVERT(DATE,FECHAARCHIVO)) = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAINGRESOAJUSTE))
+					AND TIPOARCHIVO = @cCODSERVICIO;
+				
+				IF @@ROWCOUNT = 0
+				BEGIN
+					RAISERROR('-20054 No se puede crear el ajuste debido a que no se ha cargado el archivo correspondiente a la fecha', 16, 1);
+					RETURN 0;
+				END
+			END;
+
+			-- Revisar que sea un archivo facturable
+			DECLARE @newfileFACTURADO  NUMERIC(22,0);
+			DECLARE @newfileFACTURABLE NUMERIC(22,0);
+			BEGIN
+			  SELECT @newfileFACTURADO = FACTURADO, @newfileFACTURABLE = ARCHIVOFACTURABLE
+				FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
+			   WHERE ID_ENTRADAARCHIVOCONTROL = @xNuevoENTRADAARCHIVOCONTROL;
+			  IF @newfileFACTURADO = 1 BEGIN
+				RAISERROR('-20054 No se puede ingresar un ajuste a una fecha ya facturada', 16, 1);
+				RETURN 0;
+			  END 
+			  IF @newfileFACTURABLE = 0 BEGIN
+				RAISERROR('-20055 El archivo para la fecha de ingreso fue marcada por el administrador como no facturable. Por favor pongase en contacto con este', 16, 1);
+				RETURN 0
+			  END 
+			END;
+
+			/*IF TRUNC(p_FECHAINGRESOAJUSTE, 'MM') <> TRUNC(SYSDATE, 'MM') THEN
+			  RAISE_APPLICATION_ERROR(-20078, 'No se puede ingresar un ajuste a un mes distinto al actual');
+			END IF;*/
+
+			IF @cAGRUPAMIENTO = 0 
+			BEGIN
+				IF @cAJUSTESPORMONTO = 0 OR @p_NUMEROREFERENCIA > 0 BEGIN
+					-- Existe la referencia. Sobreescribir el valor con el de la transaccion original
+					IF @p_NUMEROREFERENCIA IS NULL OR @p_NUMEROREFERENCIA <= 0 AND @cAJUSTESPORMONTO = 0 
+					BEGIN
+						RAISERROR('-20058 La informacion de transaccion ingresada no es valida', 16, 1);
+						RETURN 0
+					END
+					
+					BEGIN
+						SELECT -- Info y comision
+						 @cCODENTRADAARCHIVOCONTROL = REG.CODENTRADAARCHIVOCONTROL,
+						 @cCODREGISTROFACTURACION = REG.ID_REGISTROFACTURACION,
+						 @cCODPUNTODEVENTA = REG.CODPUNTODEVENTA,
+						 @cCODPRODUCTO = REG.CODPRODUCTO,
+						 @cCODRANGOCOMISION = REG.CODRANGOCOMISION,
+						 @cCODCATEGORIAPAGO = ISNULL(REG.CODCATEGORIAPAGO, 0),
+						 @cCOMISIONANTICIPO = REG.COMISIONANTICIPO,
+						 -- Reglas de facturacion
+						 @cVALORVAT = REG.VALORVAT,
+						 @cCODCIUDAD = REG.CODCIUDAD,
+						 @cCODREGIMEN = REG.CODREGIMEN,
+						 @cCODCOMPANIA = REG.CODCOMPANIA,
+						 @cCODTIPOCONTRATOPDV = REG.CODTIPOCONTRATOPDV,
+						 @cCODREFERENCIA = REF.ID_REGISTROFACTREFERENCIA,
+						 @cANULADO = REF.ANULADO,
+						 @cVALORFINAL = REF.VALORTRANSACCION,
+						 @cFECHATRANSACCION = REF.FECHAHORATRANSACCION
+						FROM WSXML_SFG.REGISTROFACTURACION REG
+						  LEFT OUTER JOIN WSXML_SFG.REGISTROFACTREFERENCIA REF
+						 --INNER JOIN REGISTROFACTREFERENCIA
+							ON (REF.CODREGISTROFACTURACION = REG.ID_REGISTROFACTURACION)
+						 WHERE REG.CODTIPOREGISTRO = @VENTAFACT
+						   AND REG.CODPUNTODEVENTA = @p_CODPUNTODEVENTA
+						   AND REG.CODPRODUCTO = @p_CODPRODUCTO
+						   AND REF.NUMEROREFERENCIA = @p_NUMEROREFERENCIA;
+						-- NO SOBREESCRIBIR VALOR
+						SET @cVALORFINAL = @p_VALORTRANSACCIONAJUSTE;
+						
+						IF @@ROWCOUNT = 0 
+						BEGIN
+							RAISERROR('-20054 No se encontró la referencia ingresada, o no corresponde a la información suministrada', 16, 1);
+							RETURN 0;
+						END
+					END;
+
+					IF @cANULADO = 1 BEGIN
+						RAISERROR('-20054 No se puede anular una transacción referenciada que ya ha sido anulada', 16, 1);
+						RETURN 0
+					END 
+				END
+				ELSE BEGIN
+					BEGIN
+						SELECT -- Info y comision
+						 @cCODENTRADAARCHIVOCONTROL = REG.CODENTRADAARCHIVOCONTROL,
+						 @cCODREGISTROFACTURACION = REG.ID_REGISTROFACTURACION,
+						 @cCODPUNTODEVENTA = REG.CODPUNTODEVENTA,
+						 @cCODPRODUCTO = REG.CODPRODUCTO,
+						 @cCODRANGOCOMISION = REG.CODRANGOCOMISION,
+						 @cCODCATEGORIAPAGO = ISNULL(REG.CODCATEGORIAPAGO, 0),
+						 @cCOMISIONANTICIPO = REG.COMISIONANTICIPO,
+						 -- Reglas de facturacion
+						 @cVALORVAT = REG.VALORVAT,
+						 @cCODCIUDAD = REG.CODCIUDAD,
+						 @cCODREGIMEN = REG.CODREGIMEN,
+						 @cCODCOMPANIA = REG.CODCOMPANIA,
+						 @cCODTIPOCONTRATOPDV = REG.CODTIPOCONTRATOPDV,
+						 @cFECHATRANSACCION = REG.FECHATRANSACCION
+						FROM WSXML_SFG.ENTRADAARCHIVOCONTROL CTR
+						 INNER JOIN WSXML_SFG.REGISTROFACTURACION REG
+							ON (REG.CODENTRADAARCHIVOCONTROL =
+							   CTR.ID_ENTRADAARCHIVOCONTROL)
+						 WHERE CTR.FECHAARCHIVO = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAREFERENCIA))
+						   AND CTR.REVERSADO = 0
+						   AND REG.CODTIPOREGISTRO = @VENTAFACT
+						   AND REG.CODPUNTODEVENTA = @p_CODPUNTODEVENTA
+						   AND REG.CODPRODUCTO = @p_CODPRODUCTO;
+						   
+						   
+						IF @@ROWCOUNT = 0 BEGIN
+						  RAISERROR('-20054 No se encontro la referencia ingresada, o no corresponde a la informacion suministrada', 16, 1);
+						  RETURN 0
+						END
+					END;
+
+				END 
+			END
+			ELSE BEGIN
+				SELECT -- Info y comision
+				 @cCODENTRADAARCHIVOCONTROL = REG.CODENTRADAARCHIVOCONTROL,
+				 @cCODREGISTROFACTURACION = REG.ID_REGISTROFACTURACION,
+				 @cCODPUNTODEVENTA = REG.CODPUNTODEVENTA,
+				 @cCODPRODUCTO = REG.CODPRODUCTO,
+				 @cCODRANGOCOMISION = REG.CODRANGOCOMISION,
+				 @cCODCATEGORIAPAGO = ISNULL(REG.CODCATEGORIAPAGO, 0),
+				 @cCOMISIONANTICIPO = REG.COMISIONANTICIPO,
+				 -- Reglas de facturacion
+				 @cVALORVAT = REG.VALORVAT,
+				 @cCODCIUDAD = REG.CODCIUDAD,
+				 @cCODREGIMEN = REG.CODREGIMEN,
+				 @cCODCOMPANIA = REG.CODCOMPANIA,
+				 @cCODTIPOCONTRATOPDV = REG.CODTIPOCONTRATOPDV,
+				 @cFECHATRANSACCION = REG.FECHATRANSACCION
+				FROM WSXML_SFG.ENTRADAARCHIVOCONTROL CTR
+				 INNER JOIN WSXML_SFG.REGISTROFACTURACION REG
+					ON (REG.CODENTRADAARCHIVOCONTROL =
+					   CTR.ID_ENTRADAARCHIVOCONTROL)
+				 WHERE CTR.FECHAARCHIVO = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAREFERENCIA))
+				   AND CTR.REVERSADO = 0
+				   AND REG.CODTIPOREGISTRO = @VENTAFACT
+				   AND REG.CODPUNTODEVENTA = @p_CODPUNTODEVENTA
+				   AND REG.CODPRODUCTO = @p_CODPRODUCTO;
+				   
+				IF @@ROWCOUNT = 0 BEGIN
+					RAISERROR('-20054 No se encontro la referencia ingresada, o no corresponde a la informacion suministrada', 16, 1);
+					RETURN 0;
+				END
+			END 
+
+			/*24 Junio 2013 -- Guillermo Ni?o -- Modificacion obtener el tipo de persona tributaria */
+			EXEC WSXML_SFG.SFGPUNTODEVENTA_GetTipoPersonaTributaria @cCODPUNTODEVENTA,@cTIPOPERSONATRIBUTARIA OUTPUT 
+			-- Calculation wise operations
+			  DECLARE @xSUMIMPUESTOS       FLOAT = 0;
+			  DECLARE @xRNDIMPUESTOS       FLOAT = 0;
+			  DECLARE @cSUMDESCUENTOS      FLOAT = 0;
+			  DECLARE @xSUMRETENCIONES     FLOAT = 0;
+			  DECLARE @coutIMPUESTO        NUMERIC(22,0);
+			  DECLARE @coutIMPAJUST        NUMERIC(22,0);
+			  DECLARE @coutRETENCION       NUMERIC(22,0);
+			  DECLARE @coutRETAJUSTE       NUMERIC(22,0);
+			  DECLARE @cVALORVENTABRUTA    FLOAT;
+			  DECLARE @cVALORVENTANETA     FLOAT;
+			  DECLARE @cVALORCOMISION      FLOAT;
+			  DECLARE @cIVACOMISION        FLOAT;
+			  DECLARE @cVALORCOMISIONBRUTA FLOAT;
+			  DECLARE @cVALORCOMISIONNETA  FLOAT;
+			BEGIN
+			  -- Buscar / crear registro de anulacion
+				DECLARE @l_cAGRUPAMIENTO NUMERIC(38,0)
+				IF @cAGRUPAMIENTO = 0 AND @cAJUSTESPORMONTO = 0 
+					 SET @l_cAGRUPAMIENTO = @p_NUMEROREFERENCIA 
+				ELSE SET @l_cAGRUPAMIENTO = 0 
+				
+				EXEC WSXML_SFG.SFGREGISTROFACTURACION_CreateAnullmentRecord  
+					@xNuevoENTRADAARCHIVOCONTROL,
+					@cCODREGISTROFACTURACION,
+					@cCODPUNTODEVENTA,
+					@cCODPRODUCTO,
+					@cVALORFINAL,
+					@cFECHATRANSACCION,
+					@cNUMTRANSACCIONES,
+					@cCODRANGOCOMISION,
+					@cCOMISIONANTICIPO,
+					@cCODREFERENCIA,
+					@l_cAGRUPAMIENTO,
+					@p_CODUSUARIOMODIFICACION,
+					@xNuevoREGISTROFACTURACION OUTPUT
+				   
+				-- Adjuntar descripcion de ajuste
+				EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddRecord
+					@p_DESCRIPCION,
+					@p_CODTIPOAJUSTEFACTURACION,
+					1,
+					@cVALORFINAL,
+					@cCODENTRADAARCHIVOCONTROL,
+					@cCODREGISTROFACTURACION,
+					@xNuevoENTRADAARCHIVOCONTROL,
+					@xNuevoREGISTROFACTURACION,
+					@p_CODUSUARIOMODIFICACION,
+					@p_FLETEANULACION,
+					@p_ID_AJUSTEFACTURACION_out OUTPUT
+
+
+				if @p_NUMEROREFERENCIA is not null and @p_NUMEROREFERENCIA > 0 begin
+
+						--Actualiza numeroreferencia si tiene ajuste por monto a 0
+					 select @cNUMEROREFERENCIA = CASE WHEN @cAGRUPAMIENTO = 0 AND @cAJUSTESPORMONTO = 0 THEN
+					 NUMEROREFERENCIA ELSE 0 END
+					 FROM WSXML_SFG.REGISTROFACTREFERENCIA
+					 inner join WSXML_SFG.registrofacturacion on registrofactreferencia.codregistrofacturacion = registrofactreferencia.codregistrofacturacion
+					 inner join WSXML_SFG.producto on registrofacturacion.codproducto = producto.id_producto
+					 inner join WSXML_SFG.tipoproducto on tipoproducto.id_tipoproducto = producto.codtipoproducto
+					 inner join WSXML_SFG.lineadenegocio on lineadenegocio.id_lineadenegocio = tipoproducto.codlineadenegocio
+					 inner join WSXML_SFG.servicio on lineadenegocio.codservicio = servicio.id_servicio
+					 WHERE NUMEROREFERENCIA = @p_NUMEROREFERENCIA and producto.id_producto = @p_CODPRODUCTO
+					 and registrofacturacion.codpuntodeventa = @p_CODPUNTODEVENTA and registrofacturacion.codentradaarchivocontrol = @cCODENTRADAARCHIVOCONTROL
+					 and registrofacturacion.codtiporegistro = 1;
+				end 
+				
+				IF @cNUMEROREFERENCIA IS NOT NULL AND @cNUMEROREFERENCIA > 0 BEGIN
+				  DECLARE @xOrigenReferencia  NUMERIC(22,0);
+				  DECLARE @xDestinoReferencia NUMERIC(22,0);
+				
+					BEGIN
+						SELECT @xOrigenReferencia = ID_REGISTROFACTREFERENCIA
+						FROM WSXML_SFG.REGISTROFACTREFERENCIA
+						WHERE NUMEROREFERENCIA = @p_NUMEROREFERENCIA;
+						
+						SELECT @xDestinoReferencia = ID_REGISTROFACTREFERENCIA
+						FROM WSXML_SFG.REGISTROFACTREFERENCIA
+						WHERE NUMEROREFERENCIA = @p_NUMEROREFERENCIA * (-1);
+					
+						EXEC WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRecordReferences
+							@p_ID_AJUSTEFACTURACION_out,
+							@xOrigenReferencia,
+							@xDestinoReferencia
+						
+					END;
+
+				END 
+
+			  -- Duplicar impuestos
+				DECLARE tIMPUESTOVENTA CURSOR FOR 
+				SELECT IRF.ID_IMPUESTOREGFACTURACION,
+					IRF.CODIMPUESTO,
+					IRF.CODPRODUCTOIMPUESTO,
+					ISNULL(PIM.Valorporcentual,0) AS Valorporcentual,
+					ISNULL(PIM.Valortransaccional,0) AS Valortransaccional
+				FROM WSXML_SFG.IMPUESTOREGFACTURACION IRF
+					INNER JOIN WSXML_SFG.PRODUCTOIMPUESTO PIM ON IRF.CODPRODUCTOIMPUESTO = PIM.ID_PRODUCTOIMPUESTO
+				WHERE IRF.CODREGISTROFACTURACION = @cCODREGISTROFACTURACION
+					
+				OPEN tIMPUESTOVENTA;
+				
+				DECLARE @ID_IMPUESTOREGFACTURACION NUMERIC(38,0)
+				DECLARE @CODIMPUESTO NUMERIC(38,0)
+				DECLARE @CODPRODUCTOIMPUESTO NUMERIC(38,0)
+				DECLARE @VALORPORCENTUAL FLOAT;
+				DECLARE @VALORTRANSACCIONAL FLOAT;
+				
+				FETCH NEXT FROM tIMPUESTOVENTA INTO @ID_IMPUESTOREGFACTURACION, @CODIMPUESTO, @CODPRODUCTOIMPUESTO, @VALORPORCENTUAL, @VALORTRANSACCIONAL
+				--FETCH tIMPUESTOVENTA INTO;
+					 WHILE @@FETCH_STATUS=0
+					 BEGIN                             
+							DECLARE @cCODIMPUESTOREGFACTURACION NUMERIC(22,0);
+							DECLARE @cPORCENTUALVALUE FLOAT =0;
+							DECLARE @cTRANSACTIONALVALUE FLOAT =0;
+							DECLARE @cTHISIMPUESTO FLOAT = 0;
+							DECLARE @cTHISIMPUESTOROUNDED FLOAT = 0;                
+							DECLARE @cTHISBASECALC FLOAT = 0;
+							
+								--calcular la base porcenntual
+								SET @cTHISBASECALC = (@cVALORFINAL / (1 + (@VALORPORCENTUAL / 100)));
+								--calcular el valor por transccion
+								SET @cTRANSACTIONALVALUE = (@cNUMTRANSACCIONES * @VALORTRANSACCIONAL);
+								SET @cTHISIMPUESTOROUNDED =(@cNUMTRANSACCIONES * ROUND(@VALORTRANSACCIONAL,0));
+								--restar el valor por transaccion  a la base
+								SET @cTHISBASECALC = @cTHISBASECALC - @cTHISIMPUESTO;
+								--calcular el valor porcentual 
+								SET @cPORCENTUALVALUE = (@cTHISBASECALC * (@VALORPORCENTUAL / 100));
+								SET @cTHISIMPUESTOROUNDED = @cTHISIMPUESTOROUNDED +  ROUND(@cPORCENTUALVALUE,0);
+								
+								SET @cTHISIMPUESTO=@cTRANSACTIONALVALUE + @cPORCENTUALVALUE;
+								
+								EXEC WSXML_SFG.SFGIMPUESTOREGFACTURACION_AddRecord 
+														@CODIMPUESTO,
+														@CODPRODUCTOIMPUESTO,
+														@xNuevoENTRADAARCHIVOCONTROL,
+														@xNuevoREGISTROFACTURACION,
+														@ANULACION, --
+														@cTHISIMPUESTOROUNDED,
+														@p_CODUSUARIOMODIFICACION,
+														@coutIMPUESTO OUTPUT;
+														
+								EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddImpuestoRecord 
+													@p_ID_AJUSTEFACTURACION_out,
+													@CODIMPUESTO,
+													@cTHISIMPUESTOROUNDED,
+													@cTHISIMPUESTO,
+													@coutIMPAJUST OUTPUT
+													
+							  SET @xSUMIMPUESTOS = @xSUMIMPUESTOS + @cTHISIMPUESTO;
+							  SET @xRNDIMPUESTOS = @xRNDIMPUESTOS + @cTHISIMPUESTOROUNDED;
+						
+
+						FETCH NEXT FROM tIMPUESTOVENTA INTO @ID_IMPUESTOREGFACTURACION, @CODIMPUESTO, @CODPRODUCTOIMPUESTO, @VALORPORCENTUAL, @VALORTRANSACCIONAL
+					END;
+
+				CLOSE tIMPUESTOVENTA;
+				DEALLOCATE tIMPUESTOVENTA;
+				
+				
+				--03 de Abril 2017-- Modificacion para aplicar descuentos a la venta neta por Guillermo Ni�o
+				--DELETE FROM REGISTROFACTDESCUENTO WHERE CODREGISTROFACTURACION = cCODREGISTROFACTURACION;
+				
+				DECLARE @ID_PRODUCTODESCUENTO NUMERIC(38,0)
+				--DECLARE @VALORTRANSACCIONAL FLOAT 
+				--DECLARE @VALORPORCENTUAL FLOAT
+				
+				DECLARE tDescuento CURSOR FOR 
+				SELECT  PRODUCTODESCUENTO.ID_PRODUCTODESCUENTO,
+						PRODUCTODESCUENTO.VALORTRANSACCIONAL, 
+						PRODUCTODESCUENTO.VALORPORCENTUAL
+				 FROM WSXML_SFG.PRODUCTODESCUENTO
+				 WHERE CODPRODUCTO = @cCODPRODUCTO
+					 AND CODCIUDAD= @cCODCIUDAD
+					 AND ACTIVE= 1;
+				
+				OPEN tDescuento;
+				DECLARE @tDescuento__ID_PRODUCTODESCUENTO NUMERIC(38,0),@tDescuento__VALORTRANSACCIONAL FLOAT, @tDescuento__VALORPORCENTUAL FLOAT
+				
+				FETCH NEXT FROM tDescuento INTO @tDescuento__ID_PRODUCTODESCUENTO, @tDescuento__VALORTRANSACCIONAL, @tDescuento__VALORPORCENTUAL
+				WHILE @@FETCH_STATUS=0
+				BEGIN
+					BEGIN TRY
+						DECLARE @cCODREGISTROFACTDESCUENTO NUMERIC(22,0);
+						DECLARE @thisDISCOUNT FLOAT;
+				 
+						SET @thisDISCOUNT = 0;
+						IF @tDescuento__VALORPORCENTUAL <>0 BEGIN
+						   SET @thisDISCOUNT= @cVALORFINAL*(@tDescuento__VALORPORCENTUAL/100);
+						END 
+						IF @tDescuento__VALORTRANSACCIONAL <>0 BEGIN
+						  SET @thisDISCOUNT=@thisDISCOUNT+( @cNUMTRANSACCIONES*@tDescuento__VALORTRANSACCIONAL);
+						END  
+						--thisDISCOUNT:=ROUND(thisDISCOUNT);
+						SET @cSUMDESCUENTOS=@cSUMDESCUENTOS+@thisDISCOUNT;
+						EXEC WSXML_SFG.SFGREGISTROFACTDESCUENTO_AddRecord
+							@tDescuento__ID_PRODUCTODESCUENTO,
+							@xNuevoENTRADAARCHIVOCONTROL,
+							@xNuevoREGISTROFACTURACION,
+							@ANULACION,
+							@thisDISCOUNT,
+							@p_CODUSUARIOMODIFICACION,
+							@cCODREGISTROFACTDESCUENTO OUTPUT
+					END TRY
+					BEGIN CATCH
+						SET @errmsg = '-20054 No se pudo ingresar registro de descuentos : ' +
+									  ISNULL(CONVERT(VARCHAR,@cCODREGISTROFACTURACION), '') + ': ' +
+									  isnull(ERROR_MESSAGE(), '')
+						RAISERROR(@errmsg, 16, 1);
+					END CATCH
+				
+					FETCH NEXT FROM tDescuento INTO @tDescuento__ID_PRODUCTODESCUENTO, @tDescuento__VALORTRANSACCIONAL, @tDescuento__VALORPORCENTUAL
+				END;
+
+				CLOSE tDescuento;
+				DEALLOCATE tDescuento;  
+				--fin calculo de descuentos
+				
+				SET @cVALORVENTABRUTA = ((@cVALORFINAL-ROUND(@cSUMDESCUENTOS,0)) - @xRNDIMPUESTOS);
+				SET @cVALORVENTANETA  = ((@cVALORFINAL-@cSUMDESCUENTOS) - @xSUMIMPUESTOS);
+				
+				EXEC WSXML_SFG.SFGREGISTROFACTURACION_UpdateAnullmentVentaBruta
+					@xNuevoREGISTROFACTURACION,
+					@cVALORVENTABRUTA,
+					@cVALORVENTANETA,
+					@p_CODUSUARIOMODIFICACION
+					
+				EXEC WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRecordRawValues
+							@p_ID_AJUSTEFACTURACION_out,
+							@cVALORVENTABRUTA,
+							@cVALORVENTANETA
+														 
+				EXEC WSXML_SFG.SFGREGISTROFACTURACION_UpdateAnullmentDescuento @xNuevoREGISTROFACTURACION,@cSUMDESCUENTOS
+				
+				
+				  -- Calculo individual de comision
+				DECLARE @cVARIABLEPORCENTUAL     NUMERIC(22,0) = 0;
+				DECLARE @cVARIABLETRANSACCNL     NUMERIC(22,0) = 0;
+				DECLARE @cVALORCALCPORCENTUAL    FLOAT = 0;
+				DECLARE @cVALORCALCTRANSACCIONAL FLOAT = 0;
+				DECLARE @cCODTIPOCOMISION        NUMERIC(22,0) = 0;
+				
+				BEGIN
+					BEGIN TRY
+						SELECT @cCODTIPOCOMISION = RC.CODTIPOCOMISION,
+							   @cVALORCALCPORCENTUAL = RCDT.VALORPORCENTUAL,
+							   @cVALORCALCTRANSACCIONAL = RCDT.VALORTRANSACCIONAL
+						FROM WSXML_SFG.RANGOCOMISION RC, WSXML_SFG.RANGOCOMISIONDETALLE RCDT
+						WHERE RC.ID_RANGOCOMISION = @cCODRANGOCOMISION
+						   AND RC.ID_RANGOCOMISION = RCDT.CODRANGOCOMISION;
+						
+						DECLARE @ROWCOUNT NUMERIC(22,0) = @@ROWCOUNT;
+						
+						IF @ROWCOUNT = 0 BEGIN
+							RAISERROR('-20054 No se puede calcular la comision para el ajuste', 16, 1);
+							RETURN 0;
+						END
+						
+						IF @ROWCOUNT > 1 BEGIN
+							SET @cVALORCOMISION = 0;
+						END ELSE 
+						BEGIN
+						   
+							IF @cCODCATEGORIAPAGO > 0 BEGIN
+							  SELECT @cVARIABLEPORCENTUAL = VARIABLEPORCENTUAL, @cVARIABLETRANSACCNL = VARIABLETRANSACCIONAL
+								FROM WSXML_SFG.CATEGORIAPAGO
+							   WHERE ID_CATEGORIAPAGO = @cCODCATEGORIAPAGO;
+							END 
+							-- Calculo del valor de la comision
+							IF @cCODTIPOCOMISION = 1 BEGIN
+							  -- El tipo de comision es porcentual
+							  SET @cVALORCOMISION = ((@cVALORVENTANETA * (@cVALORCALCPORCENTUAL + @cVARIABLEPORCENTUAL)) / 100);
+							END
+							ELSE IF @cCODTIPOCOMISION = 2 BEGIN
+							  -- El tipo de comision es transaccional
+							  SET @cVALORCOMISION = (@cVALORCALCTRANSACCIONAL + @cVARIABLETRANSACCNL) * (1);
+							END
+							ELSE IF @cCODTIPOCOMISION = 3 BEGIN
+							  -- El tipo de comision es mixto
+							  SET @cVALORCOMISION = ((@cVALORCALCTRANSACCIONAL + @cVARIABLETRANSACCNL) * (1)) +
+												((@cVALORVENTANETA * (@cVALORCALCPORCENTUAL + @cVARIABLEPORCENTUAL)) / 100);
+							END
+							ELSE BEGIN
+							  SET @cVALORCOMISION = 0;
+							END 
+							-- IVA Comision solo si no es anticipo. El valor es el mismo aplicado inicialmente
+							IF @cCOMISIONANTICIPO = 0 BEGIN
+							  SET @cIVACOMISION = ((@cVALORCOMISION * @cVALORVAT) / 100);
+							END
+							ELSE BEGIN
+							  SET @cIVACOMISION = 0;
+							END 
+							SET @cVALORCOMISIONBRUTA = ROUND(@cVALORCOMISION,0) + ROUND(@cIVACOMISION,0);
+						END
+					END TRY
+					BEGIN CATCH
+						RAISERROR('-20054 No se puede calcular la comision para el ajuste', 16, 1);
+						RETURN 0;
+					END CATCH
+					
+				END;
+				
+				SET @cVALORCOMISIONNETA = @cVALORCOMISION;
+				  -- Comision y Retenciones
+				IF @cVALORCOMISION IS NOT NULL AND @cVALORCOMISION > 0 AND
+					 @cCOMISIONANTICIPO = 0 
+				BEGIN
+					SET @cVALORVENTANETA    = @cVALORVENTANETA - @cVALORCOMISIONBRUTA;
+					SET @cVALORCOMISIONNETA = @cVALORCOMISION; -- Retenciones calculadas sobre comision sin iva
+					DECLARE @retenciones WSXML_SFG.BILLINGTAX;
+					
+					BEGIN
+						-- Retenciones dependiendo del tipo de contrato del pdv
+						INSERT INTO @retenciones
+						SELECT ID_RETENCIONTRIBUTARIA, VALOR, CODBASERETENCION
+						FROM WSXML_SFG.SFGRETENCIONTRIBUTARIA_GetBillingTaxListFromRegistry(@cCODTIPOCONTRATOPDV,@cCODREGISTROFACTURACION,@cTIPOPERSONATRIBUTARIA)
+																		
+
+						-- Recorrer solo si hubo retenciones aplicables
+						IF (SELECT COUNT(*) FROM @retenciones) > 0 BEGIN
+							DECLARE rt CURSOR FOR SELECT ID_RETENCIONTRIBUTARIA, VALOR, CODBASERETENCION FROM  @retenciones--.First .. retenciones.Last 
+							OPEN rt;
+							
+							DECLARE @rt__ID_RETENCIONTRIBUTARIA  NUMERIC(38,0), @rt__VALOR FLOAT, @rt__CODBASERETENCION NUMERIC(38,0)
+							FETCH NEXT FROM rt INTO @rt__ID_RETENCIONTRIBUTARIA, @rt__VALOR, @rt__CODBASERETENCION
+							
+							WHILE @@FETCH_STATUS=0
+							BEGIN
+								
+								DECLARE @xTHISRETENCION FLOAT = 0;
+								BEGIN
+									IF @rt__CODBASERETENCION = 1
+										-- Comision Bruta
+										SET @xTHISRETENCION = ((@cVALORCOMISIONNETA * @rt__VALOR) / 100);
+									ELSE IF @rt__CODBASERETENCION = 2
+										-- IVA Comision
+										SET @xTHISRETENCION = ((@cIVACOMISION * @rt__VALOR) / 100);
+									ELSE
+										SET @xTHISRETENCION = 0;
+								
+									
+									DECLARE @l_xTHISRETENCION FLOAT  = ROUND(@xTHISRETENCION,0);
+									EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_AddRecord
+																@rt__ID_RETENCIONTRIBUTARIA,
+																@xNuevoENTRADAARCHIVOCONTROL,
+																@xNuevoREGISTROFACTURACION,
+																@ANULACION,
+																@l_xTHISRETENCION,
+																@p_CODUSUARIOMODIFICACION,
+																@coutRETENCION OUT
+																 
+									EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddRetencionRecord
+																	@p_ID_AJUSTEFACTURACION_out,
+																	@rt__ID_RETENCIONTRIBUTARIA,
+																	@l_xTHISRETENCION,
+																	@xTHISRETENCION,
+																	@coutRETAJUSTE OUT
+																	
+									SET @xSUMRETENCIONES = @xSUMRETENCIONES + @l_xTHISRETENCION;
+								END
+								FETCH NEXT FROM rt INTO @rt__ID_RETENCIONTRIBUTARIA, @rt__VALOR, @rt__CODBASERETENCION
+							END;
+
+							CLOSE rt;
+							DEALLOCATE rt;
+							
+						END
+
+						SET @cVALORCOMISIONNETA = @cVALORCOMISIONBRUTA - @xSUMRETENCIONES;
+					END;
+
+				END 
+				
+				-- Actualizar Registro
+				DECLARE @l_cVALORCOMISION FLOAT = ROUND(@cVALORCOMISION,0);
+				DECLARE @l_cIVACOMISION FLOAT = ROUND(@cIVACOMISION,0);
+				DECLARE @l_cVALORCOMISIONNETA FLOAT = ROUND(@cVALORCOMISIONNETA,0);
+				
+				EXEC WSXML_SFG.SFGREGISTROFACTURACION_UpdateAnullmentComisionVenta
+																  @xNuevoREGISTROFACTURACION,
+																  @cCODRANGOCOMISION,
+																  @l_cVALORCOMISION,
+																  @cVALORCOMISION,
+																  @l_cIVACOMISION,
+																  @cVALORVAT,
+																  @cVALORCOMISIONBRUTA,
+																  @l_cVALORCOMISIONNETA,
+																  @cVALORVENTANETA,
+																  @p_CODUSUARIOMODIFICACION
+																  
+				EXEC WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRecordFinalValues
+														   @p_ID_AJUSTEFACTURACION_out,
+														   @l_cVALORCOMISION,
+														   @cVALORCOMISION,
+														   @l_cIVACOMISION,
+														   @cVALORCOMISIONBRUTA,
+														   @cVALORCOMISIONNETA,
+														   @cVALORVENTANETA
+			END;	
+			
+			IF @cNUMEROREFERENCIA IS NOT NULL AND @cNUMEROREFERENCIA > 0 
+			BEGIN
+					DECLARE @newCODREGISTROFACTREF NUMERIC(22,0);
+
+					BEGIN
+						BEGIN
+							SELECT @newCODREGISTROFACTREF = ID_REGISTROFACTREFERENCIA
+							FROM WSXML_SFG.REGISTROFACTREFERENCIA
+							WHERE CODREGISTROFACTURACION = @xNuevoREGISTROFACTURACION
+							   AND NUMEROREFERENCIA = @p_NUMEROREFERENCIA * (-1);
+							
+							IF @@ROWCOUNT = 0 BEGIN
+								SELECT NULL;
+							END
+						   
+						END;
+
+						--Modificacion Guillermo Ni?o 29 enero 2013... calcular el revenue del registro de facturacion en su totalidad para que no descuadre la utilidad margina
+						--SFGREGISTROREVENUE.CalcularRevenueRegistro(xNuevoREGISTROFACTURACION, p_ID_AJUSTEFACTURACION_out, newCODREGISTROFACTREF);
+						EXEC WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenueRegistro @xNuevoREGISTROFACTURACION, NULL, NULL
+			  --
+					END;
+
+				END
+			ELSE BEGIN
+				EXEC WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenueRegistro @xNuevoREGISTROFACTURACION, @p_ID_AJUSTEFACTURACION_out, NULL
+			END 
+				
+		END
+	
+	END
+	ELSE IF @p_CODTIPOAJUSTEFACTURACION = @p_CAMBIOPRODUCTO OR
+          @p_CODTIPOAJUSTEFACTURACION = @p_MODIFICAREGLASPUNTO OR
+          @p_CODTIPOAJUSTEFACTURACION = @p_MODIFICAREGLASALIADO
+	BEGIN
+		--SET @limitmeasureimpuesto  = NUMBERARRAY();
+		INSERT INTO @limitmeasureretencion VALUES(1)
+		INSERT INTO @limitmeasureretencion VALUES(2)
+		INSERT INTO @limitmeasureretencion VALUES(3)
+		
+		SET @p_ID_AJUSTEFACTURACION_out = 0;
+		-- Para la fecha especificada, recalcular y ajustar por la diferencia
+        DECLARE @lstfiles WSXML_SFG.NUMBERARRAY;
+		
+		BEGIN
+			INSERT INTO @lstfiles
+			SELECT ID_ENTRADAARCHIVOCONTROL
+			FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
+			WHERE CONVERT(DATETIME, CONVERT(DATE,FECHAARCHIVO)) = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAREFERENCIA))
+				AND REVERSADO = 0;
+        
+			IF (SELECT COUNT(*) FROM @lstfiles) = 0 BEGIN
+				RAISERROR('-20045 No existe prefacturacion cargada para la fecha referenciada', 16, 1);
+				RETURN 0
+			END 
+			
+			DECLARE ifx CURSOR FOR SELECT IDVALUE FROM @lstfiles--.First .. lstfiles.Last 
+			
+			OPEN ifx;
+			DECLARE @ifx__IDVALUE NUMERIC(38,0);
+			
+			FETCH NEXT FROM ifx INTO @ifx__IDVALUE;
+			WHILE @@FETCH_STATUS=0
+			BEGIN
+				DECLARE @lstregistries               WSXML_SFG.LONGNUMBERARRAY;
+				DECLARE @dstTIPOARCHIVO              NUMERIC(22,0);
+				DECLARE @dstCODENTRADAARCHIVOCONTROL NUMERIC(22,0);
+				DECLARE @dstREVENUECALCULADO         NUMERIC(22,0) = 0;
+				
+			  BEGIN
+				-- Obtener el identificador del archivo destino
+				SELECT @dstTIPOARCHIVO = TIPOARCHIVO
+				  FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
+				 WHERE ID_ENTRADAARCHIVOCONTrol = @ifx__IDVALUE;
+				 
+				BEGIN
+				  SELECT @dstCODENTRADAARCHIVOCONTROL = ID_ENTRADAARCHIVOCONTROL, @dstREVENUECALCULADO = REVENUECALCULADO
+					FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
+				   WHERE REVERSADO = 0
+					 AND TIPOARCHIVO = @dstTIPOARCHIVO
+					 AND FECHAARCHIVO = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAINGRESOAJUSTE));
+				
+					IF @@ROWCOUNT = 0 BEGIN
+						RAISERROR('-20050 No es posible ingresar un ajuste en la fecha debido a que no se ha corrido el revenue sobre esta', 16, 1);
+						RETURN 0;
+					END
+				END;
+
+				-- Obtener los registros a considerar a partir del tipo de ajuste
+				IF @p_CODTIPOAJUSTEFACTURACION = @p_CAMBIOPRODUCTO 
+				BEGIN
+					INSERT INTO @lstregistries
+				  SELECT ID_REGISTROFACTURACION 
+					FROM WSXML_SFG.REGISTROFACTURACION
+				   WHERE CODENTRADAARCHIVOCONTROL = @ifx__IDVALUE
+					 AND CODTIPOREGISTRO IN (1, 2)
+					 AND CODPRODUCTO = @p_CODPRODUCTO;
+				END
+				ELSE IF @p_CODTIPOAJUSTEFACTURACION = @p_MODIFICAREGLASPUNTO 
+				BEGIN
+					INSERT INTO @lstregistries
+					SELECT ID_REGISTROFACTURACION
+					FROM WSXML_SFG.REGISTROFACTURACION
+					WHERE CODENTRADAARCHIVOCONTROL = @ifx__IDVALUE
+						AND CODTIPOREGISTRO IN (1, 2)
+						AND CODPUNTODEVENTA = @p_CODPUNTODEVENTA;
+				END
+				ELSE IF @p_CODTIPOAJUSTEFACTURACION = @p_MODIFICAREGLASALIADO
+				BEGIN
+				
+					INSERT INTO @lstregistries
+					SELECT ID_REGISTROFACTURACION
+					FROM WSXML_SFG.REGISTROFACTURACION
+					WHERE CODENTRADAARCHIVOCONTROL = @ifx__IDVALUE
+						AND CODTIPOREGISTRO IN (1, 2)
+						AND CODPRODUCTO = @p_CODPRODUCTO;
+				END 
+
+				IF (SELECT COUNT(*) FROM @lstregistries) > 0 BEGIN
+              
+				DECLARE irx CURSOR FOR SELECT IDVALUE FROM @lstregistries--.First .. lstregistries.Last 
+				OPEN irx;
+				DECLARE @irx__IDVALUE NUMERIC(38,0)
+				
+				FETCH NEXT FROM irx INTO @irx__IDVALUE;
+				WHILE @@FETCH_STATUS=0
+				BEGIN
+                  -- Registry
+                  DECLARE @xCODPUNTODEVENTA               NUMERIC(22,0);
+                  DECLARE @xCODPRODUCTO                   NUMERIC(22,0);
+                  DECLARE @xCODTIPOREGISTRO               NUMERIC(22,0);
+                  DECLARE @originNUMTRANSACCIONES         NUMERIC(22,0);
+                  DECLARE @originVALORTRANSACCION         FLOAT;
+                  DECLARE @totalxNUMTRANSACCIONES         NUMERIC(22,0);
+                  DECLARE @totalxVALORTRANSACCION         FLOAT;
+                  DECLARE @difrncNUMTRANSACCIONES         NUMERIC(22,0);
+                  DECLARE @difrncVALORTRANSACCION         FLOAT;
+                  DECLARE @tracblVALORVENTABRUTA          FLOAT = 0;
+                  DECLARE @tracblVALORVENTABRUTANOREDONDE FLOAT = 0;
+                  DECLARE @tracblVALORCOMISION            FLOAT = 0;
+                  DECLARE @tracblVALORCOMISIONNOREDONDEAD FLOAT = 0;
+                  DECLARE @tracblIVACOMISION              FLOAT = 0;
+                  DECLARE @tracblVALORCOMISIONBRUTA       FLOAT = 0;
+                  DECLARE @tracblVALORCOMISIONNETA        FLOAT = 0;
+                  DECLARE @tracblVALORVENTANETA           FLOAT = 0;
+                  DECLARE @difrncVALORVENTABRUTA          FLOAT = 0;
+                  DECLARE @difrncVALORVENTABRUTANOREDONDE FLOAT = 0;
+                  DECLARE @difrncVALORCOMISION            FLOAT = 0;
+                  DECLARE @difrncVALORCOMISIONNOREDONDEAD FLOAT = 0;
+                  DECLARE @difrncIVACOMISION              FLOAT = 0;
+                  DECLARE @difrncVALORCOMISIONBRUTA       FLOAT = 0;
+                  DECLARE @difrncVALORCOMISIONNETA        FLOAT = 0;
+                  DECLARE @difrncVALORVENTANETA           FLOAT = 0;
+                  DECLARE @destinVALORVENTABRUTA          FLOAT = 0;
+                  DECLARE @destinVALORVENTABRUTANOREDONDE FLOAT = 0;
+                  DECLARE @destinVALORCOMISION            FLOAT = 0;
+                  DECLARE @destinVALORCOMISIONNOREDONDEAD FLOAT = 0;
+                  DECLARE @destinIVACOMISION              FLOAT = 0;
+                  DECLARE @destinVALORCOMISIONBRUTA       FLOAT = 0;
+                  DECLARE @destinVALORCOMISIONNETA        FLOAT = 0;
+                  DECLARE @destinVALORVENTANETA           FLOAT = 0;
+                  -- Current rules
+                  DECLARE @xtCODREGIMEN                NUMERIC(22,0);
+                  DECLARE @xtCODAGRUPACIONPUNTODEVENTA NUMERIC(22,0);
+                  DECLARE @xtCODREDPDV                 NUMERIC(22,0);
+                  DECLARE @xtIDENTIFICACION            NUMERIC(22,0);
+                  DECLARE @xtDIGITOVERIFICACION        NUMERIC(22,0);
+                  DECLARE @xtCODCIUDAD                 NUMERIC(22,0);
+                  DECLARE @xtCODCOMPANIA               NUMERIC(22,0);
+                  DECLARE @xtCODALIADOESTRATEGICO      NUMERIC(22,0);
+                  DECLARE @xtCODTIPOCONTRATOPDV        NUMERIC(22,0);
+                  DECLARE @xtCODRAZONSOCIAL            NUMERIC(22,0);
+                  DECLARE @xtCODTIPOCONTRATOPRODUCTO   NUMERIC(22,0);
+                  DECLARE @xtDUENOTERMINAL             NUMERIC(22,0);
+                  DECLARE @xtFACTURABLE                NUMERIC(22,0);
+                  -- Commission rules
+                  DECLARE @xtCODRANGOCOMISION   NUMERIC(22,0) = 0;
+                  DECLARE @xtCODTIPOCOMISION    NUMERIC(22,0) = 0;
+                  DECLARE @xtCOMISIONANTICIPO   NUMERIC(22,0) = 0;
+                  DECLARE @xtVALCALCPORCENTUA   FLOAT = 0;
+                  DECLARE @xtVALCALCTRANSCCNL   FLOAT = 0;
+                  DECLARE @xtCODCATEGORIAPAGO   NUMERIC(22,0);
+                  DECLARE @xtVARIABLEPORCENTUAL NUMERIC(22,0) = 0;
+                  DECLARE @xtVARIABLETRANSACCNL NUMERIC(22,0) = 0;
+                  DECLARE @xtPLANTILLA          NUMERIC(22,0);
+                  DECLARE @flagADVANCED         NUMERIC(22,0);
+                  DECLARE @advcommissions       WSXML_SFG.ADVANCEDCOMMISSION;
+				  DECLARE @c_advcommissions     CURSOR;
+                  -- Destination Values
+                  DECLARE @dstCODREGISTROFACTURACION NUMERIC(22,0);
+                  DECLARE @dstCODAJUSTEFACTURACION   NUMERIC(22,0);
+                  -- Dynamic Values
+                  DECLARE @xfVALORVENTANETA     FLOAT;
+                  DECLARE @xfVALORVENTABRUTA    FLOAT;
+                  DECLARE @xfVALORCOMISION      FLOAT;
+                  DECLARE @xfVALORVAT           FLOAT;
+                  DECLARE @xfIVACOMISION        FLOAT;
+                  DECLARE @xfVALORCOMISIONBRUTA FLOAT;
+                  DECLARE @xfVALORCOMISIONNETA  FLOAT;
+                  DECLARE @xfSUMIMPUESTOS       FLOAT = 0;
+                  DECLARE @dfSUMIMPUESTOS       FLOAT = 0;
+                  DECLARE @xfRNDIMPUESTOS       FLOAT = 0;
+                  DECLARE @dfRNDIMPUESTOS       FLOAT = 0;
+                  DECLARE @xfSUMRETENCIONES     FLOAT = 0;
+                  DECLARE @dfSUMRETENCIONES     FLOAT = 0;
+                
+					BEGIN
+						SELECT @xCODPUNTODEVENTA = CODPUNTODEVENTA,
+                         @xCODPRODUCTO = CODPRODUCTO,
+                         @xCODTIPOREGISTRO = CODTIPOREGISTRO,
+                         @originNUMTRANSACCIONES = NUMTRANSACCIONES,
+                         @originVALORTRANSACCION = VALORTRANSACCION,
+                         @tracblVALORVENTABRUTA = VALORVENTABRUTA,
+                         @tracblVALORVENTABRUTANOREDONDE = VALORVENTABRUTANOREDONDEADO,
+                         @tracblVALORCOMISION = VALORCOMISION,
+                         @tracblVALORCOMISIONNOREDONDEAD = VALORCOMISIONNOREDONDEADO,
+                         @tracblIVACOMISION = IVACOMISION,
+                         @tracblVALORCOMISIONBRUTA = VALORCOMISIONBRUTA,
+                         @tracblVALORCOMISIONNETA = VALORCOMISIONNETA,
+                         @tracblVALORVENTANETA = VALORVENTANETA
+                                       FROM WSXML_SFG.REGISTROFACTURACION
+						WHERE ID_REGISTROFACTURACION = @irx__IDVALUE;
+
+						-- Obtener nuevas reglas de facturacion actuales
+						EXEC WSXML_SFG.SFGPUNTODEVENTA_ObtainBillingRules
+													 @xCODPUNTODEVENTA,
+                                                     @xCODPRODUCTO,
+                                                     @xtCODREGIMEN OUT,
+                                                     @xtCODAGRUPACIONPUNTODEVENTA OUT,
+                                                     @xtCODREDPDV OUT,
+                                                     @xtIDENTIFICACION OUT,
+                                                     @xtDIGITOVERIFICACION OUT,
+                                                     @xtCODCIUDAD OUT,
+                                                     @xtCODCOMPANIA OUT,
+                                                     @xtCODALIADOESTRATEGICO OUT,
+                                                     @xtCODTIPOCONTRATOPDV OUT,
+                                                     @xtCODRAZONSOCIAL OUT,
+                                                     @xtCODTIPOCONTRATOPRODUCTO OUT,
+                                                     @xtDUENOTERMINAL OUT,
+                                                     @xtFACTURABLE OUT
+                                                     
+						-- Obtener comision. El ajuste tambien considera cambios en comision (nuevas plantillas) y modificadores de comision variable
+						EXEC WSXML_SFG.SFGPLANTILLAPRODUCTO_GetPinpointComissionValues
+																  @xCODPUNTODEVENTA,
+                                                                  @xCODPRODUCTO,
+                                                                  @xtCODRANGOCOMISION OUT,
+                                                                  @xtCODTIPOCOMISION OUT,
+                                                                  @xtCOMISIONANTICIPO OUT,
+                                                                  @xtVALCALCPORCENTUA OUT,
+                                                                  @xtVALCALCTRANSCCNL OUT,
+                                                                  @xtPLANTILLA OUT,
+                                                                  @flagADVANCED OUT
+						IF @flagADVANCED > 0 BEGIN
+							EXEC WSXML_SFG.SFGPLANTILLAPRODUCTO_GetAdvancedComissionValues @xCODPUNTODEVENTA,@xCODPRODUCTO, @c_advcommissions OUT
+							
+							DECLARE @c_advcommissions__ID NUMERIC(38,0),@c_advcommissions__CODRANGOCOMISION NUMERIC(38,0), @c_advcommissions__CODTIPOCOMISION NUMERIC(38,0), 
+								@c_advcommissions__COMISIONANTICIPO NUMERIC(38,0), @c_advcommissions__VALORPORCENTUAL FLOAT, @c_advcommissions__VALORTRANSACCIONAL FLOAT
+							
+								FETCH NEXT FROM @c_advcommissions INTO @c_advcommissions__ID,@c_advcommissions__CODRANGOCOMISION, @c_advcommissions__CODTIPOCOMISION, 
+									@c_advcommissions__COMISIONANTICIPO, @c_advcommissions__VALORPORCENTUAL, @c_advcommissions__VALORTRANSACCIONAL
+        
+								WHILE (@@FETCH_STATUS = 0)
+								BEGIN
+									INSERT INTO @advcommissions VALUES (@c_advcommissions__ID,@c_advcommissions__CODRANGOCOMISION, @c_advcommissions__CODTIPOCOMISION, 
+									@c_advcommissions__COMISIONANTICIPO, @c_advcommissions__VALORPORCENTUAL, @c_advcommissions__VALORTRANSACCIONAL);
+										
+									FETCH NEXT FROM @c_advcommissions INTO @c_advcommissions__ID,@c_advcommissions__CODRANGOCOMISION, @c_advcommissions__CODTIPOCOMISION, 
+									@c_advcommissions__COMISIONANTICIPO, @c_advcommissions__VALORPORCENTUAL, @c_advcommissions__VALORTRANSACCIONAL
+								END
+									
+							CLOSE @c_advcommissions
+							DEALLOCATE @c_advcommissions 
+						END 
+						
+						EXEC WSXML_SFG.SFGCATEGORIAPAGO_GetComissionRecordValuesByProd 
+																  @xCODPUNTODEVENTA, 
+																  @xCODPRODUCTO,
+                                                                  @xtCODCATEGORIAPAGO OUT,
+                                                                  @xtVARIABLEPORCENTUAL OUT,
+                                                                  @xtVARIABLETRANSACCNL OUT
+																  
+						-- Difference makes up for the extra values to input. Normally zero
+						SET @difrncNUMTRANSACCIONES = @p_NUMTRANSACCIONESAJUSTE;
+						SET @difrncVALORTRANSACCION = @p_VALORTRANSACCIONAJUSTE;
+						-- Obtain destination record
+						BEGIN
+                    
+							SELECT @dstCODREGISTROFACTURACION = ID_REGISTROFACTURACION,
+								   @destinVALORVENTABRUTA = VALORVENTABRUTA,
+								   @destinVALORVENTABRUTANOREDONDE = VALORVENTABRUTANOREDONDEADO,
+								   @destinVALORCOMISION = VALORCOMISION,
+								   @destinVALORCOMISIONNOREDONDEAD = VALORCOMISIONNOREDONDEADO,
+								   @destinIVACOMISION = IVACOMISION,
+								   @destinVALORCOMISIONBRUTA = VALORCOMISIONBRUTA,
+								   @destinVALORCOMISIONNETA = VALORCOMISIONNETA,
+								   @destinVALORVENTANETA = VALORVENTANETA
+							FROM WSXML_SFG.REGISTROFACTURACION
+							WHERE CODENTRADAARCHIVOCONTROL = @dstCODENTRADAARCHIVOCONTROL
+							   AND CODPUNTODEVENTA = @xCODPUNTODEVENTA
+							   AND CODPRODUCTO = @xCODPRODUCTO
+							   AND CODTIPOREGISTRO = @xCODTIPOREGISTRO;
+							   
+							
+							IF @@ROWCOUNT = 0 BEGIN
+								EXEC WSXML_SFG.SFGREGISTROFACTURACION_AddRecord
+														@dstCODENTRADAARCHIVOCONTROL,
+                                                       @xCODPUNTODEVENTA,
+                                                       @xCODPRODUCTO,
+                                                       @xCODTIPOREGISTRO,
+                                                       0,
+                                                       @p_FECHAINGRESOAJUSTE,
+                                                       0,
+                                                       @xtCODRANGOCOMISION,
+                                                       @xtCOMISIONANTICIPO,
+                                                       0,
+                                                       0,
+                                                       @xtCODCOMPANIA,
+                                                       @xtCODREGIMEN,
+                                                       @xtCODAGRUPACIONPUNTODEVENTA,
+                                                       @xtCODREDPDV,
+                                                       @xtIDENTIFICACION,
+                                                       @xtDIGITOVERIFICACION,
+                                                       @xtCODCIUDAD,
+                                                       @xtCODTIPOCONTRATOPDV,
+                                                       @xtCODRAZONSOCIAL,
+                                                       @xtCODTIPOCONTRATOPRODUCTO,
+                                                       @xtDUENOTERMINAL,
+                                                       @p_CODUSUARIOMODIFICACION,
+                                                       @dstCODREGISTROFACTURACION OUT
+								  SET @destinVALORVENTABRUTA          = 0;
+								  SET @destinVALORVENTABRUTANOREDONDE = 0;
+								  SET @destinVALORCOMISION            = 0;
+								  SET @destinVALORCOMISIONNOREDONDEAD = 0;
+								  SET @destinIVACOMISION              = 0;
+								  SET @destinVALORCOMISIONBRUTA       = 0;
+								  SET @destinVALORCOMISIONNETA        = 0;
+								  SET @destinVALORVENTANETA           = 0;
+							END 
+							ELSE
+							BEGIN
+
+							   
+								-- If found, overwrite obtained rules with those of the registrY
+								EXEC WSXML_SFG.SFGREGISTROFACTURACION_GetBillingRulesFromRegistry 
+																				   @dstCODREGISTROFACTURACION,
+																				   @xtCODCOMPANIA OUT,
+																				   @xtCODREGIMEN OUT,
+																				   @xtCODAGRUPACIONPUNTODEVENTA OUT,
+																				   @xtCODREDPDV OUT,
+																				   @xtIDENTIFICACION OUT,
+																				   @xtDIGITOVERIFICACION OUT,
+																				   @xtCODCIUDAD OUT,
+																				   @xtCODTIPOCONTRATOPDV OUT,
+																				   @xtCODRAZONSOCIAL OUT,
+																				   @xtCODTIPOCONTRATOPRODUCTO OUT,
+																				   @xtDUENOTERMINAL OUT
+							END
+                 
+						END;
+
+						-- Totalizacion. Los valores del calculo del registro seran los actuales + el valor del ajuste. Los nuevos valores se calcularan sobre el nuevo total del registro (permite ajustes cumulativos)
+						SET @totalxNUMTRANSACCIONES = @originNUMTRANSACCIONES + @difrncNUMTRANSACCIONES;
+						SET @totalxVALORTRANSACCION = @originVALORTRANSACCION + @difrncVALORTRANSACCION;
+						SET @xfVALORVENTANETA       = @totalxVALORTRANSACCION;
+                  
+						-- Create blank adjustment record
+						EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddRecord 
+												 @p_DESCRIPCION,
+                                                 @p_CODTIPOAJUSTEFACTURACION,
+                                                 @difrncNUMTRANSACCIONES,
+                                                 @difrncVALORTRANSACCION,
+                                                 @ifx__IDVALUE,
+                                                 @irx__IDVALUE,
+                                                 @dstCODENTRADAARCHIVOCONTROL,
+                                                 @dstCODREGISTROFACTURACION,
+                                                 @p_CODUSUARIOMODIFICACION,
+                                                 @p_FLETEANULACION,
+                                                 @dstCODAJUSTEFACTURACION OUT
+                                                 
+						SET @p_ID_AJUSTEFACTURACION_out = @p_ID_AJUSTEFACTURACION_out + 1;
+						
+						-- Impuestos
+						BEGIN
+						BEGIN TRY
+							DECLARE tPRODUCTOIMPUESTO CURSOR FOR SELECT IMP.ID_IMPUESTO,
+                                                     PMP.ID_PRODUCTOIMPUESTO,
+                                                     ISNULL(PMP.Valorporcentual,0) AS Valorporcentual,
+                                                     ISNULL(PMP.Valortransaccional,0) AS Valortransaccional
+                                                FROM WSXML_SFG.IMPUESTO IMP
+                                               INNER JOIN WSXML_SFG.PRODUCTOIMPUESTO PMP
+                                                  ON (PMP.CODIMPUESTO =
+                                                     IMP.ID_IMPUESTO AND
+                                                     PMP.CODPRODUCTO =
+                                                     @xCODPRODUCTO AND
+                                                     PMP.ACTIVE = 1)
+                                               INNER JOIN PUNTODEVENTA PDV
+                                                  ON (PDV.ID_PUNTODEVENTA =
+                                                     @xCODPUNTODEVENTA)
+                                               INNER JOIN CIUDADIMPUESTO CMP
+                                                  ON (CMP.CODIMPUESTO =
+                                                     IMP.ID_IMPUESTO AND
+                                                     CMP.CODCIUDAD =
+                                                     PDV.CODCIUDAD AND
+                                                     CMP.ACTIVE = 1)
+                                               WHERE IMP.ACTIVE = 1; 
+							OPEN tPRODUCTOIMPUESTO;
+							DECLARE @tPRODUCTOIMPUESTO__ID_IMPUESTO NUMERIC(38,0), @tPRODUCTOIMPUESTO__ID_PRODUCTOIMPUESTO NUMERIC(38,0), @tPRODUCTOIMPUESTO__Valorporcentual FLOAT
+								, @tPRODUCTOIMPUESTO__Valortransaccional FLOAT
+								
+							FETCH NEXT FROM tPRODUCTOIMPUESTO INTO @tPRODUCTOIMPUESTO__ID_IMPUESTO, @tPRODUCTOIMPUESTO__ID_PRODUCTOIMPUESTO, @tPRODUCTOIMPUESTO__Valorporcentual
+								, @tPRODUCTOIMPUESTO__Valortransaccional;
+							WHILE @@FETCH_STATUS=0
+							BEGIN
+								DECLARE @evaluate INT = 0;
+								
+								BEGIN
+									IF (SELECT COUNT(*) FROM @limitmeasureimpuesto) > 0 
+									BEGIN
+										DECLARE iev CURSOR FOR SELECT IDVALUE FROM @limitmeasureimpuesto--.First .. limitmeasureimpuesto.Last 
+										
+										OPEN iev;
+										DECLARE @iev__IDVALUE NUMERIC(38,0)
+										
+										FETCH NEXT FROM iev INTO @iev__IDVALUE;
+										WHILE @@FETCH_STATUS=0
+										BEGIN
+											IF @iev__IDVALUE = @tPRODUCTOIMPUESTO__ID_IMPUESTO 
+											BEGIN
+												SET @evaluate = 1;
+												BREAK;
+											END 
+											FETCH NEXT FROM iev INTO @iev__IDVALUE;
+										END;
+
+										CLOSE iev;
+										DEALLOCATE iev;
+									END 
+									
+									  DECLARE @xfTHISIMPUESTO               FLOAT = 0;
+									  DECLARE @xfTHISBASECALC               FLOAT = 0;
+									  DECLARE @dstCODIMPUESTOREGFACTURACION NUMERIC(22,0);
+									  DECLARE @dstVALORIMPUESTO             FLOAT = 0;
+									  DECLARE @dstCODAJUSTEFACTURACIONIMPST NUMERIC(22,0);
+									  DECLARE @currentVALORIMPUESTO         FLOAT = 0;
+									  DECLARE @diffrncVALORIMPUESTO         FLOAT = 0;
+									  --DECLARE @cTRANSACTIONALVALUE          FLOAT = 0;
+									  --DECLARE @cTHISIMPUESTOROUNDED         FLOAT = 0;
+									  --DECLARE @cPORCENTUALVALUE             FLOAT = 0;
+									  
+									BEGIN
+										BEGIN TRY
+											  /*xfTHISBASECALC := (xfVALORVENTANETA / (1 +
+																(tPRODUCTOIMPUESTO.VALOR / 100)));
+											  xfTHISIMPUESTO := (xfTHISBASECALC *
+																(tPRODUCTOIMPUESTO.VALOR / 100));*/
+																
+										   --calcular la base porcenntual
+											SET @xfTHISBASECALC = (@xfVALORVENTANETA / (1 + (@tPRODUCTOIMPUESTO__Valorporcentual / 100)));
+											--calcular el valor por transccion
+											SET @cTRANSACTIONALVALUE = (@totalxNUMTRANSACCIONES * @tPRODUCTOIMPUESTO__Valortransaccional);
+											SET @cTHISIMPUESTOROUNDED =(@totalxNUMTRANSACCIONES * ROUND(@tPRODUCTOIMPUESTO__Valortransaccional,0));
+											--restar el valor por transaccion  a la base
+											SET @xfTHISBASECALC = @xfTHISBASECALC - @cTRANSACTIONALVALUE;
+											--calcular el valor porcentual 
+											SET @cPORCENTUALVALUE = (@xfTHISBASECALC * (@tPRODUCTOIMPUESTO__Valorporcentual / 100));
+											SET @cTHISIMPUESTOROUNDED = @cTHISIMPUESTOROUNDED +  ROUND(@cPORCENTUALVALUE,0);
+										  
+											SET @xfTHISIMPUESTO=@cTRANSACTIONALVALUE + @cPORCENTUALVALUE;                                            
+															
+											-- Find record to overwrite (update)
+											BEGIN
+												SELECT @dstCODIMPUESTOREGFACTURACION = ID_IMPUESTOREGFACTURACION, @dstVALORIMPUESTO = VALORIMPUESTO
+												FROM WSXML_SFG.IMPUESTOREGFACTURACION
+												WHERE CODREGISTROFACTURACION = @dstCODREGISTROFACTURACION
+												   AND CODIMPUESTO = @tPRODUCTOIMPUESTO__ID_IMPUESTO;
+												
+												IF @@ROWCOUNT = 0 BEGIN
+													-- Insert null tax record
+													  EXEC WSXML_SFG.SFGIMPUESTOREGFACTURACION_AddRecord
+																						  @tPRODUCTOIMPUESTO__ID_IMPUESTO,
+																						  @tPRODUCTOIMPUESTO__ID_PRODUCTOIMPUESTO,
+																						  @dstCODENTRADAARCHIVOCONTROL,
+																						  @dstCODREGISTROFACTURACION,
+																						  @xCODTIPOREGISTRO,
+																						  0,
+																						  @p_CODUSUARIOMODIFICACION,
+																						  @dstCODIMPUESTOREGFACTURACION OUT
+													  SET @dstVALORIMPUESTO = 0;
+												END
+												
+												IF @@ROWCOUNT > 1 BEGIN
+													SELECT @dstCODIMPUESTOREGFACTURACION = MAX(ID_IMPUESTOREGFACTURACION),
+														 @dstVALORIMPUESTO = SUM(VALORIMPUESTO)
+													FROM WSXML_SFG.IMPUESTOREGFACTURACION
+													WHERE CODREGISTROFACTURACION = @dstCODREGISTROFACTURACION
+													 AND CODIMPUESTO = @tPRODUCTOIMPUESTO__ID_IMPUESTO;
+												END
+											  
+											END;
+
+											-- Find originally calculated value
+											DECLARE @tracblIMPUESTOREGFACTURACION NUMERIC(22,0);
+											BEGIN
+												SELECT @tracblIMPUESTOREGFACTURACION = ID_IMPUESTOREGFACTURACION
+												  FROM WSXML_SFG.IMPUESTOREGFACTURACION
+												 WHERE CODREGISTROFACTURACION = @irx__IDVALUE
+												   AND CODIMPUESTO = @tPRODUCTOIMPUESTO__ID_IMPUESTO;
+												   
+												SELECT @currentVALORIMPUESTO = VALORIMPUESTO
+												  FROM WSXML_SFG.IMPUESTOREGFACTURACION
+												 WHERE ID_IMPUESTOREGFACTURACION = @tracblIMPUESTOREGFACTURACION;
+											  
+												IF @@ROWCOUNT = 0 
+												  SET @currentVALORIMPUESTO = 0;
+												
+												IF @@ROWCOUNT > 1 
+												  -- Complete Tax. Includes other adjustments
+												  SELECT @currentVALORIMPUESTO = SUM(VALORIMPUESTO)
+													FROM WSXML_SFG.IMPUESTOREGFACTURACION
+												   WHERE CODREGISTROFACTURACION = @irx__IDVALUE
+													 AND CODIMPUESTO = @tPRODUCTOIMPUESTO__ID_IMPUESTO;
+											END;
+
+											SET @diffrncVALORIMPUESTO = @xfTHISIMPUESTO - @currentVALORIMPUESTO;
+											SET @dfSUMIMPUESTOS       = @dfSUMIMPUESTOS + @diffrncVALORIMPUESTO;
+											SET @dfRNDIMPUESTOS       = @dfRNDIMPUESTOS + ROUND(@diffrncVALORIMPUESTO,0);
+							  
+											IF @evaluate = 1 BEGIN
+												-- Append adjustment value. Adjustment record contains difference, whereas overwritten (destination) record contains initial value plus differente
+												
+												DECLARE @l_diffrncVALORIMPUESTO      FLOAT = ROUND(@diffrncVALORIMPUESTO,0)
+												DECLARE @l2_diffrncVALORIMPUESTO     FLOAT = ROUND(@diffrncVALORIMPUESTO, 8)
+							  
+												EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddImpuestoRecord
+															  @dstCODAJUSTEFACTURACION,
+															  @tPRODUCTOIMPUESTO__ID_IMPUESTO,
+															  @l_diffrncVALORIMPUESTO,
+															  @l2_diffrncVALORIMPUESTO,
+															  @dstCODAJUSTEFACTURACIONIMPST OUT
+															  
+												DECLARE @l_dst_dif FLOAT = ROUND(@dstVALORIMPUESTO + @diffrncVALORIMPUESTO,0);		 
+												EXEC WSXML_SFG.SFGIMPUESTOREGFACTURACION_UpdateValue
+																					@dstCODIMPUESTOREGFACTURACION,
+																					@l_dst_dif
+																					
+											END
+											
+											SET @xfSUMIMPUESTOS = @xfSUMIMPUESTOS + @xfTHISIMPUESTO;
+											SET @xfRNDIMPUESTOS = @xfRNDIMPUESTOS + ROUND(@xfTHISIMPUESTO,0);
+										END TRY
+										BEGIN CATCH
+											SET @errmsg = '-20054 No se pudo ingresar el ajuste de impuesto para el registro de facturacion ' +
+																ISNULL(CONVERT(VARCHAR,@dstCODREGISTROFACTURACION), '') + ': ' +
+																isnull(ERROR_MESSAGE(), '')
+											RAISERROR(@errmsg, 16, 1);
+											RETURN 0
+										END CATCH
+									END;
+								END
+								
+								FETCH NEXT FROM tPRODUCTOIMPUESTO INTO @tPRODUCTOIMPUESTO__ID_IMPUESTO, @tPRODUCTOIMPUESTO__ID_PRODUCTOIMPUESTO, @tPRODUCTOIMPUESTO__Valorporcentual
+								, @tPRODUCTOIMPUESTO__Valortransaccional;
+							END;
+							
+							CLOSE tPRODUCTOIMPUESTO;
+							DEALLOCATE tPRODUCTOIMPUESTO;
+						END TRY
+						BEGIN CATCH
+							SET @errmsg = '-20035 No se puede calcular los impuestos del producto: ' + isnull(ERROR_MESSAGE ( ), '') ;
+							RAISERROR(@errmsg, 16, 1);
+						END CATCH
+						END;
+                  
+                      
+
+						  -- Update control values. ONLY IF TAXES WERE CONSIDERED
+						IF (SELECT COUNT(*) FROM @limitmeasureimpuesto) > 0 
+						BEGIN
+							SET @xfVALORVENTABRUTA              = (@xfVALORVENTANETA - @xfRNDIMPUESTOS);
+							SET @xfVALORVENTANETA               = (@xfVALORVENTANETA - @xfSUMIMPUESTOS);
+							SET @difrncVALORVENTABRUTA          = @difrncVALORTRANSACCION - @dfRNDIMPUESTOS;
+							SET @difrncVALORVENTABRUTANOREDONDE = @difrncVALORTRANSACCION - @dfSUMIMPUESTOS;
+							-- Again, registry goes with diference against original +
+							
+							DECLARE @p_VALORVENTABRUTA         FLOAT = @destinVALORVENTABRUTA + @difrncVALORVENTABRUTA
+							DECLARE @p_VALORVENTABRUTANOREDOND FLOAT = ROUND(@destinVALORVENTABRUTANOREDONDE + @difrncVALORVENTABRUTANOREDONDE,8)
+							EXEC WSXML_SFG.SFGREGISTROFACTURACION_UpdateRecordVentaBruta
+																	@dstCODREGISTROFACTURACION,
+																	@p_VALORVENTABRUTA,
+																	@p_VALORVENTABRUTANOREDOND,
+																	@p_CODUSUARIOMODIFICACION
+																	
+							EXEC WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRecordRawValues 
+																		@dstCODAJUSTEFACTURACION,
+																		@difrncVALORVENTABRUTA,
+																		@difrncVALORVENTABRUTANOREDONDE
+						END
+						ELSE BEGIN
+							-- Overwrite calculation values with those original
+							SET @xfVALORVENTABRUTA              = @tracblVALORVENTABRUTA;
+							SET @xfVALORVENTANETA               = @tracblVALORVENTABRUTANOREDONDE;
+							SET @difrncVALORVENTABRUTA          = 0;
+							SET @difrncVALORVENTABRUTANOREDONDE = 0;
+						END 
+						
+						-- Calculo del valor de la comision. Only if commission must be taken into account
+						IF @limitmeasurecomision = 1 BEGIN
+							IF @flagADVANCED > 0 BEGIN
+								DECLARE @valueCOMMISSIONINQUIRY FLOAT = 0;
+								DECLARE @valueCOMMISSIONTRANSCC FLOAT = 0;
+								DECLARE @valueCOMMISSIONJOINTTX FLOAT = 0;
+								DECLARE @advtypecodes           WSXML_SFG.IDCOMPLEXVALUE;
+							  BEGIN
+								INSERT  INTO @advtypecodes
+								SELECT ID_REGISTROFACTTRANSAVANZADO,
+								  CONVERT(FLOAT,CODTIPOTRANSAVANZADO),
+								  CONVERT(FLOAT,CANTIDADTRANSACCIONES)
+								FROM WSXML_SFG.REGISTROFACTTRANSAVANZADO
+								WHERE CODREGISTROFACTURACION = @irx__IDVALUE;
+                        
+								IF (SELECT COUNT(*) FROM @advtypecodes) > 0 
+								BEGIN
+									DECLARE txdv CURSOR FOR SELECT ID, MARKUP, VALUE FROM @advtypecodes--.First .. advtypecodes.Last 
+									OPEN txdv;
+									DECLARE @txdv__ID NUMERIC(38,0), @txdv__MARKUP FLOAT, @txdv__VALUE FLOAT
+									
+									FETCH NEXT FROM txdv INTO  @txdv__ID, @txdv__MARKUP, @txdv__VALUE
+									WHILE @@FETCH_STATUS=0
+									BEGIN
+										IF @txdv__MARKUP = @FEEINQUIRY BEGIN
+											IF @txdv__VALUE > 0 BEGIN
+												SET @valueCOMMISSIONINQUIRY = @txdv__VALUE * (SELECT VALORTRANSACCIONAL FROM @advcommissions WHERE ID = @FEEINQUIRY);
+												/* TO_DO. Obtain originally calculated value and append - insert into new */
+											END
+										
+											EXEC WSXML_SFG.SFGREGISTROFACTTRANSAVANZADO_UpdateCommissionValues @txdv__ID, @valueCOMMISSIONINQUIRY
+											
+											SET @xfVALORCOMISION = @xfVALORCOMISION + @valueCOMMISSIONINQUIRY;
+										END
+										ELSE IF @txdv__MARKUP = @FTRANSACTION BEGIN
+											IF @txdv__VALUE > 0 BEGIN
+												SET @valueCOMMISSIONTRANSCC = @txdv__VALUE * (SELECT VALORTRANSACCIONAL FROM @advcommissions WHERE ID = @FTRANSACTION)
+												/* TO_DO. Obtain originally calculated value and append - insert into new */
+											END
+											  
+											EXEC WSXML_SFG.SFGREGISTROFACTTRANSAVANZADO_UpdateCommissionValues @txdv__ID, @valueCOMMISSIONTRANSCC
+											SET @xfVALORCOMISION = @xfVALORCOMISION + @valueCOMMISSIONTRANSCC;
+										END
+										ELSE IF @txdv__MARKUP = @BOTH BEGIN
+												IF @txdv__VALUE > 0 BEGIN
+													SET @valueCOMMISSIONJOINTTX = @txdv__VALUE * (SELECT VALORTRANSACCIONAL FROM @advcommissions WHERE ID = @BOTH)
+													/* TO_DO. Obtain originally calculated value and append - insert into new */
+												END 
+												EXEC WSXML_SFG.SFGREGISTROFACTTRANSAVANZADO_UpdateCommissionValues @txdv__ID, @valueCOMMISSIONJOINTTX
+												SET @xfVALORCOMISION = @xfVALORCOMISION + @valueCOMMISSIONJOINTTX;
+										END
+										
+										FETCH NEXT FROM txdv INTO  @txdv__ID, @txdv__MARKUP, @txdv__VALUE
+									END
+									
+									CLOSE txdv;
+									DEALLOCATE txdv;
+
+								END
+							  END
+
+							END ELSE BEGIN
+								IF @xtCODTIPOCOMISION = 1 BEGIN
+									-- El tipo de comision es porcentual
+									SET @xfVALORCOMISION = ((@xfVALORVENTANETA * (@xtVALCALCPORCENTUA + @xtVARIABLEPORCENTUAL)) / 100);
+								END
+								ELSE IF @xtCODTIPOCOMISION = 2 BEGIN
+									-- El tipo de comision es transaccional
+									SET @xfVALORCOMISION = ((@xtVALCALCTRANSCCNL + @xtVARIABLETRANSACCNL) * @totalxNUMTRANSACCIONES);
+								END
+								ELSE IF @xtCODTIPOCOMISION = 3 BEGIN
+									-- El tipo de comision es Mixto
+									SET @xfVALORCOMISION = ((@xfVALORVENTANETA * (@xtVALCALCPORCENTUA +@xtVARIABLEPORCENTUAL)) / 100) +
+												   ((@xtVALCALCTRANSCCNL + @xtVARIABLETRANSACCNL) * @totalxNUMTRANSACCIONES);
+								END
+								ELSE BEGIN
+									SET @xfVALORCOMISION = 0;
+								END
+							END
+						END ELSE BEGIN
+							SET @xfVALORCOMISION = @tracblVALORCOMISIONNOREDONDEAD;
+						END 
+						
+						IF @limitmeasurevat = 1 BEGIN
+							-- IVA de comision solo si no es anticipo
+							IF @xtCODTIPOCONTRATOPDV IN (1, 2) BEGIN
+							  -- Valor de IVA de comision dependiente del tipo de contrato
+							  SET @xfVALORVAT = WSXML_SFG.SFGVATCOMISIONREGIMEN_GetVatValue(@xCODPUNTODEVENTA, @xCODPRODUCTO);
+							END
+							ELSE IF @xtCODTIPOCONTRATOPDV = 3 BEGIN
+							  SET @xfVALORVAT = WSXML_SFG.SFGTRIBUTARIOALIADOESTRATEGICO_GetVatValue(@xCODPRODUCTO, @xtCODREGIMEN, @xtCODCIUDAD);
+							END 
+							IF @xtCOMISIONANTICIPO = 0 BEGIN
+							  SET @xfIVACOMISION = ((@xfVALORCOMISION * @xfVALORVAT) / 100);
+							END
+							ELSE BEGIN
+							  SET @xfIVACOMISION = 0;
+							END 
+						END
+						ELSE BEGIN
+							SET @xfIVACOMISION = @tracblIVACOMISION;
+						END 
+
+						SET @xfVALORCOMISIONBRUTA = ROUND(@xfVALORCOMISION,0) + ROUND(@xfIVACOMISION,0);
+
+						  -- Retenciones. No importa que la comision sea cero, puede devolver las retenciones
+						SET @xfVALORVENTANETA    = @xfVALORVENTANETA - @xfVALORCOMISIONBRUTA;
+						SET @xfVALORCOMISIONNETA = @xfVALORCOMISION;
+						
+						
+						
+						DECLARE @retenciones2 WSXML_SFG.BILLINGTAX;
+						  BEGIN
+							IF @xtCOMISIONANTICIPO = 0 BEGIN
+							  IF @xtCODTIPOCONTRATOPDV IN (1, 2) BEGIN
+								
+								INSERT INTO @retenciones2
+								SELECT ID_RETENCIONTRIBUTARIA, VALOR, CODBASERETENCION 
+								FROM WSXML_SFG.SFGRETENCIONTRIBUTARIA_GetExcludedTaxListByPOS(@xCODPRODUCTO,@xtCODCIUDAD,@xtCODREGIMEN,@xtCODCOMPANIA);
+							  END
+							  ELSE IF @xtCODTIPOCONTRATOPDV = 3 BEGIN
+								
+								INSERT INTO @retenciones2
+								SELECT ID_RETENCIONTRIBUTARIA, VALOR, CODBASERETENCION 
+								FROM WSXML_SFG.SFGRETENCIONTRIBUTARIA_GetExcludedTaxListByProduct(@xtCODALIADOESTRATEGICO,@xtCODCIUDAD, @xtCODREGIMEN);
+							  END 
+							  IF (SELECT COUNT(*) FROM @retenciones2) > 0 BEGIN
+								DECLARE rt CURSOR FOR SELECT ID_RETENCIONTRIBUTARIA, VALOR, CODBASERETENCION FROM @retenciones2--.First .. retenciones.Last 
+								
+								OPEN rt;
+								--DECLARE @rt__ID_RETENCIONTRIBUTARIA NUMERIC(38,0), @rt__VALOR FLOAT, @rt__CODBASERETENCION NUMERIC(38,0)
+								
+								FETCH NEXT FROM rt INTO @rt__ID_RETENCIONTRIBUTARIA, @rt__VALOR, @rt__CODBASERETENCION;
+								WHILE @@FETCH_STATUS=0
+								BEGIN
+									--DECLARE @evaluate INT = 0;
+									SET @evaluate = 0;
+									BEGIN
+										IF (SELECT COUNT(*) FROM @limitmeasureretencion) > 0 BEGIN
+											DECLARE iev CURSOR FOR SELECT IDVALUE FROM @limitmeasureretencion--.First .. limitmeasureretencion.Last 
+											OPEN iev;
+											--DECLARE @iev__IDVALUE NUMERIC(38,0);
+											
+											FETCH NEXT FROM iev INTO @iev__IDVALUE;
+											WHILE @@FETCH_STATUS=0
+											BEGIN
+												IF @iev__IDVALUE = @rt__ID_RETENCIONTRIBUTARIA BEGIN
+													SET @evaluate = 1;
+													BREAK;
+												END
+												FETCH NEXT FROM iev INTO @iev__IDVALUE;
+											END
+											CLOSE iev;
+											DEALLOCATE iev;
+											
+										END
+										IF @evaluate = 1 BEGIN
+											DECLARE @xfTHISRETENCION  				FLOAT = 0;
+											DECLARE @dstCODRETENCIONREGFACTURACION  NUMERIC(38,0);
+											DECLARE @dstVALORRETENCION              FLOAT = 0;
+											DECLARE @dstCODAJUSTEFACTURACIONRETENCI NUMERIC(38,0);
+											DECLARE @currentVALORRETENCION          FLOAT = 0;
+											DECLARE @diffrncVALORRETENCION          FLOAT = 0;
+										
+											BEGIN
+												BEGIN TRY
+													IF @rt__CODBASERETENCION = 1
+														-- Comision Bruta
+														SET @xfTHISRETENCION = ((@xfVALORCOMISIONNETA * @rt__VALOR) / 100);
+													ELSE IF @rt__CODBASERETENCION = 2
+														-- IVA Comision
+														SET @xfTHISRETENCION = ((@xfIVACOMISION * @rt__VALOR) / 100);
+													ELSE
+														SET @xfTHISRETENCION = 0;
+													
+													-- Find record to overwrite (update)
+													BEGIN
+														SELECT @dstCODRETENCIONREGFACTURACION = ID_RETENCIONREGFACTURACION, @dstVALORRETENCION = VALORRETENCION
+														FROM WSXML_SFG.RETENCIONREGFACTURACION
+														WHERE CODREGISTROFACTURACION = @dstCODREGISTROFACTURACION
+														AND CODRETENCIONTRIBUTARIA = @rt__ID_RETENCIONTRIBUTARIA;
+														
+														IF @@ROWCOUNT = 0 BEGIN
+															-- Insert null tax record
+															EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_AddRecord 
+																						@rt__ID_RETENCIONTRIBUTARIA,
+																						@dstCODENTRADAARCHIVOCONTROL,
+																						@dstCODREGISTROFACTURACION,
+																						@xCODTIPOREGISTRO,
+																						0,
+																						@p_CODUSUARIOMODIFICACION,
+																						@dstCODRETENCIONREGFACTURACION OUT
+															SET @dstVALORRETENCION = 0;
+														END
+														
+														IF @@ROWCOUNT > 1 BEGIN
+														SELECT @dstCODRETENCIONREGFACTURACION = MAX(ID_RETENCIONREGFACTURACION), @dstVALORRETENCION = SUM(VALORRETENCION)
+														FROM WSXML_SFG.RETENCIONREGFACTURACION
+														WHERE CODREGISTROFACTURACION = @dstCODREGISTROFACTURACION
+														   AND CODRETENCIONTRIBUTARIA = @rt__ID_RETENCIONTRIBUTARIA;
+													END
+													END 
+											
+													-- Find originally calculated value
+													DECLARE @tracblREGISTROREGFACTURACION NUMERIC(22,0);
+													BEGIN
+														SELECT @tracblREGISTROREGFACTURACION = ID_RETENCIONREGFACTURACION
+														FROM WSXML_SFG.RETENCIONREGFACTURACION
+														WHERE CODREGISTROFACTURACION = @irx__IDVALUE
+															 AND CODRETENCIONTRIBUTARIA = @rt__ID_RETENCIONTRIBUTARIA;
+															 
+														IF @@ROWCOUNT = 0 BEGIN
+															SET @currentVALORRETENCION = 0;
+														END
+														
+														IF @@ROWCOUNT > 1 BEGIN
+															SELECT @currentVALORRETENCION = SUM(VALORRETENCION)
+															FROM WSXML_SFG.RETENCIONREGFACTURACION
+															WHERE CODREGISTROFACTURACION = @irx__IDVALUE
+															   AND CODRETENCIONTRIBUTARIA = @rt__ID_RETENCIONTRIBUTARIA;
+														END ELSE BEGIN
+															 
+															SELECT @currentVALORRETENCION = VALORRETENCION
+															FROM WSXML_SFG.RETENCIONREGFACTURACION
+															WHERE ID_RETENCIONREGFACTURACION = @tracblREGISTROREGFACTURACION;
+														END
+															
+													END;
+
+													SET @diffrncVALORRETENCION = @xfTHISRETENCION - @currentVALORRETENCION;
+													SET @dfSUMRETENCIONES      = @dfSUMRETENCIONES + @diffrncVALORRETENCION;
+													-- Append adjustment value
+													
+													DECLARE @p_VALORRETENCION 		  FLOAT = ROUND(@diffrncVALORRETENCION,0)
+													DECLARE @p_VALORRETENCIONNOROUND  FLOAT = ROUND(@diffrncVALORRETENCION,8)
+													EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddRetencionRecord
+																		@dstCODAJUSTEFACTURACION,
+																		@rt__ID_RETENCIONTRIBUTARIA,
+																		@p_VALORRETENCION,
+																		@p_VALORRETENCIONNOROUND,
+																		@dstCODAJUSTEFACTURACIONRETENCI OUT
+													
+													DECLARE @p_VALOR FLOAT = ROUND(@dstVALORRETENCION + @diffrncVALORRETENCION,0);
+													
+													EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_UpdateValue @dstCODRETENCIONREGFACTURACION, @p_VALOR
+													
+													SET @xfSUMRETENCIONES = @xfSUMRETENCIONES + ROUND(@xfTHISRETENCION,0);
+												END TRY
+												BEGIN CATCH
+													SET @errmsg ='-20054 No se pudo ingresar el ajuste de impuesto para el registro de facturacion ' +
+																  ISNULL(CONVERT(VARCHAR,@dstCODREGISTROFACTURACION), '') + ': ' +
+																  isnull( ERROR_MESSAGE( ), '');
+													RAISERROR(@errmsg, 16, 1);
+												END CATCH
+									    
+											END;
+										END
+										
+									END
+									
+									FETCH NEXT FROM rt INTO @rt__ID_RETENCIONTRIBUTARIA, @rt__VALOR, @rt__CODBASERETENCION;
+								END
+								CLOSE rt;
+								DEALLOCATE rt;
+							  END;
+							END
+						  
+							SET @xfVALORCOMISIONNETA = @xfVALORCOMISIONBRUTA - @xfSUMRETENCIONES; -- Se suma IVA
+						  END
+						  
+						
+						 -- Actualizar el registro y calcular las diferencias para ingresar los datos del ajuste
+						  SET @difrncVALORCOMISION            = ROUND(@xfVALORCOMISION,0) - @tracblVALORCOMISION;
+						  SET @difrncVALORCOMISIONNOREDONDEAD = @xfVALORCOMISION - @tracblVALORCOMISIONNOREDONDEAD; 
+						  SET @difrncIVACOMISION              = ROUND(@xfIVACOMISION,0) - @tracblIVACOMISION;
+						  -- Calculated Fields. Changes must generate reflection
+						  SET @difrncVALORCOMISIONBRUTA = ROUND(@difrncVALORCOMISION,0) + ROUND(@difrncIVACOMISION,0);
+						  SET @difrncVALORCOMISIONNETA  = @difrncVALORCOMISIONBRUTA - @dfSUMRETENCIONES;
+						  SET @difrncVALORVENTANETA     = @difrncVALORVENTABRUTA - @difrncVALORCOMISIONBRUTA;
+						  
+						  
+							DECLARE @p_VALORCOMISION           FLOAT = ROUND(@destinVALORCOMISION + @difrncVALORCOMISION,0);
+							DECLARE @p_VALORCOMISIONNOREDONDEA FLOAT = @destinVALORCOMISIONNOREDONDEAD + @difrncVALORCOMISIONNOREDONDEAD;
+							DECLARE @p_IVACOMISION             FLOAT = ROUND(@destinIVACOMISION + @difrncIVACOMISION,0);
+							  
+							DECLARE @p_VALORCOMISIONBRUTA      FLOAT = @destinVALORCOMISIONBRUTA + @difrncVALORCOMISIONBRUTA
+							DECLARE @p_VALORCOMISIONNETA       FLOAT = @destinVALORCOMISIONNETA + ROUND(@difrncVALORCOMISIONNETA,0)
+							DECLARE @p_VALORVENTANETA          FLOAT = @destinVALORVENTANETA + @difrncVALORVENTANETA
+                                      
+						  EXEC WSXML_SFG.SFGREGISTROFACTURACION_UpdateRecordComisionVenta 
+																		   @dstCODREGISTROFACTURACION,
+																		   @xtCODRANGOCOMISION,
+																		   @xtCODCATEGORIAPAGO,
+																		   @p_VALORCOMISION,
+																		   @p_VALORCOMISIONNOREDONDEA,
+																		   @p_IVACOMISION,
+																		   @xfVALORVAT,
+																		   @p_VALORCOMISIONBRUTA,
+																		   @p_VALORCOMISIONNETA, -- Round last for value keeping. May generate singles
+																		   @p_VALORVENTANETA,
+																		   @p_CODUSUARIOMODIFICACION
+							
+							DECLARE @p2_VALORCOMISIONNOREDONDEADO FLOAT = ROUND(@difrncVALORCOMISIONNOREDONDEAD,8)
+                            DECLARE @p2_VALORVENTANETA            FLOAT = ROUND(@difrncVALORVENTANETA,8)										   
+						  
+						  EXEC WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRecordFinalValues
+																	   @dstCODAJUSTEFACTURACION,
+																	   @difrncVALORCOMISION,
+																	   @p2_VALORCOMISIONNOREDONDEADO,
+																	   @difrncIVACOMISION,
+																	   @difrncVALORCOMISIONBRUTA,
+																	   @difrncVALORCOMISIONNETA,
+																	   @p2_VALORVENTANETA
+																	   
+					END;
+		
+				FETCH NEXT FROM irx INTO @irx__IDVALUE;
+			END
+				CLOSE irx;
+				DEALLOCATE irx;
+				
+			  END
+                  
+              END
+              FETCH NEXT FROM ifx INTO @ifx__IDVALUE;   
+            END
+			
+			CLOSE ifx;
+			DEALLOCATE ifx;
+			
+		END;
+
+    END ELSE IF @p_CODTIPOAJUSTEFACTURACION = @p_MANUAL BEGIN
+      RAISERROR('-20060 Muy pocos argumentos para realizar un ajuste de facturacion manual', 16, 1);
+    END
+    ELSE BEGIN
+      RAISERROR('-20054 No se reconoce el tipo de ajuste', 16, 1);
+    END 
+  END;
+GO
+
+
+
+
 IF OBJECT_ID('WSXML_SFG.SFGAJUSTEFACTURACION_AdjustmentDummyRegistry', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_AdjustmentDummyRegistry;
 GO
@@ -415,11 +2007,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_AnalizeAndSetWriteOffByDate(
                     ON REGISTROFACTURACION.CODENTRADAARCHIVOCONTROL =
                        ENTRADAARCHIVOCONTROL.ID_ENTRADAARCHIVOCONTROL
                  WHERE ENTRADAARCHIVOCONTROL.FECHAARCHIVO = @p_FECHA
-                   AND REGISTROFACTURACION.CODPRODUCTO = @p_CODPRODUCTO; OPEN AJS;
-	 DECLARE @AJS_ID_AJUSTEFACTURACION NUMERIC(38,0)
-	 FETCH NEXT FROM AJS INTO @AJS_ID_AJUSTEFACTURACION
-	 WHILE @@FETCH_STATUS=0
-	 BEGIN
+                   AND REGISTROFACTURACION.CODPRODUCTO = @p_CODPRODUCTO; 
+	
+	OPEN AJS;
+	DECLARE @AJS_ID_AJUSTEFACTURACION NUMERIC(38,0)
+	
+	FETCH NEXT FROM AJS INTO @AJS_ID_AJUSTEFACTURACION
+	WHILE @@FETCH_STATUS=0
+	BEGIN
 	 
 		EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AnalizeAndSetWriteOff @AJS_ID_AJUSTEFACTURACION
 		 FETCH NEXT FROM AJS INTO @AJS_ID_AJUSTEFACTURACION
@@ -438,15 +2033,16 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_AnalizeAndSetWriteOffByDate(
                        ENTRADAARCHIVOCONTROL.ID_ENTRADAARCHIVOCONTROL
                  WHERE ENTRADAARCHIVOCONTROL.FECHAARCHIVO = @p_FECHA
                    AND REGISTROFACTURACION.CODPRODUCTO = @p_CODPRODUCTO
-                 GROUP BY REGISTROFACTURACION.ID_REGISTROFACTURACION; OPEN REG;
-
-	 DECLARE @reg_ID_REGISTROFACTURACION NUMERIC(38,0)
-	 FETCH NEXT FROM REG INTO @reg_ID_REGISTROFACTURACION
-	 WHILE @@FETCH_STATUS=0
-	 BEGIN
-		  EXEC WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRevenueAdjusment @reg_ID_REGISTROFACTURACION
+                 GROUP BY REGISTROFACTURACION.ID_REGISTROFACTURACION; 
+	OPEN REG;
+	DECLARE @reg_ID_REGISTROFACTURACION NUMERIC(38,0)
+	
+	FETCH NEXT FROM REG INTO @reg_ID_REGISTROFACTURACION
+	WHILE @@FETCH_STATUS=0
+	BEGIN
+		 EXEC WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRevenueAdjusment @reg_ID_REGISTROFACTURACION
 		FETCH NEXT FROM REG INTO @reg_ID_REGISTROFACTURACION
-	 END;
+	END;
 
 	CLOSE REG;
 	DEALLOCATE REG;
@@ -501,6 +2097,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRevenueAdjusment(@p_ID
 		SELECT @v_CODTIPOREGISTRO = CODTIPOREGISTRO
 		  FROM WSXML_SFG.REGISTROFACTURACION
 		 WHERE ID_REGISTROFACTURACION = @p_ID_REGISTROFACTURACION;
+		 
+		IF @@ROWCOUNT = 0 BEGIN
+			SET @msg = '-20054 Error al calcular el revenue de ajustes para el registro facturacion ' +
+								  ISNULL(CONVERT(VARCHAR, @p_ID_REGISTROFACTURACION), '')
+			RAISERROR(@msg, 16, 1);
+			
+		END
+		
 		--Si la transacion es de anulacion entonces mirar que tipo de ajuste tiene
 
 		IF @v_CODTIPOREGISTRO = 2 /*Es una anulacion*/
@@ -622,18 +2226,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRevenueAdjusment(@p_ID
 		  END 
 		END 
 		
-		IF @@ROWCOUNT = 0 BEGIN
-			SET @msg = '-20054 Error al calcular el revenue de ajustes para el registro facturacion ' +
-								  ISNULL(CONVERT(VARCHAR, @p_ID_REGISTROFACTURACION), '')
-			RAISERROR(@msg, 16, 1);
-		END
+		
 	 
 	END TRY
 	BEGIN CATCH
       
     SET @msg = '-20054 Error al calcular el revenue de ajustes para el registro facturacion ' +
-                              CONVERT(VARCHAR, ISNULL(@p_ID_REGISTROFACTURACION, '') + ' : ' +
-                                      ISNULL(ERROR_MESSAGE() , ''))
+                              ISNULL(CONVERT(VARCHAR, @p_ID_REGISTROFACTURACION), '') + ' : ' +
+                                      ISNULL(ERROR_MESSAGE() , '')
       RAISERROR(@msg, 16, 1);
 	END CATCH
   END;
@@ -690,7 +2290,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateRuleSettingAdjustment(
     SET @p_ID_AJUSTEFACTURACION_out = 0;
     -- Obtener el identificador del archivo destino: fecha destino del ajuste + servicio del archivo del registro
     BEGIN
-      SELECT @xORIGINARCHIVOCNTRL = ID_ENTRADAARCHIVOCONTROL,
+		SELECT @xORIGINARCHIVOCNTRL = ID_ENTRADAARCHIVOCONTROL,
              @xSERVICIOPRODUCTO = TIPOARCHIVO,
              @xregistryCODTIPOREGISTRO = CODTIPOREGISTRO,
              @xregistryCODPUNTODEVENTA = CODPUNTODEVENTA,
@@ -703,22 +2303,24 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateRuleSettingAdjustment(
              @xoriginCODREGIMEN = CODREGIMEN,
              @xoriginCODAGRUPACIONPUNTODEVE = CODAGRUPACIONPUNTODEVENTA,
              @xoriginCODCIUDAD = CODCIUDAD
-               FROM WSXML_SFG.REGISTROFACTURACION
-       INNER JOIN ENTRADAARCHIVOCONTROL
-          ON (CODENTRADAARCHIVOCONTROL = ID_ENTRADAARCHIVOCONTROL)
-       WHERE ID_REGISTROFACTURACION = @p_originREGISTROFACTURACION;
-		IF @@ROWCOUNT = 0
-        RAISERROR('-20009 El registro de venta referenciado no existe', 16, 1);
+        FROM WSXML_SFG.REGISTROFACTURACION
+			INNER JOIN WSXML_SFG.ENTRADAARCHIVOCONTROL
+				ON (CODENTRADAARCHIVOCONTROL = ID_ENTRADAARCHIVOCONTROL)
+		WHERE ID_REGISTROFACTURACION = @p_originREGISTROFACTURACION;
+		
+		IF @@ROWCOUNT = 0 BEGIN
+			RAISERROR('-20009 El registro de venta referenciado no existe', 16, 1);
+			RETURN 0
+		END
     END;
 
-
-    
 	DECLARE @VENTAFACT SMALLINT,
                       @ANULACION SMALLINT,
 					  @FREETICKT SMALLINT,
 					  @PREMIOPAG SMALLINT,
 					  @RGSTOTROS SMALLINT,
 					  @VENNOFACT SMALLINT
+					  
 	EXEC WSXML_SFG.SFGTIPOREGISTRO_CONSTANT
                       @VENTAFACT OUT,
                       @ANULACION OUT,
@@ -726,9 +2328,13 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateRuleSettingAdjustment(
 					  @PREMIOPAG OUT,
 					  @RGSTOTROS OUT,
 					  @VENNOFACT OUT
+					  
     -- Controles de ajuste : xxforcexx
-    IF NOT @xregistryCODTIPOREGISTRO = @VENTAFACT
-      RAISERROR('-20010 No se puede ajustar un registro que no represente una venta',16,1);
+    IF NOT @xregistryCODTIPOREGISTRO = @VENTAFACT 
+	BEGIN
+		RAISERROR('-20010 No se puede ajustar un registro que no represente una venta',16,1);
+		RETURN 0
+	END
 
     SELECT @xregistryCODTIPOREGREVRS = CASE
                                   WHEN @xregistryCODTIPOREGISTRO =
@@ -740,105 +2346,39 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateRuleSettingAdjustment(
                                 END;
 
     BEGIN
-      SELECT @xDESTINATIONARCHIVOCNTRL = ID_ENTRADAARCHIVOCONTROL, @xDESTINATIONBILLINGIFLAG = FACTURADO
+		SELECT @xDESTINATIONARCHIVOCNTRL = ID_ENTRADAARCHIVOCONTROL, @xDESTINATIONBILLINGIFLAG = FACTURADO
         FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
-       WHERE REVERSADO = 0
-         AND TIPOARCHIVO = @xSERVICIOPRODUCTO
-         AND FECHAARCHIVO = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAINGRESOAJUSTE));
-		IF @@ROWCOUNT = 0 
+		WHERE REVERSADO = 0
+			AND TIPOARCHIVO = @xSERVICIOPRODUCTO
+			AND FECHAARCHIVO = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAINGRESOAJUSTE));
+			
+		IF @@ROWCOUNT = 0 BEGIN
 			RAISERROR('-20010 No es posible ingresar un ajuste en la fecha debido a que no se han cargado ventas para la fecha', 16, 1);
+			RETURN 0
+		END 
     END;
 
-    IF @xDESTINATIONBILLINGIFLAG = 1 BEGIN
+    IF @xDESTINATIONBILLINGIFLAG = 1 
+	BEGIN
       RAISERROR('-20011 No se puede crear un ajuste sobre una fecha ya facturada', 16, 1);
+	  RETURN 0
     END 
-    IF CONVERT(DATETIME, CONVERT(VARCHAR(7), @p_FECHAINGRESOAJUSTE, 120) + '-01') <> CONVERT(DATETIME, CONVERT(VARCHAR(7), GETDATE(), 120) + '-01') BEGIN
+	
+    IF CONVERT(DATETIME, CONVERT(VARCHAR(7), @p_FECHAINGRESOAJUSTE, 120) + '-01') <> CONVERT(DATETIME, CONVERT(VARCHAR(7), GETDATE(), 120) + '-01') 
+	BEGIN
       RAISERROR('-20012 No se puede crear un ajuste sobre un mes cerrado', 16, 1);
+	  RETURN 0
     END 
 
     BEGIN
-      -- Obtener registro objetivo del ajuste o ingresar null
-      SELECT @xDESTINATIONREGISTROFACT = ID_REGISTROFACTURACION
+		-- Obtener registro objetivo del ajuste o ingresar null
+		SELECT @xDESTINATIONREGISTROFACT = ID_REGISTROFACTURACION	
         FROM WSXML_SFG.REGISTROFACTURACION
-       WHERE CODENTRADAARCHIVOCONTROL = @xDESTINATIONARCHIVOCNTRL
-         AND CODTIPOREGISTRO = @xregistryCODTIPOREGISTRO
-         AND CODPUNTODEVENTA = @xregistryCODPUNTODEVENTA
-         AND CODPRODUCTO = @xregistryCODPRODUCTO;
-      -- Si el registro existe, debe ser consistente con las reglas de cambio
-        DECLARE @p_exstngCODCOMPANIA            NUMERIC(22,0);
-        DECLARE @p_exstngCODTIPOCONTRATOPDV     NUMERIC(22,0);
-        DECLARE @p_exstngCODREDPDV              NUMERIC(22,0);
-        DECLARE @p_exstngCODRAZONSOCIAL         NUMERIC(22,0);
-        DECLARE @p_exstngCODTIPOCONTRATOPRODUCT NUMERIC(22,0);
-        DECLARE @p_exstngCODREGIMEN             NUMERIC(22,0);
-        DECLARE @p_exstngCODAGRUPACIONPUNTODEVE NUMERIC(22,0);
-        DECLARE @p_exstngCODCIUDAD              NUMERIC(22,0);
-      BEGIN
-        SELECT @p_exstngCODCOMPANIA = CODCOMPANIA,
-               @p_exstngCODTIPOCONTRATOPDV = CODTIPOCONTRATOPDV,
-               @p_exstngCODREDPDV = CODREDPDV,
-               @p_exstngCODRAZONSOCIAL = CODRAZONSOCIAL,
-               @p_exstngCODTIPOCONTRATOPRODUCT = CODTIPOCONTRATOPRODUCTO,
-               @p_exstngCODREGIMEN = CODREGIMEN,
-               @p_exstngCODAGRUPACIONPUNTODEVE = CODAGRUPACIONPUNTODEVENTA,
-               @p_exstngCODCIUDAD = CODCIUDAD
-                   FROM WSXML_SFG.REGISTROFACTURACION
-         WHERE ID_REGISTROFACTURACION = @xDESTINATIONREGISTROFACT;
-        -- Because of the following verifications, it is recommended that a bulk adjustment does not commit until finished
-        IF (@p_switchCODCOMPANIA <> -1 AND
-           @p_switchCODCOMPANIA <> @p_exstngCODCOMPANIA) OR
-           (@p_switchCODTIPOCONTRATOPDV <> -1 AND
-           @p_switchCODTIPOCONTRATOPDV <> @p_exstngCODTIPOCONTRATOPDV) OR
-           (@p_switchCODREDPDV <> -1 AND
-           @p_switchCODREDPDV <> @p_exstngCODREDPDV) OR
-           (@p_switchCODRAZONSOCIAL <> -1 AND
-           @p_switchCODRAZONSOCIAL <> @p_exstngCODRAZONSOCIAL) OR
-           (@p_switchCODTIPOCONTRATOPRODUCT <> -1 AND
-           @p_switchCODTIPOCONTRATOPRODUCT <>
-           @p_exstngCODTIPOCONTRATOPRODUCT) OR
-           (@p_switchCODREGIMEN <> -1 AND
-           @p_switchCODREGIMEN <> @p_exstngCODREGIMEN) OR
-           (@p_switchCODAGRUPACIONPUNTODEVE <> -1 AND
-           @p_switchCODAGRUPACIONPUNTODEVE <>
-           @p_exstngCODAGRUPACIONPUNTODEVE) OR
-           (@p_switchCODCIUDAD <> -1 AND
-           @p_switchCODCIUDAD <> @p_exstngCODCIUDAD) 
-		  BEGIN
-		  set @msg = '-20013 No se puede realizar el ajuste sobre el registro ' +
-                                  ISNULL(@xDESTINATIONREGISTROFACT, '') +
-                                  ' porque las reglas impuestas no coinciden con las existentes'
-          RAISERROR(@msg, 16, 1);
-        END 
-        IF (@p_switchCODREDPDV <> -1) OR (@p_switchCODREGIMEN <> -1) OR
-           (@p_switchCODAGRUPACIONPUNTODEVE <> -1) OR
-           (@p_switchCODCIUDAD <> -1) BEGIN
-          RAISERROR('-20014 El administrador ha deshabilitado los ajustes de reglas sobre Red, Regimen, Cadena y Ciudad', 16, 1);
-        END 
-        IF (@p_switchCODCOMPANIA <> -1 AND
-           @p_switchCODCOMPANIA = @xoriginCODCOMPANIA) AND
-           (@p_switchCODTIPOCONTRATOPDV <> -1 AND
-           @p_switchCODTIPOCONTRATOPDV = @xoriginCODTIPOCONTRATOPDV) AND
-           (@p_switchCODREDPDV <> -1 AND
-           @p_switchCODREDPDV = @xoriginCODREDPDV) AND
-           (@p_switchCODRAZONSOCIAL <> -1 AND
-           @p_switchCODRAZONSOCIAL = @xoriginCODRAZONSOCIAL) AND
-           (@p_switchCODTIPOCONTRATOPRODUCT <> -1 AND
-           @p_switchCODTIPOCONTRATOPRODUCT = @xoriginCODTIPOCONTRATOPRODUCT) AND
-           (@p_switchCODREGIMEN <> -1 AND
-           @p_switchCODREGIMEN = @xoriginCODREGIMEN) AND
-           (@p_switchCODAGRUPACIONPUNTODEVE <> -1 AND
-           @p_switchCODAGRUPACIONPUNTODEVE = @xoriginCODAGRUPACIONPUNTODEVE) AND
-           (@p_switchCODCIUDAD <> -1 AND
-           @p_switchCODCIUDAD = @xoriginCODCIUDAD) 
-		   
-		   BEGIN
-			SET @msg = '-20015 No se puede realizar el ajuste del registro ' +
-                                  ISNULL(@xORIGINREGISTROFACT, '') +
-                                  ' porque las reglas impuestas son identicas a las del registro'
-				RAISERROR(@msg, 16, 1);
-			END 
-      END;
-
+		WHERE CODENTRADAARCHIVOCONTROL = @xDESTINATIONARCHIVOCNTRL
+			AND CODTIPOREGISTRO = @xregistryCODTIPOREGISTRO
+			AND CODPUNTODEVENTA = @xregistryCODPUNTODEVENTA
+			AND CODPRODUCTO = @xregistryCODPRODUCTO;
+		
 		IF @@ROWCOUNT = 0 BEGIN
 			-- Create dummy values. Obtain normal rules and force override switches
 			EXEC  WSXML_SFG.SFGAJUSTEFACTURACION_AdjustmentDummyRegistry
@@ -848,100 +2388,116 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateRuleSettingAdjustment(
 									@xregistryCODPRODUCTO,
 									@p_CODUSUARIOMODIFICACION,
 									@xDESTINATIONREGISTROFACT OUT
+									
 			UPDATE WSXML_SFG.REGISTROFACTURACION
-			   SET CODCOMPANIA = CASE
-								   WHEN @p_switchCODCOMPANIA = -1 THEN
-									CODCOMPANIA
-								   ELSE
-									@p_switchCODCOMPANIA
-								 END,
-				   CODTIPOCONTRATOPDV = CASE
-										  WHEN @p_switchCODTIPOCONTRATOPDV = -1 THEN
-										   CODTIPOCONTRATOPDV
-										  ELSE
-										   @p_switchCODTIPOCONTRATOPDV
-										END,
-				   CODREDPDV = CASE
-								 WHEN @p_switchCODREDPDV = -1 THEN
-								  CODREDPDV
-								 ELSE
-								  @p_switchCODREDPDV
-							   END,
-				   CODRAZONSOCIAL = CASE
-									  WHEN @p_switchCODRAZONSOCIAL = -1 THEN
-									   CODRAZONSOCIAL
-									  ELSE
-									  @p_switchCODRAZONSOCIAL
-									END,
-				   CODTIPOCONTRATOPRODUCTO = CASE
-											   WHEN @p_switchCODTIPOCONTRATOPRODUCT = -1 THEN
-												CODTIPOCONTRATOPRODUCTO
-											   ELSE
-												@p_switchCODTIPOCONTRATOPRODUCT
-											 END,
-				   CODREGIMEN = CASE
-								  WHEN @p_switchCODREGIMEN = -1 THEN
-								   CODREGIMEN
-								  ELSE
-								   @p_switchCODREGIMEN
-								END,
-				   CODAGRUPACIONPUNTODEVENTA = CASE
-												 WHEN @p_switchCODAGRUPACIONPUNTODEVE = -1 THEN
-												  CODAGRUPACIONPUNTODEVENTA
-												 ELSE
-												  @p_switchCODAGRUPACIONPUNTODEVE
-											   END,
-				   CODCIUDAD = CASE
-								 WHEN @p_switchCODCIUDAD = -1 THEN
-								  CODCIUDAD
-								 ELSE
-								  @p_switchCODCIUDAD
-							   END
+			   SET CODCOMPANIA = CASE WHEN @p_switchCODCOMPANIA = -1 THEN CODCOMPANIA ELSE  @p_switchCODCOMPANIA END,
+				   CODTIPOCONTRATOPDV = CASE WHEN @p_switchCODTIPOCONTRATOPDV = -1 THEN CODTIPOCONTRATOPDV  ELSE @p_switchCODTIPOCONTRATOPDV END,
+				   CODREDPDV = CASE WHEN @p_switchCODREDPDV = -1 THEN  CODREDPDV ELSE @p_switchCODREDPDV END,
+				   CODRAZONSOCIAL = CASE WHEN @p_switchCODRAZONSOCIAL = -1 THEN CODRAZONSOCIAL ELSE @p_switchCODRAZONSOCIAL END,
+				   CODTIPOCONTRATOPRODUCTO = CASE WHEN @p_switchCODTIPOCONTRATOPRODUCT = -1 THEN  CODTIPOCONTRATOPRODUCTO ELSE  @p_switchCODTIPOCONTRATOPRODUCT END,
+				   CODREGIMEN = CASE WHEN @p_switchCODREGIMEN = -1 THEN CODREGIMEN ELSE @p_switchCODREGIMEN END,
+				   CODAGRUPACIONPUNTODEVENTA = CASE WHEN @p_switchCODAGRUPACIONPUNTODEVE = -1 THEN CODAGRUPACIONPUNTODEVENTA ELSE @p_switchCODAGRUPACIONPUNTODEVE END,
+				   CODCIUDAD = CASE WHEN @p_switchCODCIUDAD = -1 THEN CODCIUDAD ELSE @p_switchCODCIUDAD END
 			 WHERE ID_REGISTROFACTURACION = @xDESTINATIONREGISTROFACT;
 			-- From this point onwards, this should be the order for registry rule manipulation
 		END
+		ELSE BEGIN
+		
+		
+			-- Si el registro existe, debe ser consistente con las reglas de cambio
+			DECLARE @p_exstngCODCOMPANIA            NUMERIC(22,0);
+			DECLARE @p_exstngCODTIPOCONTRATOPDV     NUMERIC(22,0);
+			DECLARE @p_exstngCODREDPDV              NUMERIC(22,0);
+			DECLARE @p_exstngCODRAZONSOCIAL         NUMERIC(22,0);
+			DECLARE @p_exstngCODTIPOCONTRATOPRODUCT NUMERIC(22,0);
+			DECLARE @p_exstngCODREGIMEN             NUMERIC(22,0);
+			DECLARE @p_exstngCODAGRUPACIONPUNTODEVE NUMERIC(22,0);
+			DECLARE @p_exstngCODCIUDAD              NUMERIC(22,0);
+			BEGIN
+				SELECT @p_exstngCODCOMPANIA = CODCOMPANIA,
+					   @p_exstngCODTIPOCONTRATOPDV = CODTIPOCONTRATOPDV,
+					   @p_exstngCODREDPDV = CODREDPDV,
+					   @p_exstngCODRAZONSOCIAL = CODRAZONSOCIAL,
+					   @p_exstngCODTIPOCONTRATOPRODUCT = CODTIPOCONTRATOPRODUCTO,
+					   @p_exstngCODREGIMEN = CODREGIMEN,
+					   @p_exstngCODAGRUPACIONPUNTODEVE = CODAGRUPACIONPUNTODEVENTA,
+					   @p_exstngCODCIUDAD = CODCIUDAD
+						   FROM WSXML_SFG.REGISTROFACTURACION
+				 WHERE ID_REGISTROFACTURACION = @xDESTINATIONREGISTROFACT;
+				-- Because of the following verifications, it is recommended that a bulk adjustment does not commit until finished
+				IF (@p_switchCODCOMPANIA <> -1 AND
+				   @p_switchCODCOMPANIA <> @p_exstngCODCOMPANIA) OR
+				   (@p_switchCODTIPOCONTRATOPDV <> -1 AND
+				   @p_switchCODTIPOCONTRATOPDV <> @p_exstngCODTIPOCONTRATOPDV) OR
+				   (@p_switchCODREDPDV <> -1 AND
+				   @p_switchCODREDPDV <> @p_exstngCODREDPDV) OR
+				   (@p_switchCODRAZONSOCIAL <> -1 AND
+				   @p_switchCODRAZONSOCIAL <> @p_exstngCODRAZONSOCIAL) OR
+				   (@p_switchCODTIPOCONTRATOPRODUCT <> -1 AND
+				   @p_switchCODTIPOCONTRATOPRODUCT <>
+				   @p_exstngCODTIPOCONTRATOPRODUCT) OR
+				   (@p_switchCODREGIMEN <> -1 AND
+				   @p_switchCODREGIMEN <> @p_exstngCODREGIMEN) OR
+				   (@p_switchCODAGRUPACIONPUNTODEVE <> -1 AND
+				   @p_switchCODAGRUPACIONPUNTODEVE <>
+				   @p_exstngCODAGRUPACIONPUNTODEVE) OR
+				   (@p_switchCODCIUDAD <> -1 AND
+				   @p_switchCODCIUDAD <> @p_exstngCODCIUDAD) 
+				BEGIN
+					SET @msg = '-20013 No se puede realizar el ajuste sobre el registro ' +
+										  ISNULL(CONVERT(VARCHAR,@xDESTINATIONREGISTROFACT), '') +
+										  ' porque las reglas impuestas no coinciden con las existentes'
+					RAISERROR(@msg, 16, 1);
+					RETURN 0
+				END 
+			
+				IF (@p_switchCODREDPDV <> -1) OR (@p_switchCODREGIMEN <> -1) OR
+				   (@p_switchCODAGRUPACIONPUNTODEVE <> -1) OR
+				   (@p_switchCODCIUDAD <> -1) 
+				BEGIN
+					RAISERROR('-20014 El administrador ha deshabilitado los ajustes de reglas sobre Red, Regimen, Cadena y Ciudad', 16, 1);
+					RETURN 0
+				END 
+			
+				IF (@p_switchCODCOMPANIA <> -1 AND
+				   @p_switchCODCOMPANIA = @xoriginCODCOMPANIA) AND
+				   (@p_switchCODTIPOCONTRATOPDV <> -1 AND
+				   @p_switchCODTIPOCONTRATOPDV = @xoriginCODTIPOCONTRATOPDV) AND
+				   (@p_switchCODREDPDV <> -1 AND
+				   @p_switchCODREDPDV = @xoriginCODREDPDV) AND
+				   (@p_switchCODRAZONSOCIAL <> -1 AND
+				   @p_switchCODRAZONSOCIAL = @xoriginCODRAZONSOCIAL) AND
+				   (@p_switchCODTIPOCONTRATOPRODUCT <> -1 AND
+				   @p_switchCODTIPOCONTRATOPRODUCT = @xoriginCODTIPOCONTRATOPRODUCT) AND
+				   (@p_switchCODREGIMEN <> -1 AND
+				   @p_switchCODREGIMEN = @xoriginCODREGIMEN) AND
+				   (@p_switchCODAGRUPACIONPUNTODEVE <> -1 AND
+				   @p_switchCODAGRUPACIONPUNTODEVE = @xoriginCODAGRUPACIONPUNTODEVE) AND
+				   (@p_switchCODCIUDAD <> -1 AND
+				   @p_switchCODCIUDAD = @xoriginCODCIUDAD) 
+				   
+				BEGIN
+					SET @msg = '-20015 No se puede realizar el ajuste del registro ' +
+						ISNULL(CONVERT(VARCHAR,@xORIGINREGISTROFACT), '') +
+						' porque las reglas impuestas son identicas a las del registro'
+					RAISERROR(@msg, 16, 1);
+					RETURN 0;
+				END 
+			END;
+		END
+
+		
     END;
 
     BEGIN
-      -- Obtener registro objetivo de devolucion
-      SELECT @xDESTINATIONREGREVERSERL = ID_REGISTROFACTURACION
+		-- Obtener registro objetivo de devolucion
+		SELECT @xDESTINATIONREGREVERSERL = ID_REGISTROFACTURACION
         FROM WSXML_SFG.REGISTROFACTURACION
-       WHERE CODENTRADAARCHIVOCONTROL = @xDESTINATIONARCHIVOCNTRL
+		WHERE CODENTRADAARCHIVOCONTROL = @xDESTINATIONARCHIVOCNTRL
          AND CODTIPOREGISTRO = @xregistryCODTIPOREGREVRS
          AND CODPUNTODEVENTA = @xregistryCODPUNTODEVENTA
          AND CODPRODUCTO = @xregistryCODPRODUCTO;
-      -- Force consistency of secondayr adjustments
-        DECLARE @p_rxstngCODCOMPANIA            NUMERIC(22,0);
-        DECLARE @p_rxstngCODTIPOCONTRATOPDV     NUMERIC(22,0);
-        DECLARE @p_rxstngCODREDPDV              NUMERIC(22,0);
-        DECLARE @p_rxstngCODRAZONSOCIAL         NUMERIC(22,0);
-        DECLARE @p_rxstngCODTIPOCONTRATOPRODUCT NUMERIC(22,0);
-        DECLARE @p_rxstngCODREGIMEN             NUMERIC(22,0);
-        DECLARE @p_rxstngCODAGRUPACIONPUNTODEVE NUMERIC(22,0);
-        DECLARE @p_rxstngCODCIUDAD              NUMERIC(22,0);
-      BEGIN
-        SELECT @p_rxstngCODCOMPANIA = CODCOMPANIA,
-               @p_rxstngCODTIPOCONTRATOPDV = CODTIPOCONTRATOPDV,
-               @p_rxstngCODREDPDV = CODREDPDV,
-               @p_rxstngCODRAZONSOCIAL = CODRAZONSOCIAL,
-               @p_rxstngCODTIPOCONTRATOPRODUCT = CODTIPOCONTRATOPRODUCTO,
-               @p_rxstngCODREGIMEN = CODREGIMEN,
-               @p_rxstngCODAGRUPACIONPUNTODEVE = CODAGRUPACIONPUNTODEVENTA,
-               @p_rxstngCODCIUDAD = CODCIUDAD
-                   FROM WSXML_SFG.REGISTROFACTURACION
-         WHERE ID_REGISTROFACTURACION = @xDESTINATIONREGREVERSERL;
-        IF (@xoriginCODCOMPANIA <> @p_rxstngCODCOMPANIA) OR
-           (@xoriginCODTIPOCONTRATOPDV <> @p_rxstngCODTIPOCONTRATOPDV) OR
-           (@xoriginCODREDPDV <> @p_rxstngCODREDPDV) OR
-           (@xoriginCODRAZONSOCIAL <> @p_rxstngCODRAZONSOCIAL) OR
-           (@xoriginCODTIPOCONTRATOPRODUCT <> @p_rxstngCODTIPOCONTRATOPRODUCT) OR
-           (@xoriginCODREGIMEN <> @p_rxstngCODREGIMEN) OR
-          --(xoriginCODAGRUPACIONPUNTODEVE <> p_rxstngCODAGRUPACIONPUNTODEVE) OR
-           (@xoriginCODCIUDAD <> @p_rxstngCODCIUDAD) BEGIN
-          RAISERROR('-20023 No es posible realizar la devolucion debido a que ya existe una anulacion correctamente facturada en la fecha destino', 16, 1);
-        END 
-      END;
-
+		 
 		IF @@ROWCOUNT = 0 BEGIN
 			-- Create dummy values. Obtain normal rules and force override ORIGINAL RULES
 			 EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AdjustmentDummyRegistry @xDESTINATIONARCHIVOCNTRL,
@@ -960,12 +2516,48 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateRuleSettingAdjustment(
 				   CODAGRUPACIONPUNTODEVENTA = @xoriginCODAGRUPACIONPUNTODEVE,
 				   CODCIUDAD                 = @xoriginCODCIUDAD
 			 WHERE ID_REGISTROFACTURACION = @xDESTINATIONREGREVERSERL;
+		END ELSE 
+		BEGIN
+		
+			-- Force consistency of secondayr adjustments
+			DECLARE @p_rxstngCODCOMPANIA            NUMERIC(22,0);
+			DECLARE @p_rxstngCODTIPOCONTRATOPDV     NUMERIC(22,0);
+			DECLARE @p_rxstngCODREDPDV              NUMERIC(22,0);
+			DECLARE @p_rxstngCODRAZONSOCIAL         NUMERIC(22,0);
+			DECLARE @p_rxstngCODTIPOCONTRATOPRODUCT NUMERIC(22,0);
+			DECLARE @p_rxstngCODREGIMEN             NUMERIC(22,0);
+			DECLARE @p_rxstngCODAGRUPACIONPUNTODEVE NUMERIC(22,0);
+			DECLARE @p_rxstngCODCIUDAD              NUMERIC(22,0);
+			BEGIN
+				SELECT @p_rxstngCODCOMPANIA = CODCOMPANIA,
+				   @p_rxstngCODTIPOCONTRATOPDV = CODTIPOCONTRATOPDV,
+				   @p_rxstngCODREDPDV = CODREDPDV,
+				   @p_rxstngCODRAZONSOCIAL = CODRAZONSOCIAL,
+				   @p_rxstngCODTIPOCONTRATOPRODUCT = CODTIPOCONTRATOPRODUCTO,
+				   @p_rxstngCODREGIMEN = CODREGIMEN,
+				   @p_rxstngCODAGRUPACIONPUNTODEVE = CODAGRUPACIONPUNTODEVENTA,
+				   @p_rxstngCODCIUDAD = CODCIUDAD
+				FROM WSXML_SFG.REGISTROFACTURACION
+				WHERE ID_REGISTROFACTURACION = @xDESTINATIONREGREVERSERL;
+				IF (@xoriginCODCOMPANIA <> @p_rxstngCODCOMPANIA) OR
+				   (@xoriginCODTIPOCONTRATOPDV <> @p_rxstngCODTIPOCONTRATOPDV) OR
+				   (@xoriginCODREDPDV <> @p_rxstngCODREDPDV) OR
+				   (@xoriginCODRAZONSOCIAL <> @p_rxstngCODRAZONSOCIAL) OR
+				   (@xoriginCODTIPOCONTRATOPRODUCT <> @p_rxstngCODTIPOCONTRATOPRODUCT) OR
+				   (@xoriginCODREGIMEN <> @p_rxstngCODREGIMEN) OR
+				  --(xoriginCODAGRUPACIONPUNTODEVE <> p_rxstngCODAGRUPACIONPUNTODEVE) OR
+				   (@xoriginCODCIUDAD <> @p_rxstngCODCIUDAD) BEGIN
+				  RAISERROR('-20023 No es posible realizar la devolucion debido a que ya existe una anulacion correctamente facturada en la fecha destino', 16, 1);
+				  RETURN 0;
+				END 
+			END;
 		END
+		
     END;
 
     -- Ingresar registros de ajuste, uno para el duplicado, otro para la reversa
-      DECLARE @adjstmntNUMTRANSACCIONES NUMERIC(22,0) = 0;
-      DECLARE @adjstmntVALORTRANSACCION FLOAT = 0;
+    DECLARE @adjstmntNUMTRANSACCIONES NUMERIC(22,0) = 0;
+    DECLARE @adjstmntVALORTRANSACCION FLOAT = 0;
     BEGIN
      EXEC SFGAJUSTEFACTURACION_AddRecord @p_DESCRIPCION,
                 MANUAL,
@@ -1052,54 +2644,64 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateRuleSettingAdjustment(
             DECLARE @recordtax        NUMERIC(22,0);
             DECLARE @valuetax         FLOAT = 0;
 			declare @itax__VALORRETENCION_round float
-          BEGIN
-            BEGIN
-              SELECT @recordtax = ID_RETENCIONREGFACTURACION, @valuetax = VALORRETENCION
-                FROM WSXML_SFG.RETENCIONREGFACTURACION
-               WHERE CODREGISTROFACTURACION = @xDESTINATIONREGISTROFACT
-                 AND CODRETENCIONTRIBUTARIA = @itax__CODRETENCIONTRIBUTARIA;
+          
+		  BEGIN
+
+				BEGIN
+					SELECT @recordtax = ID_RETENCIONREGFACTURACION, @valuetax = VALORRETENCION
+					FROM WSXML_SFG.RETENCIONREGFACTURACION
+					WHERE CODREGISTROFACTURACION = @xDESTINATIONREGISTROFACT
+					 AND CODRETENCIONTRIBUTARIA = @itax__CODRETENCIONTRIBUTARIA;
               
-			  SET @valuetax = @valuetax + @itax__VALORRETENCION
-			  EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_UpdateValue @recordtax, @valuetax
-            IF @@ROWCOUNT = 0 
-                EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_AddRecord @itax__CODRETENCIONTRIBUTARIA,
-                                                     xDESTINATIONARCHIVOCNTRL,
-                                                     xDESTINATIONREGISTROFACT,
-                                                     xregistryCODTIPOREGISTRO,
-                                                     @itax__VALORRETENCION,
-                                                     p_CODUSUARIOMODIFICACION,
-                                                     @recordtax OUT
-            END;
-			SET  @itax__VALORRETENCION_round  = ROUND(@itax__VALORRETENCION, 0)
-            EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddRetencionRecord @p_ID_AJUSTEFACTURACION_out,
+					IF @@ROWCOUNT = 0 BEGIN
+						EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_AddRecord @itax__CODRETENCIONTRIBUTARIA,
+														 xDESTINATIONARCHIVOCNTRL,
+														 xDESTINATIONREGISTROFACT,
+														 xregistryCODTIPOREGISTRO,
+														 @itax__VALORRETENCION,
+														 p_CODUSUARIOMODIFICACION,
+														 @recordtax OUT
+					END ELSE BEGIN
+						SET @valuetax = @valuetax + @itax__VALORRETENCION
+						EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_UpdateValue @recordtax, @valuetax
+					END
+				END
+            
+				SET  @itax__VALORRETENCION_round  = ROUND(@itax__VALORRETENCION, 0)
+				EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddRetencionRecord @p_ID_AJUSTEFACTURACION_out,
                                @itax__CODRETENCIONTRIBUTARIA,
                                @itax__VALORRETENCION_round,
                                @itax__VALORRETENCION,
                                @adjustmentrecord OUT
-            BEGIN
-              SELECT @recordtax = ID_RETENCIONREGFACTURACION, @valuetax = VALORRETENCION
-                FROM WSXML_SFG.RETENCIONREGFACTURACION
-               WHERE CODREGISTROFACTURACION = @xDESTINATIONREGREVERSERL
-                 AND CODRETENCIONTRIBUTARIA = @itax__CODRETENCIONTRIBUTARIA;
-				 SET @valuetax = @valuetax + @itax__VALORRETENCION
-              EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_UpdateValue @recordtax, @valuetax;
-				IF @@ROWCOUNT = 0
-                EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_AddRecord @itax__CODRETENCIONTRIBUTARIA,
-                                                     @xDESTINATIONARCHIVOCNTRL,
-                                                     @xDESTINATIONREGREVERSERL,
-                                                     @xregistryCODTIPOREGREVRS,
-                                                    @itax__VALORRETENCION,
-                                                     @p_CODUSUARIOMODIFICACION,
-                                                     @recordtax OUT
-            END;
+							   
+				BEGIN
+				  SELECT @recordtax = ID_RETENCIONREGFACTURACION, @valuetax = VALORRETENCION
+					FROM WSXML_SFG.RETENCIONREGFACTURACION
+				   WHERE CODREGISTROFACTURACION = @xDESTINATIONREGREVERSERL
+					 AND CODRETENCIONTRIBUTARIA = @itax__CODRETENCIONTRIBUTARIA;
+					 SET @valuetax = @valuetax + @itax__VALORRETENCION
+					
+					IF @@ROWCOUNT = 0 BEGIN
+						EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_AddRecord @itax__CODRETENCIONTRIBUTARIA,
+														 @xDESTINATIONARCHIVOCNTRL,
+														 @xDESTINATIONREGREVERSERL,
+														 @xregistryCODTIPOREGREVRS,
+														@itax__VALORRETENCION,
+														 @p_CODUSUARIOMODIFICACION,
+														 @recordtax OUT
+					END ELSE BEGIN
+						EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_UpdateValue @recordtax, @valuetax;
+					END
+					
+				END;
 
-			SET  @itax__VALORRETENCION_round  = ROUND(@itax__VALORRETENCION, 0)
-            exec WSXML_SFG.SFGAJUSTEFACTURACION_AddRetencionRecord @p_ID_AJUSTEFACTREVERSA_out,
-                               @itax__CODRETENCIONTRIBUTARIA,
-                               @itax__VALORRETENCION_round,
-                               @itax__VALORRETENCION,
-                               @adjustmentrecord out
-          END;
+				SET  @itax__VALORRETENCION_round  = ROUND(@itax__VALORRETENCION, 0)
+				EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddRetencionRecord @p_ID_AJUSTEFACTREVERSA_out,
+								   @itax__CODRETENCIONTRIBUTARIA,
+								   @itax__VALORRETENCION_round,
+								   @itax__VALORRETENCION,
+								   @adjustmentrecord out
+			END;
 
         FETCH itax INTO @itax__CODRETENCIONTRIBUTARIA, @itax__VALORRETENCION , @itax_count
         END;
@@ -1214,29 +2816,36 @@ GO
           SELECT @xCODIMPUESTO = CODIMPUESTO, @xVALORIMPUESTO = VALORIMPUESTO, @xVALORIMPUESTONOROUND = VALORIMPUESTONOROUND
             FROM WSXML_SFG.AJUSTEFACTURACIONIMPUESTO
            WHERE ID_AJUSTEFACTURACIONIMPUESTO = @impx__IDVALUE;
-          BEGIN
-            SELECT @tgtIMPUESTOREG = ID_IMPUESTOREGFACTURACION
-              FROM WSXML_SFG.IMPUESTOREGFACTURACION
-             WHERE CODREGISTROFACTURACION = @xCODREGISTROFACTDESTINO
-               AND CODIMPUESTO = @xCODIMPUESTO;
-            UPDATE WSXML_SFG.IMPUESTOREGFACTURACION
-               SET VALORIMPUESTO = VALORIMPUESTO - @xVALORIMPUESTO
-             WHERE ID_IMPUESTOREGFACTURACION = @tgtIMPUESTOREG;
-          
-			IF @@ROWCOUNT  > 1 BEGIN
-              SELECT @tgtIMPUESTOREG = MAX(ID_IMPUESTOREGFACTURACION)
-                FROM WSXML_SFG.IMPUESTOREGFACTURACION
-               WHERE CODREGISTROFACTURACION = @xCODREGISTROFACTDESTINO
-                 AND CODIMPUESTO = @xCODIMPUESTO
-                 AND VALORIMPUESTO = @xVALORIMPUESTO;
-              DELETE FROM WSXML_SFG.IMPUESTOREGFACTURACION
-               WHERE ID_IMPUESTOREGFACTURACION = @tgtIMPUESTOREG;
-
-			END;
-
-			IF @@ROWCOUNT = 0
+		   
+		   IF @@ROWCOUNT = 0 BEGIN
 				RAISERROR('-20052 Critical error. Could not find registry for adjustment tax reference', 16, 1);
-		END
+				RETURN 0
+			END
+			
+			BEGIN
+			
+				SELECT @tgtIMPUESTOREG = ID_IMPUESTOREGFACTURACION
+				  FROM WSXML_SFG.IMPUESTOREGFACTURACION
+				 WHERE CODREGISTROFACTURACION = @xCODREGISTROFACTDESTINO
+				   AND CODIMPUESTO = @xCODIMPUESTO;
+				   
+				UPDATE WSXML_SFG.IMPUESTOREGFACTURACION
+				   SET VALORIMPUESTO = VALORIMPUESTO - @xVALORIMPUESTO
+				 WHERE ID_IMPUESTOREGFACTURACION = @tgtIMPUESTOREG;
+			  
+				IF @@ROWCOUNT  > 1 BEGIN
+				
+				  SELECT @tgtIMPUESTOREG = MAX(ID_IMPUESTOREGFACTURACION)
+					FROM WSXML_SFG.IMPUESTOREGFACTURACION
+				   WHERE CODREGISTROFACTURACION = @xCODREGISTROFACTDESTINO
+					 AND CODIMPUESTO = @xCODIMPUESTO
+					 AND VALORIMPUESTO = @xVALORIMPUESTO;
+					 
+				  DELETE FROM WSXML_SFG.IMPUESTOREGFACTURACION
+				   WHERE ID_IMPUESTOREGFACTURACION = @tgtIMPUESTOREG;
+
+				END;
+			END
       END;
 
 		FETCH NEXT FROM impx INTO @impx__IDVALUE;
@@ -1245,8 +2854,7 @@ GO
       CLOSE impx;
       DEALLOCATE impx;
       DELETE FROM WSXML_SFG.AJUSTEFACTURACIONIMPUESTO
-       WHERE ID_AJUSTEFACTURACIONIMPUESTO IN
-             (SELECT IDVALUE FROM @lstadjustedimpuestos);
+       WHERE ID_AJUSTEFACTURACIONIMPUESTO IN (SELECT IDVALUE FROM @lstadjustedimpuestos);
     END 
 
 
@@ -1268,30 +2876,37 @@ GO
 					 @xVALORRETENCIONNOROUND = VALORRETENCIONNOROUND
 						   FROM WSXML_SFG.AJUSTEFACTURACIONRETENCION
 			   WHERE ID_AJUSTEFACTURACIONRETENCION = @retx__IDVALUE;
+			   
+			   IF @@ROWCOUNT = 0 BEGIN
+					RAISERROR('-20052 Critical error. Could not find registry for adjustment retention reference', 16, 1);
+					RETURN 0;
+				END 
+				
 			  BEGIN
 				SELECT @tgtRETENCIONREG = ID_RETENCIONREGFACTURACION
 				  FROM WSXML_SFG.RETENCIONREGFACTURACION
 				 WHERE CODREGISTROFACTURACION = @xCODREGISTROFACTDESTINO
 				   AND CODRETENCIONTRIBUTARIA = @xCODRETENCIONTRIBUTARIA;
-
-				UPDATE WSXML_SFG.RETENCIONREGFACTURACION
-				   SET VALORRETENCION = VALORRETENCION - @xVALORRETENCION
-				 WHERE ID_RETENCIONREGFACTURACION = @tgtRETENCIONREG;
-          
+				
 				IF @@ROWCOUNT > 1 BEGIN
 				  SELECT @tgtRETENCIONREG = MAX(ID_RETENCIONREGFACTURACION)
 					FROM WSXML_SFG.RETENCIONREGFACTURACION
 				   WHERE CODREGISTROFACTURACION = @xCODREGISTROFACTDESTINO
 					 AND CODRETENCIONTRIBUTARIA = @xCODRETENCIONTRIBUTARIA
 					 AND VALORRETENCION = @xVALORRETENCION;
+					 
 				  DELETE FROM WSXML_SFG.RETENCIONREGFACTURACION
 				   WHERE ID_RETENCIONREGFACTURACION = @tgtRETENCIONREG;
 
 				END
+				ELSE
+					UPDATE WSXML_SFG.RETENCIONREGFACTURACION
+					   SET VALORRETENCION = VALORRETENCION - @xVALORRETENCION
+					 WHERE ID_RETENCIONREGFACTURACION = @tgtRETENCIONREG;
+          
 			  END;
 
-			IF @@ROWCOUNT = 0
-				RAISERROR('-20052 Critical error. Could not find registry for adjustment retention reference', 16, 1);
+			
         END;
 
       FETCH NEXT FROM retx INTO @retx__IDVALUE;
@@ -1393,12 +3008,17 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdvancedAdjustment(@p_
         ON (CODLINEADENEGOCIO = ID_LINEADENEGOCIO)
      WHERE ID_PRODUCTO = @p_CODPRODUCTO;
     BEGIN
-      SELECT @xDESTINATIONARCHIVOCNTRL = ID_ENTRADAARCHIVOCONTROL
+		SELECT @xDESTINATIONARCHIVOCNTRL = ID_ENTRADAARCHIVOCONTROL
         FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
-       WHERE REVERSADO = 0
+		WHERE REVERSADO = 0
          AND TIPOARCHIVO = @xSERVICIOPRODUCTO
          AND FECHAARCHIVO = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAINGRESOAJUSTE));
       -- Obtener registro o ingresar null
+		IF @@ROWCOUNT = 0 BEGIN
+				RAISERROR('-20050 No es posible ingresar un ajuste en la fecha debido a que no se han cargado ventas', 16, 1);
+				RETURN 0;
+		END
+				
 		BEGIN
 		
 			SELECT @xDESTINATIONREGISTROFACT = ID_REGISTROFACTURACION
@@ -1486,8 +3106,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdvancedAdjustment(@p_
 			  END;
 
 
-			IF @@ROWCOUNT = 0
-				RAISERROR('-20050 No es posible ingresar un ajuste en la fecha debido a que no se han cargado ventas', 16, 1);
+			
 		END;
 
 	 -- Ingresar registro de ajuste
@@ -1558,19 +3177,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdvancedAdjustment(@p_
 				DECLARE @valuetax         FLOAT = 0;
 			  BEGIN
 				BEGIN
-				  SELECT @recordtax = ID_RETENCIONREGFACTURACION, @valuetax = VALORRETENCION
+					SELECT @recordtax = ID_RETENCIONREGFACTURACION, @valuetax = VALORRETENCION
 					FROM WSXML_SFG.RETENCIONREGFACTURACION
-				   WHERE CODREGISTROFACTURACION = @xDESTINATIONREGISTROFACT
-					 AND CODRETENCIONTRIBUTARIA = @itax__ID_RETENCIONTRIBUTARIA;
-              
-				  SET @valuetax = ROUND(@valuetax + @itax__VALOR,0)
-				  EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_UpdateValue 
-														 @recordtax,
-														 @valuetax
-           
-				  IF @@ROWCOUNT = 0 BEGIN
-					SET @itax__VALOR = ROUND(@itax__VALOR,0)
-					EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_AddRecord 
+					WHERE CODREGISTROFACTURACION = @xDESTINATIONREGISTROFACT
+						AND CODRETENCIONTRIBUTARIA = @itax__ID_RETENCIONTRIBUTARIA;
+					
+					IF @@ROWCOUNT = 0 BEGIN
+						SET @itax__VALOR = ROUND(@itax__VALOR,0)
+						EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_AddRecord 
 														 @itax__ID_RETENCIONTRIBUTARIA,
 														 @xDESTINATIONARCHIVOCNTRL,
 														 @xDESTINATIONREGISTROFACT,
@@ -1579,6 +3193,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdvancedAdjustment(@p_
 														 @p_CODUSUARIOMODIFICACION,
 														 @recordtax OUT
 					END
+					ELSE BEGIN
+						SET @valuetax = ROUND(@valuetax + @itax__VALOR,0)
+						EXEC WSXML_SFG.SFGRETENCIONREGFACTURACION_UpdateValue @recordtax, @valuetax
+					END
+           
+				  
 				END;
 
 				SET @cntrlSUMRETENCIONES = @cntrlSUMRETENCIONES + @itax__VALOR;
@@ -1625,411 +3245,3 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdvancedAdjustment(@p_
 
 END
 GO
-
-
-
-  IF OBJECT_ID('WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdjustment', 'P') IS NOT NULL
-  DROP PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdjustment;
-GO
-
-CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEFACTURACION_CreateAdjustment(@p_FECHAINGRESOAJUSTE       DATETIME,
-                             @p_DESCRIPCION              NVARCHAR(2000),
-                             @p_CODTIPOAJUSTEFACTURACION NUMERIC(22,0),
-                             @p_NUMTRANSACCIONESAJUSTE   NUMERIC(22,0),
-                             @p_VALORTRANSACCIONAJUSTE   FLOAT,
-                             @p_FECHAREFERENCIA          DATETIME, -- En caso de ser error de producto (2), cambio de reglas de punto (3) o producto (4)
-                             @p_NUMEROREFERENCIA         NUMERIC(22,0), -- En caso de ser anulacion (1) de servicio referenciado
-                             @p_CODPUNTODEVENTA          NUMERIC(22,0), -- En caso de ser anulacion (1), punto (3) o avanzado (5)
-                             @p_CODPRODUCTO              NUMERIC(22,0), -- En caso de ser anulacion (1), reglas de producto (4) o avanzado (5)
-                             @p_CODUSUARIOMODIFICACION   NUMERIC(22,0),
-                             @p_FLETEANULACION           NUMERIC(22,0) = 0,
-                             @p_ID_AJUSTEFACTURACION_out NUMERIC(22,0) OUT) AS
- BEGIN
-    DECLARE @errmsg                NVARCHAR(2000);
-    DECLARE @limitmeasureimpuesto  WSXML_SFG.NUMBERARRAY;
-    DECLARE @limitmeasurecomision  INT = 0;
-    DECLARE @limitmeasurevat       INT = 1; -- NO CONSIDERAR CAMBIOS DE IVA DE COMISION
-    DECLARE @limitmeasureretencion WSXML_SFG.NUMBERARRAY; -- SOLO CONSIDERAR LOS CAMBIOS DE RETENCIONES DE ESTA LISTA
-
-
-   
-  SET NOCOUNT ON;
-
-   DECLARE @VENTAFACT SMALLINT, @ANULACION SMALLINT, @FREETICKT SMALLINT, @PREMIOPAG SMALLINT, @RGSTOTROS SMALLINT, @VENNOFACT SMALLINT
-
-   EXEC WSXML_SFG.SFGTIPOREGISTRO_CONSTANT
-                      @VENTAFACT OUT,
-                      @ANULACION OUT,
-					  @FREETICKT OUT,
-					  @PREMIOPAG OUT,
-					  @RGSTOTROS OUT,
-					  @VENNOFACT OUT
-
-	DECLARE @p_ANULACIONTRANSACCION INT, @p_CAMBIOPRODUCTO INT, @p_MODIFICAREGLASPUNTO INT, @p_MODIFICAREGLASALIADO INT, @p_MANUAL INT
-	EXEC WSXML_SFG.SFGAJUSTEFACTURACION_CONSTANT
-			@p_ANULACIONTRANSACCION OUTPUT, @p_CAMBIOPRODUCTO OUTPUT, @p_MODIFICAREGLASPUNTO OUTPUT, @p_MODIFICAREGLASALIADO OUTPUT, @p_MANUAL OUTPUT
-
-
-    IF @p_CODTIPOAJUSTEFACTURACION = @p_ANULACIONTRANSACCION BEGIN
-        DECLARE @cCODSERVICIO                NUMERIC(22,0);
-        DECLARE @cAGRUPAMIENTO               INT;
-        DECLARE @cCODPUNTODEVENTA            NUMERIC(22,0) = @p_CODPUNTODEVENTA;
-        DECLARE @cCODPRODUCTO                NUMERIC(22,0) = @p_CODPRODUCTO;
-        DECLARE @cCODENTRADAARCHIVOCONTROL   NUMERIC(22,0); -- Archivo transaccion original
-        DECLARE @cCODREGISTROFACTURACION     NUMERIC(22,0); -- Registro transaccion original
-        DECLARE @xNuevoENTRADAARCHIVOCONTROL NUMERIC(22,0);
-        DECLARE @xNuevoREGISTROFACTURACION   NUMERIC(22,0);
-        DECLARE @cNUMTRANSACCIONES           NUMERIC(22,0) = 1;
-        DECLARE @cVALORFINAL                 FLOAT = @p_VALORTRANSACCIONAJUSTE;
-        DECLARE @cTIPOPERSONATRIBUTARIA      NUMERIC(22,0);
-        -- Reglas a obtener
-        DECLARE @cCODRANGOCOMISION   NUMERIC(22,0);
-        DECLARE @cCODCATEGORIAPAGO   NUMERIC(22,0);
-        DECLARE @cCOMISIONANTICIPO   NUMERIC(22,0);
-        DECLARE @cVALORVAT           NUMERIC(22,0);
-        DECLARE @cCODCIUDAD          NUMERIC(22,0);
-        DECLARE @cCODREGIMEN         NUMERIC(22,0);
-        DECLARE @cCODCOMPANIA        NUMERIC(22,0);
-        DECLARE @cCODTIPOCONTRATOPDV NUMERIC(22,0);
-        DECLARE @cCODREFERENCIA      NUMERIC(22,0);
-        DECLARE @cANULADO            NUMERIC(22,0);
-        DECLARE @cFECHATRANSACCION   DATETIME;
-        DECLARE @cAJUSTESPORMONTO    NUMERIC(22,0);
-        DECLARE @cNUMEROREFERENCIA   NUMERIC(22,0);
-     
-        -- Busqueda de la referencia original / Reglas inicialmente facturadas
-        BEGIN
-          SELECT @cCODSERVICIO = ID_SERVICIO, @cAGRUPAMIENTO = AGRUPAMIENTO, @cAJUSTESPORMONTO = AJUSTESPORMONTO
-            FROM WSXML_SFG.PRODUCTO
-           INNER JOIN WSXML_SFG.TIPOPRODUCTO
-              ON (CODTIPOPRODUCTO = ID_TIPOPRODUCTO)
-           INNER JOIN WSXML_SFG.LINEADENEGOCIO
-              ON (CODLINEADENEGOCIO = ID_LINEADENEGOCIO)
-           INNER JOIN WSXML_SFG.SERVICIO
-              ON (CODSERVICIO = ID_SERVICIO)
-           WHERE ID_PRODUCTO = @p_CODPRODUCTO;
-			IF @@ROWCOUNT = 0
-            RAISERROR('-20054 No se reconoce el producto ingresado', 16, 1);
-        END;
-
-        BEGIN
-          SELECT @xNuevoENTRADAARCHIVOCONTROL = ID_ENTRADAARCHIVOCONTROL
-            FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
-           WHERE REVERSADO = 0
-             AND CONVERT(DATETIME, CONVERT(DATE,FECHAARCHIVO)) =
-                 CONVERT(DATETIME, CONVERT(DATE,@p_FECHAINGRESOAJUSTE))
-             AND TIPOARCHIVO = @cCODSERVICIO;
-			 
-			IF @@ROWCOUNT = 0
-				RAISERROR('-20054 No se puede crear el ajuste debido a que no se ha cargado el archivo correspondiente a la fecha', 16, 1);
-        END;
-
-        -- Revisar que sea un archivo facturable
-		DECLARE @newfileFACTURADO  NUMERIC(22,0);
-		DECLARE @newfileFACTURABLE NUMERIC(22,0);
-        BEGIN
-          SELECT @newfileFACTURADO = FACTURADO, @newfileFACTURABLE = ARCHIVOFACTURABLE
-            FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
-           WHERE ID_ENTRADAARCHIVOCONTROL = @xNuevoENTRADAARCHIVOCONTROL;
-          IF @newfileFACTURADO = 1 BEGIN
-            RAISERROR('-20054 No se puede ingresar un ajuste a una fecha ya facturada', 16, 1);
-          END 
-          IF @newfileFACTURABLE = 0 BEGIN
-            RAISERROR('-20055 El archivo para la fecha de ingreso fue marcada por el administrador como no facturable. Por favor pongase en contacto con este', 16, 1);
-          END 
-        END;
-
-        /*IF TRUNC(p_FECHAINGRESOAJUSTE, 'MM') <> TRUNC(SYSDATE, 'MM') THEN
-          RAISE_APPLICATION_ERROR(-20078, 'No se puede ingresar un ajuste a un mes distinto al actual');
-        END IF;*/
-
-        IF @cAGRUPAMIENTO = 0 BEGIN
-          IF @cAJUSTESPORMONTO = 0 OR @p_NUMEROREFERENCIA > 0 BEGIN
-          -- Existe la referencia. Sobreescribir el valor con el de la transaccion original
-          IF @p_NUMEROREFERENCIA IS NULL OR @p_NUMEROREFERENCIA <= 0 AND @cAJUSTESPORMONTO = 0 BEGIN
-            RAISERROR('-20058 La informacion de transaccion ingresada no es valida', 16, 1);
-          END 
-          BEGIN
-            SELECT -- Info y comision
-             @cCODENTRADAARCHIVOCONTROL = REG.CODENTRADAARCHIVOCONTROL,
-             @cCODREGISTROFACTURACION = REG.ID_REGISTROFACTURACION,
-             @cCODPUNTODEVENTA = REG.CODPUNTODEVENTA,
-             @cCODPRODUCTO = REG.CODPRODUCTO,
-             @cCODRANGOCOMISION = REG.CODRANGOCOMISION,
-             @cCODCATEGORIAPAGO = ISNULL(REG.CODCATEGORIAPAGO, 0),
-             @cCOMISIONANTICIPO = REG.COMISIONANTICIPO,
-             -- Reglas de facturacion
-             @cVALORVAT = REG.VALORVAT,
-             @cCODCIUDAD = REG.CODCIUDAD,
-             @cCODREGIMEN = REG.CODREGIMEN,
-             @cCODCOMPANIA = REG.CODCOMPANIA,
-             @cCODTIPOCONTRATOPDV = REG.CODTIPOCONTRATOPDV,
-             @cCODREFERENCIA = REF.ID_REGISTROFACTREFERENCIA,
-             @cANULADO = REF.ANULADO,
-             @cVALORFINAL = REF.VALORTRANSACCION,
-             @cFECHATRANSACCION = REF.FECHAHORATRANSACCION
-                           FROM WSXML_SFG.REGISTROFACTURACION REG
-              LEFT OUTER JOIN WSXML_SFG.REGISTROFACTREFERENCIA REF
-             --INNER JOIN REGISTROFACTREFERENCIA
-                ON (REF.CODREGISTROFACTURACION = REG.ID_REGISTROFACTURACION)
-             WHERE REG.CODTIPOREGISTRO = @VENTAFACT
-               AND REG.CODPUNTODEVENTA = @p_CODPUNTODEVENTA
-               AND REG.CODPRODUCTO = @p_CODPRODUCTO
-               AND REF.NUMEROREFERENCIA = @p_NUMEROREFERENCIA;
-            -- NO SOBREESCRIBIR VALOR
-            SET @cVALORFINAL = @p_VALORTRANSACCIONAJUSTE;
-			
-			IF @@ROWCOUNT = 0
-				RAISERROR('-20054 No se encontro la referencia ingresada, o no corresponde a la informacion suministrada', 16, 1);
-          END;
-
-          IF @cANULADO = 1 BEGIN
-            RAISERROR('-20054 No se puede anular una transaccion referenciada que ya ha sido anulada', 16, 1);
-          END 
-        END
-        ELSE BEGIN
-          BEGIN
-            SELECT -- Info y comision
-             @cCODENTRADAARCHIVOCONTROL = REG.CODENTRADAARCHIVOCONTROL,
-             @cCODREGISTROFACTURACION = REG.ID_REGISTROFACTURACION,
-             @cCODPUNTODEVENTA = REG.CODPUNTODEVENTA,
-             @cCODPRODUCTO = REG.CODPRODUCTO,
-             @cCODRANGOCOMISION = REG.CODRANGOCOMISION,
-             @cCODCATEGORIAPAGO = ISNULL(REG.CODCATEGORIAPAGO, 0),
-             @cCOMISIONANTICIPO = REG.COMISIONANTICIPO,
-             -- Reglas de facturacion
-             @cVALORVAT = REG.VALORVAT,
-             @cCODCIUDAD = REG.CODCIUDAD,
-             @cCODREGIMEN = REG.CODREGIMEN,
-             @cCODCOMPANIA = REG.CODCOMPANIA,
-             @cCODTIPOCONTRATOPDV = REG.CODTIPOCONTRATOPDV,
-             @cFECHATRANSACCION = REG.FECHATRANSACCION
-                           FROM WSXML_SFG.ENTRADAARCHIVOCONTROL CTR
-             INNER JOIN WSXML_SFG.REGISTROFACTURACION REG
-                ON (REG.CODENTRADAARCHIVOCONTROL =
-                   CTR.ID_ENTRADAARCHIVOCONTROL)
-             WHERE CTR.FECHAARCHIVO = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAREFERENCIA))
-               AND CTR.REVERSADO = 0
-               AND REG.CODTIPOREGISTRO = @VENTAFACT
-               AND REG.CODPUNTODEVENTA = @p_CODPUNTODEVENTA
-               AND REG.CODPRODUCTO = @p_CODPRODUCTO;
-			   
-			   
-			IF @@ROWCOUNT = 0
-			  RAISERROR('-20054 No se encontro la referencia ingresada, o no corresponde a la informacion suministrada', 16, 1);
-          END;
-
-          END 
-        END
-        ELSE BEGIN
-           BEGIN
-            SELECT -- Info y comision
-             @cCODENTRADAARCHIVOCONTROL = REG.CODENTRADAARCHIVOCONTROL,
-             @cCODREGISTROFACTURACION = REG.ID_REGISTROFACTURACION,
-             @cCODPUNTODEVENTA = REG.CODPUNTODEVENTA,
-             @cCODPRODUCTO = REG.CODPRODUCTO,
-             @cCODRANGOCOMISION = REG.CODRANGOCOMISION,
-             @cCODCATEGORIAPAGO = ISNULL(REG.CODCATEGORIAPAGO, 0),
-             @cCOMISIONANTICIPO = REG.COMISIONANTICIPO,
-             -- Reglas de facturacion
-             @cVALORVAT = REG.VALORVAT,
-             @cCODCIUDAD = REG.CODCIUDAD,
-             @cCODREGIMEN = REG.CODREGIMEN,
-             @cCODCOMPANIA = REG.CODCOMPANIA,
-             @cCODTIPOCONTRATOPDV = REG.CODTIPOCONTRATOPDV,
-             @cFECHATRANSACCION = REG.FECHATRANSACCION
-                           FROM WSXML_SFG.ENTRADAARCHIVOCONTROL CTR
-             INNER JOIN WSXML_SFG.REGISTROFACTURACION REG
-                ON (REG.CODENTRADAARCHIVOCONTROL =
-                   CTR.ID_ENTRADAARCHIVOCONTROL)
-             WHERE CTR.FECHAARCHIVO = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAREFERENCIA))
-               AND CTR.REVERSADO = 0
-               AND REG.CODTIPOREGISTRO = @VENTAFACT
-               AND REG.CODPUNTODEVENTA = @p_CODPUNTODEVENTA
-               AND REG.CODPRODUCTO = @p_CODPRODUCTO;
-			   
-			IF @@ROWCOUNT = 0
-				RAISERROR('-20054 No se encontro la referencia ingresada, o no corresponde a la informacion suministrada', 16, 1);
-          END;
-
-        END 
-
-        /*24 Junio 2013 -- Guillermo Ni?o -- Modificacion obtener el tipo de persona tributaria */
-        EXEC WSXML_SFG.SFGPUNTODEVENTA_GetTipoPersonaTributaria @cCODPUNTODEVENTA,@cTIPOPERSONATRIBUTARIA OUTPUT 
-        -- Calculation wise operations
-          DECLARE @xSUMIMPUESTOS       FLOAT = 0;
-          DECLARE @xRNDIMPUESTOS       FLOAT = 0;
-          DECLARE @cSUMDESCUENTOS      FLOAT = 0;
-          DECLARE @xSUMRETENCIONES     FLOAT = 0;
-          DECLARE @coutIMPUESTO        NUMERIC(22,0);
-          DECLARE @coutIMPAJUST        NUMERIC(22,0);
-          DECLARE @coutRETENCION       NUMERIC(22,0);
-          DECLARE @coutRETAJUSTE       NUMERIC(22,0);
-          DECLARE @cVALORVENTABRUTA    FLOAT;
-          DECLARE @cVALORVENTANETA     FLOAT;
-          DECLARE @cVALORCOMISION      FLOAT;
-          DECLARE @cIVACOMISION        FLOAT;
-          DECLARE @cVALORCOMISIONBRUTA FLOAT;
-          DECLARE @cVALORCOMISIONNETA  FLOAT;
-        BEGIN
-          -- Buscar / crear registro de anulacion
-		  DECLARE @l_cAGRUPAMIENTO NUMERIC(38,0) = CASE WHEN
-					@cAGRUPAMIENTO = 0
-						AND @cAJUSTESPORMONTO = 0 THEN
-				@p_NUMEROREFERENCIA ELSE 0 END
-          EXEC WSXML_SFG.SFGREGISTROFACTURACION_CreateAnullmentRecord  
-				@xNuevoENTRADAARCHIVOCONTROL,
-				@cCODREGISTROFACTURACION,
-				@cCODPUNTODEVENTA,
-				@cCODPRODUCTO,
-				@cVALORFINAL,
-				@cFECHATRANSACCION,
-				@cNUMTRANSACCIONES,
-				@cCODRANGOCOMISION,
-				@cCOMISIONANTICIPO,
-				@cCODREFERENCIA,
-				@l_cAGRUPAMIENTO,
-				@p_CODUSUARIOMODIFICACION,
-				@xNuevoREGISTROFACTURACION OUTPUT
-			   
-			-- Adjuntar descripcion de ajuste
-			EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddRecord
-				@p_DESCRIPCION,
-				@p_CODTIPOAJUSTEFACTURACION,
-				1,
-				@cVALORFINAL,
-				@cCODENTRADAARCHIVOCONTROL,
-				@cCODREGISTROFACTURACION,
-				@xNuevoENTRADAARCHIVOCONTROL,
-				@xNuevoREGISTROFACTURACION,
-				@p_CODUSUARIOMODIFICACION,
-				@p_FLETEANULACION,
-				@p_ID_AJUSTEFACTURACION_out OUTPUT
-
-
-			if @p_NUMEROREFERENCIA is not null and @p_NUMEROREFERENCIA > 0 begin
-
-					--Actualiza numeroreferencia si tiene ajuste por monto a 0
-				 select @cNUMEROREFERENCIA = CASE WHEN @cAGRUPAMIENTO = 0 AND @cAJUSTESPORMONTO = 0 THEN
-				 NUMEROREFERENCIA ELSE 0 END
-				 FROM WSXML_SFG.REGISTROFACTREFERENCIA
-				 inner join WSXML_SFG.registrofacturacion on registrofactreferencia.codregistrofacturacion = registrofactreferencia.codregistrofacturacion
-				 inner join WSXML_SFG.producto on registrofacturacion.codproducto = producto.id_producto
-				 inner join WSXML_SFG.tipoproducto on tipoproducto.id_tipoproducto = producto.codtipoproducto
-				 inner join WSXML_SFG.lineadenegocio on lineadenegocio.id_lineadenegocio = tipoproducto.codlineadenegocio
-				 inner join WSXML_SFG.servicio on lineadenegocio.codservicio = servicio.id_servicio
-				 WHERE NUMEROREFERENCIA = @p_NUMEROREFERENCIA and producto.id_producto = @p_CODPRODUCTO
-				 and registrofacturacion.codpuntodeventa = @p_CODPUNTODEVENTA and registrofacturacion.codentradaarchivocontrol = @cCODENTRADAARCHIVOCONTROL
-				 and registrofacturacion.codtiporegistro = 1;
-			end 
-			IF @cNUMEROREFERENCIA IS NOT NULL AND @cNUMEROREFERENCIA > 0 BEGIN
-              DECLARE @xOrigenReferencia  NUMERIC(22,0);
-              DECLARE @xDestinoReferencia NUMERIC(22,0);
-            
-				BEGIN
-					SELECT @xOrigenReferencia = ID_REGISTROFACTREFERENCIA
-					FROM WSXML_SFG.REGISTROFACTREFERENCIA
-					WHERE NUMEROREFERENCIA = @p_NUMEROREFERENCIA;
-					
-					SELECT @xDestinoReferencia = ID_REGISTROFACTREFERENCIA
-					FROM WSXML_SFG.REGISTROFACTREFERENCIA
-					WHERE NUMEROREFERENCIA = @p_NUMEROREFERENCIA * (-1);
-				
-					EXEC WSXML_SFG.SFGAJUSTEFACTURACION_UpdateRecordReferences
-						@p_ID_AJUSTEFACTURACION_out,
-						@xOrigenReferencia,
-						@xDestinoReferencia
-					
-				END;
-
-			END 
-
-          -- Duplicar impuestos
-			DECLARE tIMPUESTOVENTA CURSOR FOR 
-			SELECT IRF.ID_IMPUESTOREGFACTURACION,
-				IRF.CODIMPUESTO,
-				IRF.CODPRODUCTOIMPUESTO,
-				ISNULL(PIM.Valorporcentual,0) AS Valorporcentual,
-				ISNULL(PIM.Valortransaccional,0) AS Valortransaccional
-			FROM WSXML_SFG.IMPUESTOREGFACTURACION IRF
-				INNER JOIN WSXML_SFG.PRODUCTOIMPUESTO PIM ON IRF.CODPRODUCTOIMPUESTO = PIM.ID_PRODUCTOIMPUESTO
-			WHERE IRF.CODREGISTROFACTURACION = @cCODREGISTROFACTURACION
-				
-			OPEN tIMPUESTOVENTA;
-			
-			DECLARE @ID_IMPUESTOREGFACTURACION NUMERIC(38,0)
-			DECLARE @CODIMPUESTO NUMERIC(38,0)
-			DECLARE @CODPRODUCTOIMPUESTO NUMERIC(38,0)
-			DECLARE @VALORPORCENTUAL FLOAT;
-			DECLARE @VALORTRANSACCIONAL FLOAT;
-			
-			
-			
-			FETCH NEXT FROM tIMPUESTOVENTA INTO @ID_IMPUESTOREGFACTURACION, @CODIMPUESTO, @CODPRODUCTOIMPUESTO, @VALORPORCENTUAL, @VALORTRANSACCIONAL
-			--FETCH tIMPUESTOVENTA INTO;
-				 WHILE @@FETCH_STATUS=0
-		         BEGIN                             
-						DECLARE @cCODIMPUESTOREGFACTURACION NUMERIC(22,0);
-						DECLARE @cPORCENTUALVALUE FLOAT =0;
-						DECLARE @cTRANSACTIONALVALUE FLOAT =0;
-						DECLARE @cTHISIMPUESTO FLOAT = 0;
-						DECLARE @cTHISIMPUESTOROUNDED FLOAT = 0;                
-						DECLARE @cTHISBASECALC FLOAT = 0;
-						
-							--calcular la base porcenntual
-							SET @cTHISBASECALC = (@cVALORFINAL / (1 + (@VALORPORCENTUAL / 100)));
-							--calcular el valor por transccion
-							SET @cTRANSACTIONALVALUE = (@cNUMTRANSACCIONES * @VALORTRANSACCIONAL);
-							SET @cTHISIMPUESTOROUNDED =(@cNUMTRANSACCIONES * ROUND(@VALORTRANSACCIONAL,0));
-							--restar el valor por transaccion  a la base
-							SET @cTHISBASECALC = @cTHISBASECALC - @cTHISIMPUESTO;
-							--calcular el valor porcentual 
-							SET @cPORCENTUALVALUE = (@cTHISBASECALC * (@VALORPORCENTUAL / 100));
-							SET @cTHISIMPUESTOROUNDED = @cTHISIMPUESTOROUNDED +  ROUND(@cPORCENTUALVALUE,0);
-							
-							SET @cTHISIMPUESTO=@cTRANSACTIONALVALUE + @cPORCENTUALVALUE;
-							
-							EXEC WSXML_SFG.SFGIMPUESTOREGFACTURACION_AddRecord 
-													@CODIMPUESTO,
-													@CODPRODUCTOIMPUESTO,
-													@xNuevoENTRADAARCHIVOCONTROL,
-													@xNuevoREGISTROFACTURACION,
-													@ANULACION, --
-													@cTHISIMPUESTOROUNDED,
-													@p_CODUSUARIOMODIFICACION,
-													@coutIMPUESTO OUTPUT;
-													
-							EXEC WSXML_SFG.SFGAJUSTEFACTURACION_AddImpuestoRecord 
-												@p_ID_AJUSTEFACTURACION_out,
-												@CODIMPUESTO,
-												@cTHISIMPUESTOROUNDED,
-												@cTHISIMPUESTO,
-												@coutIMPAJUST OUTPUT
-												
-						  SET @xSUMIMPUESTOS = @xSUMIMPUESTOS + @cTHISIMPUESTO;
-						  SET @xRNDIMPUESTOS = @xRNDIMPUESTOS + @cTHISIMPUESTOROUNDED;
-					
-
-					FETCH NEXT FROM tIMPUESTOVENTA INTO @ID_IMPUESTOREGFACTURACION, @CODIMPUESTO, @CODPRODUCTOIMPUESTO, @VALORPORCENTUAL, @VALORTRANSACCIONAL
-				END;
-
-			CLOSE tIMPUESTOVENTA;
-			DEALLOCATE tIMPUESTOVENTA;
-	
-
-
-
-		END
-    end ELSE IF @p_CODTIPOAJUSTEFACTURACION = @p_MANUAL BEGIN
-      RAISERROR('-20060 Muy pocos argumentos para realizar un ajuste de facturacion manual', 16, 1);
-    END
-    ELSE BEGIN
-      RAISERROR('-20054 No se reconoce el tipo de ajuste', 16, 1);
-    END 
-  END;
-GO
-
-
-
-
- 
