@@ -2147,7 +2147,10 @@ GO
 
     -- Tarifas por contrato, Configuracion P y G y Costos Calculados
     --cachetarifa      := 
-    EXEC WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList @cFECHA, @p_CODPRODUCTO
+	DECLARE @getTarifaCacheList WSXML_SFG.PRODUCTTARIFA
+	
+	INSERT INTO @getTarifaCacheList
+	SELECT PARENT, CODTARIFAVALOR, VALOR FROM WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList_F(@cFECHA, @p_CODPRODUCTO)
 	
     --SET @cachetarifadif   = SFGPRODUCTOCONTRATO.GetTarifaDiferencialCacheList(@cFECHA);
 	UPDATE WSXML_SFG.PRODUCTOCONTRATOCOMDIFTARIFA
@@ -3470,7 +3473,8 @@ GO
 																							   @cachetarifadif,
 																							   @cCODPRODUCTOCONTRATO,
 																							   @cCODPRODUCTOCONTRATOCOMDIF,
-																							   @valor);
+																							   @valor,
+																							   @getTarifaCacheList);
 
 									END
 									ELSE IF @tipovalr = @p_VALORCOSTOPV BEGIN
@@ -3708,7 +3712,11 @@ GO
 
     -- Tarifas por contrato
     --cachetarifa    := 
-    EXEC WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList @cFECHA,@cCODPRODUCTO
+	DECLARE @getTarifaCacheList WSXML_SFG.PRODUCTTARIFA;
+	
+	INSERT INTO @getTarifaCacheList
+	SELECT PARENT, CODTARIFAVALOR, VALOR 
+	FROM WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList_F(@cFECHA,@cCODPRODUCTO)
 
     INSERT INTO @cachetarifadif
 	SELECT * FROM WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaDiferencialCacheList(@cFECHA);
@@ -5252,7 +5260,8 @@ GO
 																			   @cachetarifadif,
 																			   @cCODPRODUCTOCONTRATO,
 																			   @cCODPRODUCTOCONTRATOCOMDIF,
-																			   @valor);
+																			   @valor,
+																			   @getTarifaCacheList);
 					END
 					ELSE IF @tipovalr = @p_VALORCOSTOPV BEGIN
 					  IF (SELECT COUNT(*) FROM @currentcalculatedcosts) > 0 BEGIN
@@ -5437,7 +5446,11 @@ GO
 
     /* Obtener valores y revisar consistencia */
     --cachetarifa    := 
-    EXEC WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList @currentdate
+	DECLARE @getTarifaCacheList WSXML_SFG.PRODUCTTARIFA
+	
+	INSERT INTO @getTarifaCacheList
+	SELECT PARENT, CODTARIFAVALOR, VALOR 
+	FROM WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList_F(@currentdate,-1)
 
     --SET @cachetarifadif = WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaDiferencialCacheList(@currentdate);
     INSERT INTO @cachetarifadif
@@ -5738,7 +5751,8 @@ GO
 																								 @cachetarifadif,
 																								 @cCODPRODUCTOCONTRATO,
 																								 @cCODPRODUCTOCONTRATOCOMDIF,
-																								 @valor);
+																								 @valor,
+																								 @getTarifaCacheList);
 									  END
 									  ELSE IF @tipovalr = @p_VALORCOSTOPV BEGIN
 										IF (SELECT COUNT(*) FROM @currentcalculatedcosts) > 0 BEGIN
@@ -6162,7 +6176,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
 		END IF;*/
 
 		-- Tarifas por contrato
-		EXEC WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList @cFECHA
+		DECLARE @getTarifaCacheList [WSXML_SFG].[PRODUCTTARIFA]
+	
+		INSERT INTO @getTarifaCacheList
+		SELECT PARENT, CODTARIFAVALOR, VALOR 
+		FROM WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList_F(@cFECHA,-1)
 		
 		INSERT INTO @cachetarifadif
 		SELECT * FROM WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaDiferencialCacheList(@cFECHA);
@@ -8187,7 +8205,8 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
 																								 @cachetarifadif,
 																								 @cCODPRODUCTOCONTRATO,
 																								 @cCODPRODUCTOCONTRATOCOMDIF,
-																								 @valor);
+																								 @valor,
+																								 @getTarifaCacheList);
 
 									  END
 									  ELSE IF @tipovalr = @p_VALORCOSTOPV BEGIN
@@ -8379,7 +8398,11 @@ GO
 
     /* Obtener valores y revisar consistencia */
     --cachetarifa    := 
-    EXEC WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList @currentdate
+	DECLARE @getTarifaCacheList [WSXML_SFG].[PRODUCTTARIFA]
+	
+	INSERT INTO @getTarifaCacheList
+	SELECT PARENT, CODTARIFAVALOR, VALOR 
+	FROM WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList_F(@currentdate,-1)
 
     --SET @cachetarifadif = WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaDiferencialCacheList(@currentdate);
     INSERT INTO @cachetarifadif
@@ -8680,7 +8703,8 @@ GO
 																							 @cachetarifadif,
 																							 @cCODPRODUCTOCONTRATO,
 																							 @cCODPRODUCTOCONTRATOCOMDIF,
-																							 @valor);
+																							 @valor,
+																							 @getTarifaCacheList);
 								  END
 								  ELSE IF @tipovalr = @p_VALORCOSTOPV BEGIN
 									IF (SELECT COUNT(*) FROM @currentcalculatedcosts) > 0 BEGIN

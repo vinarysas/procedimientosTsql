@@ -214,7 +214,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 
     -- Tarifas por contrato
     --SET @cachetarifa = 
-	EXEC WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList @cFECHAORIGEN
+	DECLARE @getTarifaCacheList [WSXML_SFG].[PRODUCTTARIFA];
+	
+	INSERT INTO @getTarifaCacheList
+	SELECT PARENT,CODTARIFAVALOR,VALOR 
+	FROM WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaCacheList_F(@cFECHAORIGEN,-1)
 
     INSERT INTO @cachetarifadif 
 	SELECT * FROM WSXML_SFG.SFGPRODUCTOCONTRATO_GetTarifaDiferencialCacheList(@cFECHAORIGEN);
@@ -810,7 +814,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 									END
 									ELSE IF @tipovalr = @VALORTARIFAV BEGIN
 										-- se quito el parametro @cachetarifa,  porque el procedimiento lo tiene comentariado
-									  SET @actualv = WSXML_SFG.SFGPRODUCTOCONTRATO_TranslateTarifaFromMaster(@cachetarifadif, @costCODPRODUCTOCONTRATO, @costCODPRODUCTOCONTRATOCOMDIF, @valor);
+									  SET @actualv = WSXML_SFG.SFGPRODUCTOCONTRATO_TranslateTarifaFromMaster(@cachetarifadif, @costCODPRODUCTOCONTRATO, @costCODPRODUCTOCONTRATOCOMDIF, @valor, @getTarifaCacheList);
 									END
 									ELSE IF @tipovalr = @VALORCOSTOPV BEGIN
 									  IF (SELECT COUNT(*) FROM @currentcalculatedcosts) > 0 BEGIN
