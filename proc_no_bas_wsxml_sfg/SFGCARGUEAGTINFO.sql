@@ -160,34 +160,37 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
       DECLARE @curCodUsuarioModificacion NUMERIC(22,0);
     BEGIN
 		BEGIN TRY
-		  SELECT @curCodUsuarioModificacion = ID_USUARIO
+			SELECT @curCodUsuarioModificacion = ID_USUARIO
 			FROM WSXML_SFG.USUARIO
-		   WHERE ID_USUARIO = @p_CODUSUARIOMODIFICACION;
-			IF @@ROWCOUNT = 0
+			WHERE ID_USUARIO = @p_CODUSUARIOMODIFICACION;
+			
+			IF @@ROWCOUNT = 0 BEGIN
 				RAISERROR('ecINVALIDMODFUSER El usuario no existe', 16, 1);
+			END
       
 	    END TRY
 		BEGIN CATCH
-		  
-			SET @tmpERROR = 'ecINVALIDMODFUSER No se pudo verificar el usuario que accede el metodo: ' +
-									ISNULL(ERROR_MESSAGE ( ) , '');
+			SET @tmpERROR = 'ecINVALIDMODFUSER No se pudo verificar el usuario que accede el metodo: ' + ISNULL(ERROR_MESSAGE ( ) , '');
 			RAISERROR(@tmpERROR, 16, 1);
+			RETURN 0;
 		END CATCH
     END;
 
     -- Obtencion llave p_codCiudadPDV
     BEGIN
 		BEGIN TRY
-		  SELECT @p_codCiudadPDV = ID_CIUDAD
+			SELECT @p_codCiudadPDV = ID_CIUDAD
 			FROM WSXML_SFG.CIUDAD
-		   WHERE CIUDADDANE = @p_CODDANECIUDADPDV;
-		  IF @@ROWCOUNT = 0
-			RAISERROR('ecINVALIDCITYCODE El codigo de ciudad no existe', 16, 1);
+			WHERE CIUDADDANE = @p_CODDANECIUDADPDV;
+			
+			IF @@ROWCOUNT = 0 BEGIN
+				RAISERROR('ecINVALIDCITYCODE El codigo de ciudad no existe', 16, 1);
+			END
 		END TRY
 		BEGIN CATCH
-			SET @tmpERROR = 'ecINVALIDCITYCODE No se pudo verificar la ciudad: ' +
-									ISNULL(ERROR_MESSAGE ( ) , '');
+			SET @tmpERROR = 'ecINVALIDCITYCODE No se pudo verificar la ciudad: ' + ISNULL(ERROR_MESSAGE ( ) , '');
 			RAISERROR(@tmpERROR, 16, 1);
+			RETURN 0
 		END CATCH
     END;
 
@@ -211,16 +214,17 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
       BEGIN
 		BEGIN TRY
 			SELECT @keyTipoPuntoDeVenta = ID_TIPOPUNTODEVENTA
-			  FROM WSXML_SFG.TIPOPUNTODEVENTA
-			 WHERE ID_TIPOPUNTODEVENTA = @p_CODTIPOPUNTODEVENTA;
-			  IF @@ROWCOUNT = 0
-				  RAISERROR('ecINVALIDGROUPTYP El tipo de agrupamiento no existe', 16, 1);
+			FROM WSXML_SFG.TIPOPUNTODEVENTA
+			WHERE ID_TIPOPUNTODEVENTA = @p_CODTIPOPUNTODEVENTA;
+			
+			IF @@ROWCOUNT = 0 BEGIN
+				RAISERROR('ecINVALIDGROUPTYP El tipo de agrupamiento no existe', 16, 1);
+			END
 		 END TRY
 		 BEGIN CATCH
-
-				  SET @tmpERROR = 'ecINVALIDGROUPTYP No se pudo verificar el tipo de agrupamiento: ' +
-										  ISNULL(ERROR_MESSAGE ( ) , '');
-				  RAISERROR(@tmpERROR, 16, 1);
+			SET @tmpERROR = 'ecINVALIDGROUPTYP No se pudo verificar el tipo de agrupamiento: ' + ISNULL(ERROR_MESSAGE ( ) , '');
+			RAISERROR(@tmpERROR, 16, 1);
+			RETURN 0;
 		 END CATCH
       END;
       -- Verificacion y actualizacion Cadena
@@ -232,13 +236,13 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
 			FETCH curAGRUPACIONPUNTODEVENTA
 			  INTO @rowcur_ID_AGRUPACIONPUNTODEVENTA, @rowcur_NOMAGRUPACIONPUNTODEVENTA, @rowcur_CODTIPOPUNTODEVENTA, @rowcur_ID_RAZONSOCIAL, @rowcur_NOMRAZONSOCIAL, @rowcur_IDENTIFICACION, @rowcur_DIGITOVERIFICACION, @rowcur_NOMBRECONTACTO, @rowcur_EMAILCONTACTO, @rowcur_TELEFONOCONTACTO, @rowcur_DIRECCIONCONTACTO, @rowcur_CODCIUDAD, @rowcur_CODREGIMEN;
 			IF @@FETCH_STATUS = 0 BEGIN
-			  -- No existe. Insertar.
-			  EXEC WSXML_SFG.SFGAGRUPACIONPUNTODEVENTA_AddRecord @p_NOMBRECADENA,
+				-- No existe. Insertar.
+				EXEC WSXML_SFG.SFGAGRUPACIONPUNTODEVENTA_AddRecord @p_NOMBRECADENA,
 												  @p_CODIGOGTECHCADENA,
 												  @keyTipoPuntoDeVenta,
 												  @p_CODUSUARIOMODIFICACION,
 												  @p_codAgrupacionPuntoDeVenta OUT
-			  SET @p_flagNuevoAgrupacion = 1;
+				SET @p_flagNuevoAgrupacion = 1;
 			END
 			ELSE BEGIN
 			  -- Ya existe. Obtener llave y actualizar
@@ -258,9 +262,9 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
 			DEALLOCATE curAGRUPACIONPUNTODEVENTA;
 		END TRY
 		BEGIN CATCH
-			  SET @tmpERROR = 'ecUNABLECHAINDATA No se pudo actualizar los datos de la cadena: ' +
-									  ISNULL(ERROR_MESSAGE ( ), '');
+			  SET @tmpERROR = 'ecUNABLECHAINDATA No se pudo actualizar los datos de la cadena: ' + ISNULL(ERROR_MESSAGE ( ), '');
 			  RAISERROR(@tmpERROR, 16, 1);
+			  RETURN 0
 		END CATCH
       END;
     END;
@@ -278,13 +282,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
 			  FROM WSXML_SFG.REGIMEN
 			 WHERE ID_REGIMEN = @p_CODREGIMEN;
 
-			IF @@ROWCOUNT = 0
+			IF @@ROWCOUNT = 0 BEGIN
 			  RAISERROR('ecINVALIDREGIMENP El regimen no existe', 16, 1);
+			END
 		 END TRY
 		 BEGIN CATCH
-			  SET @tmpERROR = 'ecINVALIDREGIMENP No se pudo verificar el regimen: ' +
-									  ISNULL(ERROR_MESSAGE ( ), '');
+			  SET @tmpERROR = 'ecINVALIDREGIMENP No se pudo verificar el regimen: ' + ISNULL(ERROR_MESSAGE ( ), '');
 			  RAISERROR(@tmpERROR, 16, 1);
+			  RETURN 0;
 		 END CATCH
       END;
       -- Obtener llave de Ciudad Razon Social
@@ -294,13 +299,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
 			  FROM WSXML_SFG.CIUDAD
 			 WHERE CIUDADDANE = @p_CODDANECIUDADRAZONSOCIAL;
 		  
-			IF @@ROWCOUNT = 0
+			IF @@ROWCOUNT = 0 BEGIN
 			  RAISERROR('ecINVALIDCITYCODE El Codigo de ciudad no existe', 16, 1);
+			END 
 		END TRY
 		BEGIN CATCH
-			  SET @tmperror = 'ecINVALIDCITYCODE No se pudo verificar la ciudad: ' +
-									  ISNULL(ERROR_MESSAGE ( ), '');
+			  SET @tmperror = 'ecINVALIDCITYCODE No se pudo verificar la ciudad: ' + ISNULL(ERROR_MESSAGE ( ), '');
 			  RAISERROR(@tmperror, 16, 1);
+			  RETURN 0;
 		END CATCH
       END;
       -- Verificacion y actualizacion Razon Social
@@ -418,64 +424,62 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
     END;
 
     -- Segmento RutaPDV / FMR
-      DECLARE @p_codFMR NUMERIC(22,0) = 0;
+    DECLARE @p_codFMR NUMERIC(22,0) = 0;
+	
     BEGIN
-      SELECT @p_codRutaPDV = ID_RUTAPDV, @p_codFMR = ISNULL(CODFMR, 0)
+		SELECT @p_codRutaPDV = ID_RUTAPDV, @p_codFMR = ISNULL(CODFMR, 0)
         FROM WSXML_SFG.RUTAPDV
-       WHERE NOMRUTAPDV = RTRIM(LTRIM(@p_RUTA));
-      -- Check if the FMR must be updated
-        DECLARE @newcodFMR NUMERIC(22,0) = 0;
-      BEGIN
-        SELECT @newcodFMR = ID_FMR
-          FROM WSXML_SFG.FMR
-         WHERE CODIGOGTECHFMR = RTRIM(LTRIM(@p_CODIGOFMR));
-        IF @newcodFMR <> @p_codFMR BEGIN
-          UPDATE WSXML_SFG.RUTAPDV
-             SET CODFMR = @newcodFMR
-           WHERE ID_RUTAPDV = @p_codRutaPDV;
-        END 
-		IF @@ROWCOUNT = 0 BEGIN
-				SET @p_CODIGOFMR = RTRIM(LTRIM(@p_CODIGOFMR))
-			  EXEC WSXML_SFG.SFGFMR_AddFMRRecord @p_CODIGOFMR,
-								  @p_FMR,
-								  @p_CODUSUARIOMODIFICACION,
-								  @newcodFMR OUT
-			  UPDATE WSXML_SFG.RUTAPDV
-				 SET CODFMR = @newcodFMR
-			   WHERE ID_RUTAPDV = @p_codRutaPDV;
-		END
-      END;
-
+		WHERE NOMRUTAPDV = RTRIM(LTRIM(@p_RUTA));
+		
 		IF @@ROWCOUNT = 0 
 		BEGIN
 			BEGIN TRY
 			
 				BEGIN
-				  SELECT @p_codFMR = ID_FMR
+					SELECT @p_codFMR = ID_FMR
 					FROM WSXML_SFG.FMR
-				   WHERE CODIGOGTECHFMR = RTRIM(LTRIM(@p_CODIGOFMR));
+					WHERE CODIGOGTECHFMR = RTRIM(LTRIM(@p_CODIGOFMR));
+					
 					IF @@ROWCOUNT = 0 BEGIN
 						SET @p_CODIGOFMR = RTRIM(LTRIM(@p_CODIGOFMR))
-						EXEC WSXML_SFG.SFGFMR_AddFMRRecord @p_CODIGOFMR,
-											@p_FMR,
-											@p_CODUSUARIOMODIFICACION,
-											@p_codFMR OUT
+						EXEC WSXML_SFG.SFGFMR_AddFMRRecord @p_CODIGOFMR, @p_FMR,  @p_CODUSUARIOMODIFICACION,  @p_codFMR OUT
 					END
 				END;
 
 				SET @p_RUTA = RTRIM(LTRIM(@p_RUTA))
-				EXEC WSXML_SFG.SFGRUTAPDV_AddRecord @p_RUTA,
-									 @p_codFMR,
-									 @p_CODUSUARIOMODIFICACION,
-									 @p_codRutaPDV OUT
+				EXEC WSXML_SFG.SFGRUTAPDV_AddRecord @p_RUTA,  @p_codFMR, @p_CODUSUARIOMODIFICACION, @p_codRutaPDV OUT
 			END TRY
 			BEGIN CATCH
-
-				SET  @tmpERROR = 'ecUNABLEROUTECREA No se pudo verificar la ruta: ' +
-										ISNULL(ERROR_MESSAGE ( ), '');
+				SET  @tmpERROR = 'ecUNABLEROUTECREA No se pudo verificar la ruta: ' + ISNULL(ERROR_MESSAGE ( ), '');
 				RAISERROR(@tmpERROR, 16, 1);
 			END CATCH
 		END
+		
+		-- Check if the FMR must be updated
+        DECLARE @newcodFMR NUMERIC(22,0) = 0;
+		BEGIN
+		  
+			SELECT @newcodFMR = ID_FMR
+			FROM WSXML_SFG.FMR
+			WHERE CODIGOGTECHFMR = RTRIM(LTRIM(@p_CODIGOFMR));
+			 
+			IF @@ROWCOUNT = 0 BEGIN
+				SET @p_CODIGOFMR = RTRIM(LTRIM(@p_CODIGOFMR))
+				EXEC WSXML_SFG.SFGFMR_AddFMRRecord @p_CODIGOFMR, @p_FMR, @p_CODUSUARIOMODIFICACION, @newcodFMR OUT
+				
+				UPDATE WSXML_SFG.RUTAPDV SET CODFMR = @newcodFMR WHERE ID_RUTAPDV = @p_codRutaPDV;
+			END ELSE BEGIN
+			
+				IF @newcodFMR <> @p_codFMR BEGIN
+					UPDATE WSXML_SFG.RUTAPDV
+					SET CODFMR = @newcodFMR
+					WHERE ID_RUTAPDV = @p_codRutaPDV;
+				END 
+			END
+			
+		END;
+
+		
     END;
 
 
@@ -485,36 +489,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
     -- Segmento Regional / Jefe Distrito
       DECLARE @p_codJefeDistrito NUMERIC(22,0) = 0;
     BEGIN
-      SELECT @p_codRegional = ID_REGIONAL, @p_codJefeDistrito = ISNULL(CODJEFEDISTRITO, 0)
-        FROM WSXML_SFG.REGIONAL
-       WHERE NOMREGIONAL = @p_REGIONAL;
-      -- Check if the Jefe Distrito must be updated
-        DECLARE @newcodJefeDistrito NUMERIC(22,0) = 0;
-      BEGIN
-        SELECT @newcodJefeDistrito = ID_JEFEDISTRITO
-          FROM WSXML_SFG.JEFEDISTRITO
-         WHERE CODIGOGTECHJEFEDISTRITO = RTRIM(LTRIM(@p_CODIGOJEFEDISTRITO));
-        IF @newcodJefeDistrito <> @p_codJefeDistrito BEGIN
-          UPDATE WSXML_SFG.REGIONAL
-             SET CODJEFEDISTRITO = @newcodJefeDistrito
-           WHERE ID_REGIONAL = @p_codRegional;
-        END 
-		IF @@ROWCOUNT   = 0 BEGIN
-			SET @p_CODIGOJEFEDISTRITO = RTRIM(LTRIM(@p_CODIGOJEFEDISTRITO))
-			EXEC WSXML_SFG.SFGJEFEDISTRITO_AddJefeRecord @p_CODIGOJEFEDISTRITO,
-										@p_JEFEDISTRITO,
-										@p_CODUSUARIOMODIFICACION,
-										@newcodJefeDistrito OUT
-			UPDATE WSXML_SFG.REGIONAL
-				SET CODJEFEDISTRITO = @newcodJefeDistrito
-			WHERE ID_REGIONAL = @p_codRegional;
-		END
-      END;
-
 		BEGIN TRY
-
+			SELECT @p_codRegional = ID_REGIONAL, @p_codJefeDistrito = ISNULL(CODJEFEDISTRITO, 0)
+			FROM WSXML_SFG.REGIONAL
+			WHERE NOMREGIONAL = @p_REGIONAL;
+			
 			IF @@ROWCOUNT   = 0 
-			BEGIN
 			BEGIN
 				SELECT @p_codJefeDistrito = ID_JEFEDISTRITO
 				FROM WSXML_SFG.JEFEDISTRITO
@@ -526,21 +506,46 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
 													@p_CODUSUARIOMODIFICACION,
 													@p_codJefeDistrito OUT
 				END
-			END;
+			
 
-			DEClARE @l_nombreregional varchar(2000) = RTRIM(LTRIM(@p_REGIONAL))
-			EXEC WSXML_SFG.SFGREGIONAL_AddRecord   @l_nombreregional,
+				DEClARE @l_nombreregional varchar(2000) = RTRIM(LTRIM(@p_REGIONAL))
+				EXEC WSXML_SFG.SFGREGIONAL_AddRecord   @l_nombreregional,
 									@p_codJefeDistrito,
 									@p_CODUSUARIOMODIFICACION,
 									@p_codRegional OUT
 			END
+			
+			-- Check if the Jefe Distrito must be updated
+			DECLARE @newcodJefeDistrito NUMERIC(22,0) = 0;
+			BEGIN
+				SELECT @newcodJefeDistrito = ID_JEFEDISTRITO
+				FROM WSXML_SFG.JEFEDISTRITO
+				WHERE CODIGOGTECHJEFEDISTRITO = RTRIM(LTRIM(@p_CODIGOJEFEDISTRITO));
+				
+				IF @@ROWCOUNT   = 0 BEGIN
+					SET @p_CODIGOJEFEDISTRITO = RTRIM(LTRIM(@p_CODIGOJEFEDISTRITO))
+					EXEC WSXML_SFG.SFGJEFEDISTRITO_AddJefeRecord @p_CODIGOJEFEDISTRITO,
+												@p_JEFEDISTRITO,
+												@p_CODUSUARIOMODIFICACION,
+												@newcodJefeDistrito OUT
+					UPDATE WSXML_SFG.REGIONAL
+						SET CODJEFEDISTRITO = @newcodJefeDistrito
+					WHERE ID_REGIONAL = @p_codRegional;
+				END ELSE BEGIN
+					IF @newcodJefeDistrito <> @p_codJefeDistrito BEGIN
+					  UPDATE WSXML_SFG.REGIONAL
+						 SET CODJEFEDISTRITO = @newcodJefeDistrito
+					   WHERE ID_REGIONAL = @p_codRegional;
+					END 
+				END
+			END;
+			
 		END TRY
 		BEGIN CATCH
-		  
-			SET @tmpERROR = 'ecUNABLEROUTECREA No se pudo verificar la regional: ' +
-									ISNULL(ERROR_MESSAGE ( ) , '') ;
+			SET @tmpERROR = 'ecUNABLEROUTECREA No se pudo verificar la regional: ' + ISNULL(ERROR_MESSAGE ( ) , '') ;
 			RAISERROR(@tmpERROR, 16, 1);
-			END CATCH
+			RETURN 0;
+		END CATCH
     END;
 
 	 -- El procedimiento no existe
@@ -549,17 +554,18 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
     -- Segmento Red
     BEGIN
 		BEGIN TRY
-		  SELECT @p_codRedPDV = ID_REDPDV
+			SELECT @p_codRedPDV = ID_REDPDV
 			FROM WSXML_SFG.REDPDV
-		   WHERE NOMREDPDV = @p_RED;
+			WHERE NOMREDPDV = @p_RED;
     
 			-- Al procedimiento le hace falta un parametro: p_codcanalnegocio
-		  --IF @@ROWCOUNT  = 0
-		--EXEC WSXML_SFG.SFGREDPDV_AddRecord  @p_RED, @p_CODUSUARIOMODIFICACION, @p_codRedPDV OUT
+			--IF @@ROWCOUNT  = 0
+			--EXEC WSXML_SFG.SFGREDPDV_AddRecord  @p_RED, @p_CODUSUARIOMODIFICACION, @p_codRedPDV OUT
 		 END TRY
 		 BEGIN CATCH
 			SET @tmpERROR = 'ecUNABLENETWORKCR No se pudo verificar la red: ' + ISNULL(ERROR_MESSAGE ( ) , '');
 			RAISERROR(@tmpERROR, 16, 1);
+			RETURN 0
 		 END CATCH
     END
 
@@ -569,19 +575,18 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
 		  SELECT @p_codTipoNegocio = ID_TIPONEGOCIO
 			FROM WSXML_SFG.TIPONEGOCIO
 		   WHERE NOMTIPONEGOCIO = @p_TIPONEGOCIO;
-			if @@ROWCOUNT   = 0 BEGIN
+			IF @@ROWCOUNT   = 0 BEGIN
 				IF @p_TIPONEGOCIO IS NOT NULL BEGIN
 				  EXEC WSXML_SFG.SFGTIPONEGOCIO_AddRecord @p_TIPONEGOCIO,
 										   @p_CODUSUARIOMODIFICACION,
 										   @p_codTipoNegocio OUT
 				END 
-			end
+			END
 		END TRY
 		BEGIN CATCH
-
-			SET @tmpERROR = 'ecUNABLEBUSINESST No se pudo verificar el tipo de negocio: ' +
-									ISNULL(ERROR_MESSAGE() , '');
+			SET @tmpERROR = 'ecUNABLEBUSINESST No se pudo verificar el tipo de negocio: ' + ISNULL(ERROR_MESSAGE() , '');
 			RAISERROR(@tmpERROR, 16, 1);
+			RETURN 0
 		END CATCH
     END;
 
@@ -594,38 +599,34 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
     
 			IF @@ROWCOUNT  = 0 BEGIN
 				IF @p_TIPOESTACION IS NOT NULL BEGIN
-				  EXEC WSXML_SFG.SFGTIPOESTACION_AddRecord @p_TIPOESTACION,
-											@p_CODUSUARIOMODIFICACION,
-											@p_codTipoEstacion OUT
+				  EXEC WSXML_SFG.SFGTIPOESTACION_AddRecord @p_TIPOESTACION, @p_CODUSUARIOMODIFICACION, @p_codTipoEstacion OUT
 				END
 			END 
 		END TRY
 		BEGIN CATCH
-			SET @tmpERROR = 'ecUNABLESTATIONTY No se pudo verificar el tipo de estacion: ' +
-									ISNULL(ERROR_MESSAGE ( ) , '');
+			SET @tmpERROR = 'ecUNABLESTATIONTY No se pudo verificar el tipo de estacion: ' + ISNULL(ERROR_MESSAGE ( ) , '');
 			RAISERROR(@tmpERROR, 16, 1);
+			RETURN 0;
 		END CATCH
     END;
 
     -- Obtencion de llave TipoTerminal
     BEGIN
 		BEGIN TRY
-		  SELECT @p_codTipoTerminal = ID_TIPOTERMINAL
+			SELECT @p_codTipoTerminal = ID_TIPOTERMINAL
 			FROM WSXML_SFG.TIPOTERMINAL
-		   WHERE NOMTIPOTERMINAL = @p_TIPOTERMINAL;
+			WHERE NOMTIPOTERMINAL = @p_TIPOTERMINAL;
     
 			IF @@ROWCOUNT   = 0 BEGIN
 				IF @p_TIPOTERMINAL IS NOT NULL BEGIN
-				  EXEC WSXML_SFG.SFGTIPOTERMINAL_AddRecord @p_TIPOTERMINAL,
-											@p_CODUSUARIOMODIFICACION,
-											@p_codTipoTerminal OUT
+				  EXEC WSXML_SFG.SFGTIPOTERMINAL_AddRecord @p_TIPOTERMINAL, @p_CODUSUARIOMODIFICACION, @p_codTipoTerminal OUT
 				END 
 			END
 		END TRY
 		BEGIN CATCH
-				SET @tmpERROR = 'ecUNABLETERMNTYPE No se pudo verificar el tipo de terminal: ' +
-										ISNULL(ERROR_MESSAGE ( ) , '');
+				SET @tmpERROR = 'ecUNABLETERMNTYPE No se pudo verificar el tipo de terminal: ' + ISNULL(ERROR_MESSAGE ( ) , '');
 				RAISERROR(@tmpERROR, 16, 1);
+				RETURN 0;
 		END CATCH
     END;
 
@@ -639,17 +640,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias(@p_CODDAN
 	
 			IF @@ROWCOUNT   = 0 BEGIN
 				IF @p_PUERTOTERMINAL IS NOT NULL BEGIN
-				  EXEC WSXML_SFG.SFGPUERTOTERMINAL_AddRecord   @p_PUERTOTERMINAL,
-											  @p_CODUSUARIOMODIFICACION,
-											  @p_codPuertoTerminal OUT
+				  EXEC WSXML_SFG.SFGPUERTOTERMINAL_AddRecord   @p_PUERTOTERMINAL, @p_CODUSUARIOMODIFICACION, @p_codPuertoTerminal OUT
 				END 
 			END
 		END TRY
 		BEGIN CATCH
-				SET @tmpERROR = 'ecUNABLEPRTTERMIN No se pudo crear la llave de puerto terminal: ' +
-									 ISNULL(ERROR_MESSAGE ( ) , '');
+				SET @tmpERROR = 'ecUNABLEPRTTERMIN No se pudo crear la llave de puerto terminal: ' + ISNULL(ERROR_MESSAGE ( ) , '');
 				RAISERROR(@tmpERROR, 16, 1);
-
+				RETURN 0;
 		END CATCH
 			
 			
@@ -728,15 +726,16 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_InsertUpdatePuntoDeVenta(@p_CODI
     -- Verificar consistencias
 
 
-	begin
+	BEGIN
 	-- Call the procedure
 		SET  @msg  =  'Sincronizando punto de venta : ' + ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '')
 		EXEC WSXML_SFG.sfgtmptrace_tracelog @msg
-	end;
+	END
 
     BEGIN
 		DECLARE @l_COALESCE VARCHAR(2000) =  COALESCE(@p_NOMBRERAZONSOCIAL,@p_NOMPUNTODEVENTA)
-      EXEC WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias 
+		
+		EXEC WSXML_SFG.SFGCARGUEAGTINFO_VerificarConsistencias 
 							 @p_CODDANECIUDADPDV,
                              @p_CODIGOGTECHCADENA,
                              @p_NOMBRECADENA,
@@ -788,137 +787,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_InsertUpdatePuntoDeVenta(@p_CODI
     END 
 
     -- Realizar la insercion del punto de venta
-      DECLARE @currentACTIVE NUMERIC(22,0);
+	DECLARE @currentACTIVE NUMERIC(22,0);
     BEGIN
 
-		  SELECT @p_ID_PUNTODEVENTA_out = ID_PUNTODEVENTA, @currentACTIVE = ACTIVE
-			FROM WSXML_SFG.PUNTODEVENTA
-		   WHERE CODIGOGTECHPUNTODEVENTA = @p_CODIGOGTECHPUNTODEVENTA;
-		  -- Asignar flag de actualizacion: Punto ya existente
-		  SET @flagActualizacion = 1;
-		  -- Verificar si cambia alguna de las reglas designadas para plantilla
-			DECLARE @prevCODCIUDAD                 NUMERIC(22,0);
-			DECLARE @prevCODAGRUPACIONPUNTODEVENTA NUMERIC(22,0);
-			DECLARE @prevCODREDPDV                 NUMERIC(22,0);
-			DECLARE @prevCODRAZONSOCIAL            NUMERIC(22,0);
-		  BEGIN
-			SELECT @prevCODCIUDAD = CODCIUDAD,
-				   @prevCODAGRUPACIONPUNTODEVENTA = CODAGRUPACIONPUNTODEVENTA,
-				   @prevCODREDPDV = CODREDPDV,
-				   @prevCODRAZONSOCIAL = CODRAZONSOCIAL
-					   FROM WSXML_SFG.PUNTODEVENTA
-			 WHERE ID_PUNTODEVENTA = @p_ID_PUNTODEVENTA_out;
-			IF @prevCODCIUDAD <> @newcodCiudadPDV OR
-			   @prevCODAGRUPACIONPUNTODEVENTA <> @newcodAgrupacionPuntoDeVenta OR
-			   @prevCODREDPDV <> @newcodRedPDV BEGIN
-			  SET @flagReglasCambioPlantilla = 1;
-			END 
-			IF @@ROWCOUNT = 0 BEGIN
-					  SET @tmpERROR = 'ecNONEXISTANTCPDV El punto de venta ' +
-											  ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') +
-											  ' no existe: ' + ISNULL(ERROR_MESSAGE ( ), '');
-					  RAISERROR(@tmpERROR, 16, 1);
-					END 
-		  END;
-		  -- Actualizar informacion
-		  BEGIN
-			BEGIN TRY
-
-				DECLARE @p_TIPOINFORMATIVO TINYINT, @p_TIPOERROR TINYINT, @p_TIPOADVERTENCIA TINYINT,@p_TIPOCUALQUIERA TINYINT,
-					@p_PROCESONOTIFICACION TINYINT, @p_ESTADOABIERTA TINYINT, @p_ESTADOCERRADA TINYINT
-			
-				EXEC WSXML_SFG.SFGALERTA_CONSTANT 
-					@p_TIPOINFORMATIVO OUT, @p_TIPOERROR OUT, @p_TIPOADVERTENCIA OUT,
-					@p_TIPOCUALQUIERA OUT, @p_PROCESONOTIFICACION OUT, @p_ESTADOABIERTA OUT,
-					@p_ESTADOCERRADA OUT
-				IF @currentACTIVE = 0 AND @p_ACTIVE = 1 BEGIN
-					SET @msg =  'Se esta reactivando el punto de venta ' +  ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') + ' (' + FORMAT(GETDATE(), 'MON dd/yy HH:mm') + ')'
-					EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOINFORMATIVO, 'REACTIVAPDV', @msg , 1
-				  COMMIT;
-				END 
-				EXEC WSXML_SFG.SFGPUNTODEVENTA_UpdateRecord @p_ID_PUNTODEVENTA_out,
-											 @p_CODIGOGTECHPUNTODEVENTA,
-											 @p_NUMEROTERMINAL,
-											 @p_NOMPUNTODEVENTA,
-											 @newcodCiudadPDV,
-											 @p_TELEFONOPUNTODEVENTA,
-											 @p_DIRECCIONPUNTODEVENTA,
-											 @p_CODREGIMEN,
-											 @p_IDENTIFICACION,
-											 @p_DIGITOVERIFICACION,
-											 @newcodAgrupacionPuntoDeVenta,
-											 @newcodRazonSocial,
-											 @p_CODUSUARIOMODIFICACION,
-											 @p_ACTIVE
-				-- Si la cadena es nueva, actualizar cabeza de todas maneras
-				IF @flagNuevoAgrupacion = 1 BEGIN
-				  UPDATE WSXML_SFG.AGRUPACIONPUNTODEVENTA
-					 SET CODPUNTODEVENTACABEZA = @p_ID_PUNTODEVENTA_out,
-						 FECHAHORAMODIFICACION = GETDATE()
-				   WHERE ID_AGRUPACIONPUNTODEVENTA = @newcodAgrupacionPuntoDeVenta;
-				END 
-			END TRY
-			BEGIN CATCH
-				begin
-					SET @tmpERROR = 'Error sincronizando punto de venta : ' + ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') +', Error:'+ ISNULL(@tmpERROR, '')
-					-- Call the procedure
-					EXEC WSXML_SFG.sfgtmptrace_tracelog @tmpERROR;
-				end;
-				SET @tmpERROR = 'ecUNABLEBASICDPDV No se pudo actualizar los datos basicos del punto de venta: ' +
-											ISNULL(ERROR_MESSAGE ( ), '');
-				RAISERROR(@tmpERROR, 16, 1);
-			END CATCH
-		  END;
-		  -- Actualizacion de datos tecnicos y llaves
-		  --Se cambio p_PUERTOTERMINAL de newp_PUERTOTERMINAL
-		  BEGIN
-				BEGIN TRY
-				EXEC WSXML_SFG.SFGPUNTODEVENTA_UpdateDatosTecnicos @p_ID_PUNTODEVENTA_out,
-													@newcodTipoNegocio,
-													@newcodTipoEstacion,
-													@newcodTipoTerminal,
-													@newcodPuertoTerminal,
-													@p_NUMEROLINEA,
-													@p_NUMERODROP,
-													@p_NOMBRENODO,
-													@p_ADDRESSNODO,
-													@newcodPuertoTerminal,
-													@newcodRutaPDV,
-													@newcodRegional,
-													@newcodRedPDV,
-													@p_CODUSUARIOMODIFICACION
-				END TRY
-				BEGIN CATCH
+		SELECT @p_ID_PUNTODEVENTA_out = ID_PUNTODEVENTA, @currentACTIVE = ACTIVE
+		FROM WSXML_SFG.PUNTODEVENTA
+		WHERE CODIGOGTECHPUNTODEVENTA = @p_CODIGOGTECHPUNTODEVENTA;
 		
-					   begin
-						-- Call the procedure
-							SET @tmpERROR = 'Error sincronizando punto de venta : ' + ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') +', Error:'+ ISNULL(@tmpERROR, '')
-						EXEC WSXML_SFG.sfgtmptrace_tracelog @tmpERROR 
-					  end;
-					SET @tmpERROR = 'ecUNABLETECHNCPDV No se pudo actualizar los datos tecnicos del punto de venta: ' +
-										  ISNULL(ERROR_MESSAGE ( ), '')
-				  RAISERROR(@tmpERROR, 16, 1);
-				END CATCH
-		  END;
-		  -- Establecimiento de cabecera en la cadena
-		  IF @p_ISCABEZA = 1
-			BEGIN
-				BEGIN TRY
-				  EXEC WSXML_SFG.SFGAGRUPACIONPUNTODEVENTA_UpdateCabeza @newcodAgrupacionPuntoDeVenta, @p_ID_PUNTODEVENTA_out
-				END TRY
-				BEGIN CATCH
-					
-						begin
-							-- Call the procedure
-								SET @tmpERROR = 'Error sincronizando punto de venta : ' + ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') +', Error:'+ ISNULL(@tmpERROR, '')
-							EXEC WSXML_SFG.sfgtmptrace_tracelog @tmpERROR;
-						  end;
-						  SET @tmpERROR = 'ecUNABLEHEADCHAIN No se pudo actualizar la informacion de cabeza de la cadena: ' +
-												ISNULL(ERROR_MESSAGE ( ), '')
-						RAISERROR(@tmpERROR, 16, 1);
-				END CATCH
-			END;
-		  
+		
 		IF @@ROWCOUNT = 0 
 		BEGIN
 			-- Insertar punto de venta
@@ -1003,7 +879,132 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_InsertUpdatePuntoDeVenta(@p_CODI
 					  RAISERROR(@tmpERROR, 16, 1);
 				END CATCH
 			  END;
-        END
+        END ELSE 
+		BEGIN
+			  -- Asignar flag de actualizacion: Punto ya existente
+			SET @flagActualizacion = 1;
+			  -- Verificar si cambia alguna de las reglas designadas para plantilla
+			DECLARE @prevCODCIUDAD                 NUMERIC(22,0);
+			DECLARE @prevCODAGRUPACIONPUNTODEVENTA NUMERIC(22,0);
+			DECLARE @prevCODREDPDV                 NUMERIC(22,0);
+			DECLARE @prevCODRAZONSOCIAL            NUMERIC(22,0);
+			BEGIN
+				SELECT @prevCODCIUDAD = CODCIUDAD,
+					   @prevCODAGRUPACIONPUNTODEVENTA = CODAGRUPACIONPUNTODEVENTA,
+					   @prevCODREDPDV = CODREDPDV,
+					   @prevCODRAZONSOCIAL = CODRAZONSOCIAL
+						   FROM WSXML_SFG.PUNTODEVENTA
+				 WHERE ID_PUNTODEVENTA = @p_ID_PUNTODEVENTA_out;
+				 
+				IF @@ROWCOUNT = 0 BEGIN
+					SET @tmpERROR = 'ecNONEXISTANTCPDV El punto de venta ' + ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') + ' no existe: ' + ISNULL(ERROR_MESSAGE ( ), '');
+					RAISERROR(@tmpERROR, 16, 1);
+				END ELSE BEGIN
+					IF @prevCODCIUDAD <> @newcodCiudadPDV OR
+					   @prevCODAGRUPACIONPUNTODEVENTA <> @newcodAgrupacionPuntoDeVenta OR
+					   @prevCODREDPDV <> @newcodRedPDV BEGIN
+					  SET @flagReglasCambioPlantilla = 1;
+					END 
+				END
+			END;
+			  -- Actualizar informacion
+			BEGIN
+				BEGIN TRY
+					BEGIN TRANSACTION
+
+					DECLARE @p_TIPOINFORMATIVO TINYINT, @p_TIPOERROR TINYINT, @p_TIPOADVERTENCIA TINYINT,@p_TIPOCUALQUIERA TINYINT,
+						@p_PROCESONOTIFICACION TINYINT, @p_ESTADOABIERTA TINYINT, @p_ESTADOCERRADA TINYINT
+				
+					EXEC WSXML_SFG.SFGALERTA_CONSTANT 
+						@p_TIPOINFORMATIVO OUT, @p_TIPOERROR OUT, @p_TIPOADVERTENCIA OUT,
+						@p_TIPOCUALQUIERA OUT, @p_PROCESONOTIFICACION OUT, @p_ESTADOABIERTA OUT,
+						@p_ESTADOCERRADA OUT
+					IF @currentACTIVE = 0 AND @p_ACTIVE = 1 BEGIN
+						SET @msg =  'Se esta reactivando el punto de venta ' +  ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') + ' (' + FORMAT(GETDATE(), 'MON dd/yy HH:mm') + ')'
+						EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOINFORMATIVO, 'REACTIVAPDV', @msg , 1
+						COMMIT TRANSACTION;
+					END 
+					EXEC WSXML_SFG.SFGPUNTODEVENTA_UpdateRecord @p_ID_PUNTODEVENTA_out,
+												 @p_CODIGOGTECHPUNTODEVENTA,
+												 @p_NUMEROTERMINAL,
+												 @p_NOMPUNTODEVENTA,
+												 @newcodCiudadPDV,
+												 @p_TELEFONOPUNTODEVENTA,
+												 @p_DIRECCIONPUNTODEVENTA,
+												 @p_CODREGIMEN,
+												 @p_IDENTIFICACION,
+												 @p_DIGITOVERIFICACION,
+												 @newcodAgrupacionPuntoDeVenta,
+												 @newcodRazonSocial,
+												 @p_CODUSUARIOMODIFICACION,
+												 @p_ACTIVE
+					-- Si la cadena es nueva, actualizar cabeza de todas maneras
+					IF @flagNuevoAgrupacion = 1 BEGIN
+						UPDATE WSXML_SFG.AGRUPACIONPUNTODEVENTA
+						SET CODPUNTODEVENTACABEZA = @p_ID_PUNTODEVENTA_out,
+							 FECHAHORAMODIFICACION = GETDATE()
+						WHERE ID_AGRUPACIONPUNTODEVENTA = @newcodAgrupacionPuntoDeVenta;
+					END 
+				END TRY
+				BEGIN CATCH
+					BEGIN
+						SET @tmpERROR = 'Error sincronizando punto de venta : ' + ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') +', Error:'+ ISNULL(@tmpERROR, '')
+						-- Call the procedure
+						EXEC WSXML_SFG.sfgtmptrace_tracelog @tmpERROR;
+					END
+					SET @tmpERROR = 'ecUNABLEBASICDPDV No se pudo actualizar los datos basicos del punto de venta: ' + ISNULL(ERROR_MESSAGE ( ), '');
+					RAISERROR(@tmpERROR, 16, 1);
+				END CATCH
+			END;
+			  -- Actualizacion de datos tecnicos y llaves
+			  --Se cambio p_PUERTOTERMINAL de newp_PUERTOTERMINAL
+			BEGIN
+				BEGIN TRY
+				EXEC WSXML_SFG.SFGPUNTODEVENTA_UpdateDatosTecnicos @p_ID_PUNTODEVENTA_out,
+						@newcodTipoNegocio,
+						@newcodTipoEstacion,
+						@newcodTipoTerminal,
+						@newcodPuertoTerminal,
+						@p_NUMEROLINEA,
+						@p_NUMERODROP,
+						@p_NOMBRENODO,
+						@p_ADDRESSNODO,
+						@newcodPuertoTerminal,
+						@newcodRutaPDV,
+						@newcodRegional,
+						@newcodRedPDV,
+						@p_CODUSUARIOMODIFICACION
+				END TRY
+				BEGIN CATCH
+		
+					BEGIN
+						-- Call the procedure
+						SET @tmpERROR = 'Error sincronizando punto de venta : ' + ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') +', Error:'+ ISNULL(@tmpERROR, '')
+						EXEC WSXML_SFG.sfgtmptrace_tracelog @tmpERROR 
+					END;
+					SET @tmpERROR = 'ecUNABLETECHNCPDV No se pudo actualizar los datos tecnicos del punto de venta: ' + ISNULL(ERROR_MESSAGE ( ), '')
+					RAISERROR(@tmpERROR, 16, 1);
+				END CATCH
+			END
+			
+			-- Establecimiento de cabecera en la cadena
+			IF @p_ISCABEZA = 1
+			BEGIN
+				BEGIN TRY
+					EXEC WSXML_SFG.SFGAGRUPACIONPUNTODEVENTA_UpdateCabeza @newcodAgrupacionPuntoDeVenta, @p_ID_PUNTODEVENTA_out
+				END TRY
+				BEGIN CATCH
+					BEGIN
+						-- Call the procedure
+						SET @tmpERROR = 'Error sincronizando punto de venta : ' + ISNULL(@p_CODIGOGTECHPUNTODEVENTA, '') +', Error:'+ ISNULL(@tmpERROR, '')
+						EXEC WSXML_SFG.sfgtmptrace_tracelog @tmpERROR;
+					END
+					SET @tmpERROR = 'ecUNABLEHEADCHAIN No se pudo actualizar la informacion de cabeza de la cadena: ' + ISNULL(ERROR_MESSAGE ( ), '')
+					RAISERROR(@tmpERROR, 16, 1);
+				END CATCH
+			END
+		END 
+		
     END;
 
     /* TRAMPA DE PLANTILLAS. Aplica cuando es nuevo, o actualizado y ha cambiado alguna de las reglas de plantillas */
@@ -1152,8 +1153,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_InsertUpdatePuntoDeVenta(@p_CODI
           BEGIN
 		  
             SET @msg = ERROR_MESSAGE ( );
-            SET @msg = isnull(@msg, '') + '. Trampa de plantilla para PDV: ' +
-                   ISNULL(WSXML_SFG.PUNTODEVENTA_CODIGO_F(@p_ID_PUNTODEVENTA_out), '');
+            SET @msg = isnull(@msg, '') + '. Trampa de plantilla para PDV: ' + ISNULL(CONVERT(VARCHAR,WSXML_SFG.PUNTODEVENTA_CODIGO_F(@p_ID_PUNTODEVENTA_out)), '');
             EXEC WSXML_SFG.sfgtmptrace_tracelog_1 @msg, 'CARGUEAGTINFO_TEMPLATE_INS'
           END;
 		END CATCH
@@ -1174,29 +1174,31 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_InsertUpdatePuntoDeVenta(@p_CODI
       DECLARE @minIDENTIFICACION NUMERIC(22,0);
     BEGIN
 		BEGIN TRY
-		  SELECT @maxCODREGIMEN = MAX(CODREGIMEN),
+			SELECT @maxCODREGIMEN = MAX(CODREGIMEN),
 				 @minCODREGIMEN = MIN(CODREGIMEN),
 				 @maxIDENTIFICACION = MAX(IDENTIFICACION),
 				 @minIDENTIFICACION = MIN(IDENTIFICACION)
-				   FROM WSXML_SFG.PUNTODEVENTA
-		   WHERE CODRAZONSOCIAL = @newcodRazonSocial;
-		  -- previous agents exist
-		  IF @maxCODREGIMEN IS NOT NULL AND @minCODREGIMEN IS NOT NULL AND
+			FROM WSXML_SFG.PUNTODEVENTA
+			WHERE CODRAZONSOCIAL = @newcodRazonSocial;
+			
+			-- previous agents exist
+			IF @maxCODREGIMEN IS NOT NULL AND @minCODREGIMEN IS NOT NULL AND
 			 @maxIDENTIFICACION IS NOT NULL AND @minIDENTIFICACION IS NOT NULL BEGIN
-			IF @maxCODREGIMEN <> @p_CODREGIMEN OR @minCODREGIMEN <> @p_CODREGIMEN OR
-			   @maxIDENTIFICACION <> @p_IDENTIFICACION OR
-			   @minIDENTIFICACION <> @p_IDENTIFICACION BEGIN
-			  UPDATE WSXML_SFG.PUNTODEVENTA
-				 SET CODREGIMEN            = @p_CODREGIMEN,
-					 IDENTIFICACION        = @p_IDENTIFICACION,
-					 DIGITOVERIFICACION    = @p_DIGITOVERIFICACION,
-					 FECHAHORAMODIFICACION = GETDATE()
-			   WHERE CODRAZONSOCIAL = @newcodRazonSocial;
+				IF @maxCODREGIMEN <> @p_CODREGIMEN OR @minCODREGIMEN <> @p_CODREGIMEN OR
+				   @maxIDENTIFICACION <> @p_IDENTIFICACION OR
+				   @minIDENTIFICACION <> @p_IDENTIFICACION 
+				BEGIN
+				  
+					UPDATE WSXML_SFG.PUNTODEVENTA
+					SET CODREGIMEN            = @p_CODREGIMEN,
+						 IDENTIFICACION        = @p_IDENTIFICACION,
+						 DIGITOVERIFICACION    = @p_DIGITOVERIFICACION,
+						 FECHAHORAMODIFICACION = GETDATE()
+					WHERE CODRAZONSOCIAL = @newcodRazonSocial;
+				END 
 			END 
-		  END 
 		END TRY
 		BEGIN CATCH
-			
 			SELECT NULL; -- El NIT no existe aun
 		END CATCH
     END;
@@ -1309,5 +1311,3 @@ CREATE     PROCEDURE WSXML_SFG.SFGCARGUEAGTINFO_GETPUNTOSDEVENTA  AS
 
 END
 GO
-
-

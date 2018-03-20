@@ -50,10 +50,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGCUENTALINEADENEGOCIO_UpdateRecord(@pk_ID_CUENT
            ACTIVE                 = @p_ACTIVE
      WHERE ID_CUENTALINEADENEGOCIO = @pk_ID_CUENTALDN;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;
@@ -72,10 +73,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGCUENTALINEADENEGOCIO_DeactivateRecord(@pk_ID_C
            ACTIVE                 = 0
      WHERE ID_CUENTALINEADENEGOCIO = @pk_ID_CUENTALDN;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;
@@ -149,7 +151,6 @@ CREATE FUNCTION WSXML_SFG.SFGCUENTALINEADENEGOCIO_GetCuentaDefecto(@p_CODLINEADE
      WHERE CODLINEADENEGOCIO = @p_CODLINEADENEGOCIO
        AND DEFECTO = 1;
 
-   
     IF(@@rowcount = 0)
 	  BEGIN
 	   SET @cCODCUENTALINEADENEGOCIO = 0

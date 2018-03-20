@@ -665,20 +665,21 @@ CREATE     PROCEDURE WSXML_SFG.SFGARCHIVOTRANSACCIONALIADO_LoadFileTransaction(@
                and isnull(rf.codtransaccionaliado, 0) = 0
                --and;
           
-				SET @v_TIPO_REGISTRO = 5;
-          
-			  IF @@ROWCOUNT = 0 BEGIN
+			IF @@ROWCOUNT = 0 BEGIN
 				  IF @vINCREMENTOS <= 7 BEGIN
 					SET @vINCREMENTOS = @vINCREMENTOS + 1;
 					--fechaarchivoMAX := fechaarchivoMAX + 1;
 					SET @fechaarchivoMIN = @fechaarchivoMIN - 1;
 					GOTO REINTENTO_PROCESSA;
 				  END
-				  ELSE BEGIN
-					SELECT NULL;
-				  END 
-				END 
-          end;
+			END 
+			--ELSE BEGIN
+			--	SELECT NULL;
+			--END 
+		  
+			SET @v_TIPO_REGISTRO = 5;
+	
+		END
         
       end;
     end
@@ -724,9 +725,9 @@ CREATE     PROCEDURE WSXML_SFG.SFGARCHIVOTRANSACCIONALIADO_LoadFileTransaction(@
 				SET @fechaarchivoMIN = @fechaarchivoMIN - 1;
 				GOTO REINTENTO_PILA;
 			  END
-			  ELSE BEGIN
-				SELECT NULL;
-			  END 
+			  --ELSE BEGIN
+				--SELECT NULL;
+			  --END 
 			END
       end;
     end
@@ -809,9 +810,9 @@ CREATE     PROCEDURE WSXML_SFG.SFGARCHIVOTRANSACCIONALIADO_LoadFileTransaction(@
 						SET @fechaarchivoMIN = @fechaarchivoMIN - 1;
 						GOTO REINTENTO_MOVISTAR;
 					  END
-					  ELSE BEGIN
-						SELECT NULL;
-					  END 
+					  --ELSE BEGIN
+					  --	SELECT NULL;
+					  --END 
 				END
           end;
         
@@ -980,9 +981,9 @@ CREATE     PROCEDURE WSXML_SFG.SFGARCHIVOTRANSACCIONALIADO_LoadFileTransaction(@
 											  SET @fechaarchivoMIN = @fechaarchivoMIN - 1;
 											  GOTO REINTENTO;
 											END
-											ELSE BEGIN
-											  SELECT NULL;
-											END 
+											--ELSE BEGIN
+											--  SELECT NULL;
+											--END 
 										END 
 									end;
 								  END 
@@ -1286,8 +1287,6 @@ CREATE     PROCEDURE WSXML_SFG.SFGARCHIVOTRANSACCIONALIADO_ReprocessFileLessened
              and isnull(rf.codtransaccionaliado, 0) = 0
              --and;
         
-          SET @v_TIPO_REGISTRO = 1;
-        
 			IF @@ROWCOUNT = 0 
             BEGIN
               SELECT @xCODREGISTROFACTREFERENCIA = id_registrofactreferencia
@@ -1324,7 +1323,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGARCHIVOTRANSACCIONALIADO_ReprocessFileLessened
                  and isnull(rf.codtransaccionaliado, 0) = 0
                  --and;
             
-              SET @v_TIPO_REGISTRO = 5;
+              
             
 			  IF @@ROWCOUNT = 0 BEGIN
 					IF @vINCREMENTOS <= 7 BEGIN
@@ -1333,11 +1332,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGARCHIVOTRANSACCIONALIADO_ReprocessFileLessened
 					  SET @fechaarchivoMIN = @fechaarchivoMIN - 1;
 					  GOTO REINTENTO_PROCESSA;
 					END
-					ELSE BEGIN
-					  SELECT NULL;
-					END 
+					--ELSE BEGIN
+					--  SELECT NULL;
+					--END 
               END
+			  SET @v_TIPO_REGISTRO = 5;
             end;
+			
+			SET @v_TIPO_REGISTRO = 1;
           
         end;
       end
@@ -2046,7 +2048,7 @@ IF OBJECT_ID('SFG_CONCILIACION.SFGARCHIVOTRANSACCIONALIADO_ReverseFile', 'P') IS
   DROP PROCEDURE SFG_CONCILIACION.SFGARCHIVOTRANSACCIONALIADO_ReverseFile;
 GO
 
-  CREATE PROCEDURE WSXML_SFG.SFGARCHIVOTRANSACCIONALIADO_ReverseFile(@p_CODARCHIVOTRANSACCIONALIADO NUMERIC(22,0),
+  CREATE PROCEDURE SFG_CONCILIACION.SFGARCHIVOTRANSACCIONALIADO_ReverseFile(@p_CODARCHIVOTRANSACCIONALIADO NUMERIC(22,0),
                         @p_RETURNVALUE_out             NUMERIC(22,0) OUT) AS
  BEGIN
     DECLARE @transactionlist WSXML_SFG.LONGNUMBERARRAY;
@@ -2319,12 +2321,13 @@ GO
     SET @p_PROGRESO_out = 0;
     -- Assume File ID
     BEGIN
-      SELECT @FileID = ID_ARCHIVOTRANSACCIONALIADO
+		SELECT @FileID = ID_ARCHIVOTRANSACCIONALIADO
         FROM WSXML_SFG.ARCHIVOTRANSACCIONALIADO
-       WHERE CODALIADOESTRATEGICO = @p_CODALIADOESTRATEGICO
-         AND NOMBREARCHIVO = @p_NOMBREARCHIVO;
+		WHERE CODALIADOESTRATEGICO = @p_CODALIADOESTRATEGICO
+			AND NOMBREARCHIVO = @p_NOMBREARCHIVO;
 		
-		IF @@ROWCOUNT > 1 BEGIN
+		DECLARE @ROWCOUNT NUMERIC(22,0) = @@ROWCOUNT
+		IF @ROWCOUNT > 1 BEGIN
 			SELECT @FileID = ID_ARCHIVOTRANSACCIONALIADO
 			FROM (
 				SELECT ID_ARCHIVOTRANSACCIONALIADO, ROW_NUMBER() OVER(ORDER BY FECHAHORAINGRESO DESC) AS "Row Number"
@@ -2335,7 +2338,7 @@ GO
          --WHERE;
 		END
 
-		IF @@ROWCOUNT = 0 BEGIN
+		IF @ROWCOUNT = 0 BEGIN
 			 SET @p_ESTADO_out   = 2;
 			SET @p_PROGRESO_out = 0;
 		END
@@ -2415,18 +2418,20 @@ GO
                                            @p_FECHADESDE           DATETIME,
                                            @p_FECHAHASTA           DATETIME) AS
  BEGIN
+	SET NOCOUNT ON;
+	
     DECLARE @lstfiles     WSXML_SFG.LONGNUMBERARRAY;
     DECLARE @countrecords NUMERIC(22,0) = 0;
     DECLARE @waitnrecords NUMERIC(22,0) = 50;
    
-  SET NOCOUNT ON;
+	BEGIN TRANSACTION;
     -- Recaculate transactions from files currently on server
     INSERT INTO @lstfiles
 	SELECT ID_ARCHIVOTRANSACCIONALIADO
-      FROM WSXML_SFG.ARCHIVOTRANSACCIONALIADO
-     WHERE CODALIADOESTRATEGICO = @p_CODALIADOESTRATEGICO
-       AND FECHAARCHIVO BETWEEN CONVERT(DATETIME, CONVERT(DATE,@p_FECHADESDE)) AND
-           CONVERT(DATETIME, CONVERT(DATE,@p_FECHAHASTA));
+	FROM WSXML_SFG.ARCHIVOTRANSACCIONALIADO
+	WHERE CODALIADOESTRATEGICO = @p_CODALIADOESTRATEGICO
+		AND FECHAARCHIVO BETWEEN CONVERT(DATETIME, CONVERT(DATE,@p_FECHADESDE)) AND
+		CONVERT(DATETIME, CONVERT(DATE,@p_FECHAHASTA));
     -- Only linked transactions
     IF @@ROWCOUNT > 0 BEGIN
       DECLARE ifx CURSOR FOR SELECT IDVALUE FROM @lstfiles
@@ -2444,6 +2449,7 @@ GO
            WHERE CODARCHIVOTRANSACCIONALIADO = @ifx__IDVALUE
              AND CODREGISTROFACTREFERENCIA IS NOT NULL;
           IF @@ROWCOUNT > 0 BEGIN
+			
             DECLARE itx CURSOR FOR SELECT IDVALUE FROM @lsttransactions
 			OPEN itx;
 			DECLARE @itx__IDVALUE NUMERIC(38,0)
@@ -2476,6 +2482,11 @@ GO
                    AND REG.ID_REGISTROFACTURACION =
                        TXA.CODREGISTROFACTURACION
                    AND TXA.ID_TRANSACCIONALIADO = @itx__IDVALUE
+				   
+				IF @@ROWCOUNT = 0 BEGIN
+					RAISERROR('-20020 No se puede recalcular el revenue a partir del revenue contable porque una o mas transacciones se encuentra vinculado a un dia sin calcular. Favor verificar si se ha calculado el revenue contable a todos los archivos', 16, 1);
+					RETURN 0;
+				END
                 IF @txaCODREGISTROFACTREFERENCIA IS NOT NULL
                   /* Try to find transaction revenue */
                   BEGIN
@@ -2504,6 +2515,7 @@ GO
                   -- Obtain value from referenced transaction
                   IF @txaCODREGISTROFACTREFERENCIA IS NULL BEGIN
                     RAISERROR('-20021 Access violation. Se intenta obtener el revenue transaccional a partir de una comision en rangos cuando el contable no posee los valores', 16, 1);
+					RETURN 0;
                   END 
                   SELECT @cntblCODRANGOCOMISIONDETALLE = RRT.CODRANGOCOMISIONDETALLE
                     FROM WSXML_SFG.REGISTROFACTURACION        REG,
@@ -2542,10 +2554,9 @@ GO
                  WHERE ID_TRANSACCIONALIADO = @itx__IDVALUE
                 SET @countrecords = @countrecords + 1;
                 IF (@countrecords % @waitnrecords) = 0 BEGIN
-                  COMMIT;
+                  COMMIT TRANSACTION;
                 END 
-				  IF @@ROWCOUNT = 0
-                  RAISERROR('-20020 No se puede recalcular el revenue a partir del revenue contable porque una o mas transacciones se encuentra vinculado a un dia sin calcular. Favor verificar si se ha calculado el revenue contable a todos los archivos', 16, 1);
+				 
               END;
             FETCH NEXT FROM itx INTO @itx__IDVALUE;
             END;
@@ -2553,14 +2564,14 @@ GO
             DEALLOCATE itx;
           END 
         END;
-        COMMIT; -- For each file
+        COMMIT TRANSACTION; -- For each file
       FETCH NEXT FROM ifx INTO @ifx__IDVALUE;
       END;
       CLOSE ifx;
       DEALLOCATE ifx;
       ---Aplicar los ajustes de revenue que hayan por rangos de tiempo
       EXEC WSXML_SFG.SFGARCHIVOTRANSACCIONALIADO_AplicarAjusteRevenue @p_CODALIADOESTRATEGICO,@p_FECHADESDE,@p_FECHAHASTA
-      commit;
+      COMMIT TRANSACTION;
     END 
   END;
 GO
@@ -2605,13 +2616,13 @@ GO
     
       DELETE FROM WSXML_SFG.TRANSACCIONALIADO
        WHERE CODARCHIVOTRANSACCIONALIADO = @v_CDARCHTRANALI;
-      COMMIT;
+      /*COMMIT;*/
       DELETE FROM WSXML_SFG.ARCHIVOTRANSALIADOCACHE
        WHERE CODARCHIVOTRANSACCIONALIADO = @v_CDARCHTRANALI;
-      COMMIT;
+      /*COMMIT;*/
       DELETE FROM WSXML_SFG.ARCHIVOTRANSACCIONALIADO
        WHERE ID_ARCHIVOTRANSACCIONALIADO = @v_CDARCHTRANALI;
-      COMMIT;
+      /*COMMIT;*/
     
       declare tyu cursor for select --rf.*, 
 					rf.ID_registrofactreferencia as fila

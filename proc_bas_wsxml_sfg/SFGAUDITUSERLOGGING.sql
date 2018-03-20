@@ -100,7 +100,7 @@ CREATE  PROCEDURE WSXML_SFG.SFGAUDITUSERLOGGING_AuditLogError(@p_USERNAME NVARCH
 		END
 	END TRY
 	BEGIN CATCH
-		SET @message = 'Log Auditing (Error) failed for user ' + ISNULL(@p_USERNAME, '') + ' at ' + FORMAT(getdate(), 'MON DD/YY HH24:MI') + ': ' + isnull(ERROR_MESSAGE(), '');
+		SET @message = 'Log Auditing (Error) failed for user ' + ISNULL(@p_USERNAME, '') + ' at ' + FORMAT(getdate(), 'MMM dd/yy hh:mm') + ': ' + isnull(ERROR_MESSAGE(), '');
 		EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @message
 	END CATCH
   END;

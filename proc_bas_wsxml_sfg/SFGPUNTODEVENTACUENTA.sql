@@ -45,10 +45,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGPUNTODEVENTACUENTA_UpdateRecord(@pk_ID_PDVCUEN
            ACTIVE                  = @p_ACTIVE
      WHERE ID_PUNTODEVENTACUENTA = @pk_ID_PDVCUENTA;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;
@@ -136,10 +137,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGPUNTODEVENTACUENTA_DeactivateRecord(@pk_ID_PDV
            ACTIVE                 = 0
      WHERE ID_PUNTODEVENTACUENTA = @pk_ID_PDVCUENTA;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;

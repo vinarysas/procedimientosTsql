@@ -110,11 +110,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGREPORTEMOVIMIENTOLINEAS_UpdateRecord(@pk_id_re
          codusuariomodificacion = @p_codusuariomodificacion
     where id_reportemovimientolineas = @pk_id_reportemovimientolineas;
 
-
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
 

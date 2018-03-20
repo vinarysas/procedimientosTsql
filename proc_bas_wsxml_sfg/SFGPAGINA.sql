@@ -55,10 +55,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGPAGINA_UpdateRecord(@pk_ID_PAGINA             
            ACTIVE                 = @p_ACTIVE
      WHERE ID_PAGINA = @pk_ID_PAGINA;
 
-    IF @@ROWCOUNT = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 THE RECORD NO LONGER EXISTS.', 16, 1);
     END 
-    IF @@ROWCOUNT > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 DUPLICATE OBJECT INSTANCES.', 16, 1);
     END 
   END;
@@ -196,19 +197,15 @@ CREATE     PROCEDURE WSXML_SFG.SFGPAGINA_ComposeModulePath(@p_CODMODULO NUMERIC(
         DECLARE @cCODPADRE NUMERIC(22,0);
       BEGIN
         SELECT @cCODPADRE = PARENT FROM WSXML_SFG.MODULO WHERE ID_MODULO = @p_CODMODULO;
-        /*
-		ComposeModulePath(@cCODPADRE, @p_DELIMITER, @p_PATH);
-      EXCEPTION WHEN NO_DATA_FOUND THEN
-        NULL;
-		*/
-		EXEC WSXML_SFG.SFGPAGINA_ComposeModulePath @cCODPADRE, @p_DELIMITER, @p_PATH;
-		IF(@@rowcount = 0)
-		  BEGIN
-		     SELECT NULL
-          END
-       END
-     END
+        IF @@rowcount = 0 BEGIN
+			SELECT NULL
+		END ELSE BEGIN
+			EXEC WSXML_SFG.SFGPAGINA_ComposeModulePath @cCODPADRE, @p_DELIMITER, @p_PATH;
+		END
+		
+	   END
     END;
+END
 GO
 
 IF OBJECT_ID('WSXML_SFG.SFGPAGINA_ComposePath', 'P') IS NOT NULL
@@ -228,10 +225,4 @@ CREATE     PROCEDURE WSXML_SFG.SFGPAGINA_ComposePath(@p_LLAVE NVARCHAR(2000), @p
     SET @p_PATH = ISNULL(@p_PATH, '') + ISNULL(@cNOMPAGINA, '');
   END;
 GO
-
-
-
-
-
-
 

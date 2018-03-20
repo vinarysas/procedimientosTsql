@@ -220,11 +220,12 @@ CREATE PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetBalanceArchivoAgrupado(@p_CODCUENTA
   SET NOCOUNT ON;
     BEGIN
       SELECT @PeriodicidadFuncion = FUNCION FROM WSXML_SFG.CUENTAARCHIVOCONFIG CNF
-      INNER JOIN PERIODICIDADPAGO PRP ON (PRP.ID_PERIODICIDADPAGO = CNF.CODPERIODICIDADPAGO)
+      INNER JOIN WSXML_SFG.PERIODICIDADPAGO PRP ON (PRP.ID_PERIODICIDADPAGO = CNF.CODPERIODICIDADPAGO)
       WHERE CNF.CODCUENTA = @p_CODCUENTA AND CNF.ARCHIVOACUMULADO = 1;
 	  
 	  IF @@ROWCOUNT = 0
 		RAISERROR('-20054 El archivo no esta configurado como acumulado o no se ha configurado periodicidad de renovacion', 16, 1);
+		RETURN 0
 	END;
 
     -- Restar dias hasta encontrar fecha de renovacion
@@ -240,15 +241,14 @@ CREATE PROCEDURE WSXML_SFG.SFGARCHIVOPAGO_GetBalanceArchivoAgrupado(@p_CODCUENTA
           SET @FechaRenovacion = SFG_PACKAGE.SUM_DIA_DATE(@FechaRenovacion, -1);
           SET @ContadorRestas = @ContadorRestas + 1;
         END 
+	   END;
     END;
-END;
 
     IF @RenovacionEncontrada = 'TRUE' BEGIN
 		
 		declare @REFERENCIADO  TINYINT,@NOREFRNCIADO TINYINT, @MVMNTMAJUSTE TINYINT
 		exec WSXML_SFG.SFGTIPOPAGO_CONSTANT @REFERENCIADO   OUT, @NOREFRNCIADO  OUT, @MVMNTMAJUSTE 	OUT
 
-      PRINT 'Se encontro la renovacion: ' + ISNULL(@FechaRenovacion, '');
       -- Se abre el cursor reflejando el estado de pagos por punto de venta desde la fecha encontrada
         SELECT MFC.REFERENCIAGTECH AS NUMEROREFERENCIA,
                DPG.ID_DETALLEPAGO,
@@ -267,4 +267,4 @@ END;
       RAISERROR('-20054 No se pudo determinar la fecha de renovacion del archivo de pagos a partir de la funcion de periodicidad', 16, 1);
     END 
   END;
-
+GO

@@ -41,16 +41,16 @@ GO
 			
 			DECLARE @ID INT;
 			
-		/* -- Validar
+		
 			INSERT @leveldata
 			SELECT @ID = ROW_NUMBER() OVER(ORDER BY value asc), value
 			FROM STRING_SPLIT(@l_tlevel_value, '-')
 			
-		*/	
-			IF @@ROWCOUNT <> 4  
+		
+			IF @@ROWCOUNT <> 4  BEGIN
 				RETURN CAST('-20054 Invalid number of parameters for level' AS INT)
-	
-			
+			END
+
 			
 			-- Compose level
 			BEGIN

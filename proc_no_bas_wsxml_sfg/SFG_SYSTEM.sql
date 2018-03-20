@@ -29,16 +29,14 @@ CREATE     PROCEDURE WSXML_SFG.SFG_SYSTEM_PurgeTaskExecutionList AS
 	  INSERT @lsttaskexecutionlist 
 	  SELECT ID_TAREAEJECUTADA
 	  FROM TAREAEJECUTADA WHERE FECHAEJECUCION < GETDATE() - @xdaycount;
-	  
-	  DECLARE ix CURSOR FOR SELECT IDVALUE FROM @lsttaskexecutionlist
-	  OPEN ix
-	  
-	  DECLARE @id INT;
-	  
+
 	  IF @@ROWCOUNT > 0  BEGIN
 	  
+		DECLARE ix CURSOR FOR SELECT IDVALUE FROM @lsttaskexecutionlist
+		OPEN ix
+		DECLARE @id INT;
+		
 		FETCH NEXT FROM ix INTO @id
-        
         WHILE (@@FETCH_STATUS = 0)
         BEGIN
 		

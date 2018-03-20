@@ -20,11 +20,10 @@ BEGIN
 
   IF @@ROWCOUNT = 0 BEGIN
 	--SFGTMPTRACE.TraceLog('Error al tratar de calcular la referencia de la cadena ' + ISNULL(@p_CODIGOCADENA, '') + ' : La cadena no existe', 'LOAD_SALES_FILES');
-    RETURN 0
+    SET @result = '';
   END
-  
   
   RETURN @result;
 
 END; 
-
+GO

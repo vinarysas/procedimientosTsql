@@ -20,8 +20,8 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_ReversarFacturacion(@
    
   SET NOCOUNT ON;
     SELECT @xCurrentHisto = LIP.ID_LIQ_IND_GENERADA, @xCurrentCiclo = LID.FECHAINICIO, @xFechaFin = LID.FECHAINICIO
-      FROM WSXML_SFG.LIQ_IND_GENERADA LIP, WSXML_SFG.LIQ_IND_GEN_DETALLE LID
-     WHERE LIP.CODLIQINDEPENDIENTE = @pk_ID_LIQ_INDEPENDIENTE
+	FROM WSXML_SFG.LIQ_IND_GENERADA LIP, WSXML_SFG.LIQ_IND_GEN_DETALLE LID
+	WHERE LIP.CODLIQINDEPENDIENTE = @pk_ID_LIQ_INDEPENDIENTE
        AND LIP. ID_LIQ_IND_GENERADA = LID.COD_LIQ_IND_GENERADA;
 
     IF @xCurrentCiclo <> @p_FECHAINICIO AND @xFechaFin <> @p_FECHAFIN  BEGIN
@@ -32,18 +32,21 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_ReversarFacturacion(@
     END 
 
     SELECT @xNewCurrentHs = ID_LIQ_IND_GEN_DETALLE
-      FROM WSXML_SFG.LIQ_IND_GEN_DETALLE LIGD
-     WHERE LIGD.COD_LIQ_IND_GENERADA = @xCurrentHisto
-       AND @p_FECHAINICIO = @xCurrentCiclo;
+	FROM WSXML_SFG.LIQ_IND_GEN_DETALLE LIGD
+	WHERE LIGD.COD_LIQ_IND_GENERADA = @xCurrentHisto
+		AND @p_FECHAINICIO = @xCurrentCiclo;
 
+	IF @@ROWCOUNT = 0 BEGIN
+		RAISERROR('-20035 El ciclo ingresado no corresponde con el ciclo actual facturado', 16, 1);
+		RETURN 0;
+	END
     -- Update and delete
 
-		DELETE FROM LIQINDEPGENAJUSTE WHERE COD_LIQ_IND_DETALLE = @xNewCurrentHs;
+	DELETE FROM WSXML_SFG.LIQINDEPGENAJUSTE WHERE COD_LIQ_IND_DETALLE = @xNewCurrentHs;
 
-		DELETE FROM LIQ_IND_GEN_DETALLE WHERE COD_LIQ_IND_GENERADA = @xCurrentHisto;
+	DELETE FROM WSXML_SFG.LIQ_IND_GEN_DETALLE WHERE COD_LIQ_IND_GENERADA = @xCurrentHisto;
   
-	  IF @@ROWCOUNT = 0
-		RAISERROR('-20035 El ciclo ingresado no corresponde con el ciclo actual facturado', 16, 1);
+	 
   END;
 GO
 
@@ -70,17 +73,18 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_EstablecerFacturacion
       DECLARE @xExistingLiqGeneradaID NUMERIC(22,0);
 
     BEGIN
-      SELECT @xExistingHistoricID = ID_LIQ_IND_GEN_DETALLE
+		SELECT @xExistingHistoricID = ID_LIQ_IND_GEN_DETALLE
         FROM WSXML_SFG.LIQ_IND_GEN_DETALLE LIGD
-       WHERE LIGD.COD_LIQ_IND_GENERADA = (SELECT LIG.ID_LIQ_IND_GENERADA
+		WHERE LIGD.COD_LIQ_IND_GENERADA = (SELECT LIG.ID_LIQ_IND_GENERADA
                                           FROM WSXML_SFG.LIQ_IND_GENERADA LIG
                                           WHERE LIG.CODLIQINDEPENDIENTE = @pk_ID_LIQ_INDEPENDIENTE)
             AND LIGD.FECHAHORAGENERACION = @p_FECHAINICIO;
-	
-		 RAISERROR('-20030 Ya se ha facturado el ciclo para este producto', 16, 1);
-    
-		IF @@ROWCOUNT = 0
-			RETURN 0
+			
+		IF @@ROWCOUNT > 0 BEGIN
+			RAISERROR('-20030 Ya se ha facturado el ciclo para este producto', 16, 1);
+			RETURN 0;
+		END
+		
     END;
     -- Check for concurrency (skip holes, check for higher value)
     DECLARE @xCurrentHistoricRec NUMERIC(22,0);
@@ -176,17 +180,18 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_EstablecerFactEncabez
     -- Check for previously billed
       DECLARE @xExistingHistoricID NUMERIC(22,0);
 		BEGIN
-		  SELECT @xExistingHistoricID = ID_LIQ_IND_GEN_DETALLE
+			SELECT @xExistingHistoricID = ID_LIQ_IND_GEN_DETALLE
 			FROM WSXML_SFG.LIQ_IND_GEN_DETALLE LIGD
-		   WHERE LIGD.COD_LIQ_IND_GENERADA = (SELECT LIG.ID_LIQ_IND_GENERADA
+			WHERE LIGD.COD_LIQ_IND_GENERADA = (SELECT LIG.ID_LIQ_IND_GENERADA
 											 FROM WSXML_SFG.LIQ_IND_GENERADA LIG
 											 WHERE LIG.CODLIQINDEPENDIENTE = @pk_ID_LIQ_INDEPENDIENTE)
 											 AND LIGD.FECHAINICIO = @p_FECHAINICIO
 											 AND LIGD.FECHAFIN = @p_FECHAFIN;
-			SET @msg = '-20030 Ya se ha facturado el ciclo ' +' para este producto';
-			RAISERROR(@msg, 16, 1);
-			IF @@ROWCOUNT = 0
-				RETURN 0;
+			IF @@ROWCOUNT > 0 BEGIN
+				SET @msg = '-20030 Ya se ha facturado el ciclo ' +' para este producto';
+				RAISERROR(@msg, 16, 1);
+			END
+			
 		END;
     -- Check for concurrency (skip holes, check for higher value)
       DECLARE @xCurrentHistoricRec NUMERIC(22,0);
@@ -941,6 +946,3 @@ CREATE PROCEDURE WSXML_SFG.SFGLIQUIDACIONINDEPPRODUCTO_RegresarAUltimaLiquidacio
 
 END
 GO
-
-
-

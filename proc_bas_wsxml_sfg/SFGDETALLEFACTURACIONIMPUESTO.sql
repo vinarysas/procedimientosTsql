@@ -55,22 +55,22 @@ CREATE     PROCEDURE WSXML_SFG.SFGDETALLEFACTURACIONIMPUESTO_CrearImpuesto(@p_CO
        AND CODIMPUESTO              = @p_CODIMPUESTO
        AND CODPRODUCTOIMPUESTO      = @p_CODPRODUCTOIMPUESTO
        AND ACTIVE = 1;
-    -- Sumar impuesto
-    UPDATE WSXML_SFG.DETALLEFACTURACIONIMPUESTO SET VALORIMPUESTO = VALORIMPUESTO + @p_VALORIMPUESTO
-    WHERE ID_DETALLEFACTURACIONIMPUESTO = @p_ID_DETALLEFACTIMPUESTO_out;
---  EXCEPTION WHEN NO_DATA_FOUND THEN
+	   
+	--  EXCEPTION WHEN NO_DATA_FOUND THEN
     IF(@@rowcount = 0)
-	  BEGIN
-	   EXEC SFGDETALLEFACTURACIONIMPUESTO_AddRecord @p_CODMAESTROFACTURACIONPDV,
+	BEGIN
+		EXEC SFGDETALLEFACTURACIONIMPUESTO_AddRecord @p_CODMAESTROFACTURACIONPDV,
                                             @p_CODDETALLEFACTURACIONPDV,
                                             @p_CODIMPUESTO,
                                             @p_CODPRODUCTOIMPUESTO,
                                             @p_VALORIMPUESTO,
                                             @p_CODUSUARIOMODIFICACION,
-                                            @p_ID_DETALLEFACTIMPUESTO_out;
-      END
-  
-  
+                                            @p_ID_DETALLEFACTIMPUESTO_out OUT;
+    END ELSE BEGIN
+		-- Sumar impuesto
+		UPDATE WSXML_SFG.DETALLEFACTURACIONIMPUESTO SET VALORIMPUESTO = VALORIMPUESTO + @p_VALORIMPUESTO
+		WHERE ID_DETALLEFACTURACIONIMPUESTO = @p_ID_DETALLEFACTIMPUESTO_out;
+	END
     
   END;
 GO
@@ -140,10 +140,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGDETALLEFACTURACIONIMPUESTO_UpdateRecord(@pk_ID
            ACTIVE                   = @p_ACTIVE
      WHERE ID_DETALLEFACTURACIONIMPUESTO = @pk_ID_DETALLEFACTIMPUESTO;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;

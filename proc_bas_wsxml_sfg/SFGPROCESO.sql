@@ -51,11 +51,13 @@ CREATE     PROCEDURE WSXML_SFG.SFGPROCESO_UpdateRecord(@pk_ID_PROCESO           
            ACTIVE                 = @p_ACTIVE
      WHERE ID_PROCESO = @pk_ID_PROCESO;
 
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+
     -- Make sure only one record is affected
-    IF @@rowcount = 0 BEGIN
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
 
@@ -156,17 +158,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGPROCESO_GetProcessIDByName(@p_NOMPROCESO NVARC
             1, 1);
     SET @p_ID_PROCESO_out = SCOPE_IDENTITY();
 	*/
-	IF(@@rowcount = 0)
-		  BEGIN
-		     INSERT INTO WSXML_SFG.PROCESO (
-                         NOMPROCESO,
-                         CODUSUARIOMODIFICACION,
-                         CODUSUARIORESPONSABLE)
-                      VALUES (
-                               @p_NOMPROCESO,
-                               1, 1);
-                     SET @p_ID_PROCESO_out = SCOPE_IDENTITY();
-          END
+	IF @@rowcount = 0
+	BEGIN
+		INSERT INTO WSXML_SFG.PROCESO (NOMPROCESO, CODUSUARIOMODIFICACION, CODUSUARIORESPONSABLE)
+			VALUES (@p_NOMPROCESO, 1, 1);
+		SET @p_ID_PROCESO_out = SCOPE_IDENTITY();
+	END
   END;
 GO
 

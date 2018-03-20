@@ -56,44 +56,45 @@ GO
   BEGIN
   SET NOCOUNT ON;
 	BEGIN TRY
-    SET @p_ENQUEUABLE_out = 1; -- Default is yes
-    /* Check for execution (current - running) */
-      DECLARE @xCurrentExecutionState NUMERIC(22,0);
-    BEGIN
-      SELECT @xCurrentExecutionState = MAX(CODESTADOTAREA) FROM WSXML_SFG.ESTADOTAREAEJECUTADA WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA AND ACTIVE = 1;
-      -- Only FAILED, ABORTED AND WARNING STATES ARE ENQUEUABLE
-      IF @xCurrentExecutionState NOT IN (4, 5, 7) BEGIN
-        RAISERROR('-20030 La tarea no se encuentra en un estado reprocesable', 16, 1);
-      END 
-		IF @@ROWCOUNT = 0
-			RAISERROR('-20031 No se puede determinar el estado de la tarea y por tanto no se puede afirmar si es reprocesable', 16, 1);
-    END;
-    /* Check for number of enqueuable subtasks */
-      DECLARE @xCountEnqueuable NUMERIC(22,0);
-    BEGIN
-      SELECT @xCountEnqueuable = COUNT(1) FROM WSXML_SFG.DETALLETAREAEJECUTADA
-      INNER JOIN (SELECT CODDETALLETAREAEJECUTADA, MAX(CODESTADOTAREA) AS CODESTADOTAREAACTUAL 
-					FROM WSXML_SFG.ESTADODETALLETAREAEJECUTADA 
-					WHERE ACTIVE = 1
-                  GROUP BY CODDETALLETAREAEJECUTADA) t
-				  ON (t.CODDETALLETAREAEJECUTADA = ID_DETALLETAREAEJECUTADA)
-      WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA;
-      IF @xCountEnqueuable = 0 BEGIN
-        RAISERROR('-20032 La tarea no tiene detalles reprocesables', 16, 1);
-      END 
-    END;
-    /* Check for not already enqueued */
-      DECLARE @xCountExists NUMERIC(22,0);
-    BEGIN
-      SELECT @xCountExists = COUNT(1) FROM WSXML_SFG.TAREAREPROCESO
-      WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA AND CODESTADOTAREA IN (1, 2);
-      IF @xCountExists > 0 BEGIN
-        RAISERROR('-20033 Ya se ha activado un reproceso de esta tarea', 16, 1);
-      END 
-    END;
+		SET @p_ENQUEUABLE_out = 1; -- Default is yes
+		/* Check for execution (current - running) */
+		  DECLARE @xCurrentExecutionState NUMERIC(22,0);
+		BEGIN
+		  SELECT @xCurrentExecutionState = MAX(CODESTADOTAREA) FROM WSXML_SFG.ESTADOTAREAEJECUTADA WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA AND ACTIVE = 1;
+		  -- Only FAILED, ABORTED AND WARNING STATES ARE ENQUEUABLE
+		  IF @@ROWCOUNT = 0
+				RAISERROR('-20031 No se puede determinar el estado de la tarea y por tanto no se puede afirmar si es reprocesable', 16, 1);
+				
+		  IF @xCurrentExecutionState NOT IN (4, 5, 7) BEGIN
+			RAISERROR('-20030 La tarea no se encuentra en un estado reprocesable', 16, 1);
+		  END 
+			
+		END;
+		/* Check for number of enqueuable subtasks */
+		  DECLARE @xCountEnqueuable NUMERIC(22,0);
+		BEGIN
+		  SELECT @xCountEnqueuable = COUNT(1) FROM WSXML_SFG.DETALLETAREAEJECUTADA
+		  INNER JOIN (SELECT CODDETALLETAREAEJECUTADA, MAX(CODESTADOTAREA) AS CODESTADOTAREAACTUAL 
+						FROM WSXML_SFG.ESTADODETALLETAREAEJECUTADA 
+						WHERE ACTIVE = 1
+					  GROUP BY CODDETALLETAREAEJECUTADA) t
+					  ON (t.CODDETALLETAREAEJECUTADA = ID_DETALLETAREAEJECUTADA)
+		  WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA;
+		  IF @xCountEnqueuable = 0 BEGIN
+			RAISERROR('-20032 La tarea no tiene detalles reprocesables', 16, 1);
+		  END 
+		END;
+		/* Check for not already enqueued */
+		  DECLARE @xCountExists NUMERIC(22,0);
+		BEGIN
+		  SELECT @xCountExists = COUNT(1) FROM WSXML_SFG.TAREAREPROCESO
+		  WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA AND CODESTADOTAREA IN (1, 2);
+		  IF @xCountExists > 0 BEGIN
+			RAISERROR('-20033 Ya se ha activado un reproceso de esta tarea', 16, 1);
+		  END 
+		END;
 	END TRY
 	BEGIN CATCH
-  
 	  SET @p_ENQUEUABLE_out = 0;
 	END CATCH
   END; 
@@ -131,6 +132,9 @@ GO
 
 
 
+IF OBJECT_ID('WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF;
+GO
 
  IF EXISTS (
     SELECT * FROM sys.objects WHERE OBJECT_NAME(object_id) = N'SFG_TASK_MANAGER_DetermineEnqueuableTaskExecF'
@@ -147,15 +151,18 @@ GO
 		  DECLARE @xCurrentExecutionState NUMERIC(22,0);
 		BEGIN
 		  SELECT @xCurrentExecutionState = MAX(CODESTADOTAREA) FROM WSXML_SFG.ESTADOTAREAEJECUTADA WHERE CODTAREAEJECUTADA = @pk_ID_TAREAEJECUTADA AND ACTIVE = 1;
+		  
+		  IF @@ROWCOUNT = 0 BEGIN
+				RETURN 0;
+				--RETURN CAST('-20031 No se puede determinar el estado de la tarea y por tanto no se puede afirmar si es reprocesable' AS INT);
+		  END
+			
 		  -- Only FAILED, ABORTED AND WARNING STATES ARE ENQUEUABLE
 		  IF @xCurrentExecutionState NOT IN (4, 5, 7) BEGIN
 			RETURN 0;
 			--RETURN CAST('-20030 La tarea no se encuentra en un estado reprocesable' AS INT);
 		  END 
-			IF @@ROWCOUNT = 0 BEGIN
-				RETURN 0;
-				--RETURN CAST('-20031 No se puede determinar el estado de la tarea y por tanto no se puede afirmar si es reprocesable' AS INT);
-			END
+			
 		END;
 		/* Check for number of enqueuable subtasks */
 		  DECLARE @xCountEnqueuable NUMERIC(22,0);

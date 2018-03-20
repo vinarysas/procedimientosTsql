@@ -156,7 +156,7 @@ GO
 		END CATCH
     END;
 
-    COMMIT;
+    /*COMMIT;*/
 
     IF @cCODMAESTROFACTURACIONPDV > 0 BEGIN
       /**** REGISTROS DE FACTURACION PARA LA PAREJA PUNTODEVENTA LINEADENEGOCIO *********/
@@ -379,10 +379,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_UpdateRecord(@pk_ID_MAES
            ACTIVE                         = @p_ACTIVE
      WHERE ID_MAESTROFACTURACIONPDV = @pk_ID_MAESTROFACTURACIONPDV;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
 
@@ -423,6 +424,9 @@ GO
                                      @p_CODDETALLETAREAEJECUTADA NUMERIC(22,0),
                                      @p_RETVALUE_out             NUMERIC(22,0) OUT) AS
  BEGIN
+	
+	SET NOCOUNT ON;
+
     DECLARE @msg                     VARCHAR(2000);
     DECLARE @cCODUSUARIOMODIFICACION NUMERIC(22,0) = 1;
     DECLARE @cCODCICLOFACTURACION    NUMERIC(22,0) = 0;
@@ -436,7 +440,24 @@ GO
     DECLARE @RESULTADO1               NUMERIC(22,0);
     DECLARE @RESULTADO2               NUMERIC(22,0);
    
-  SET NOCOUNT ON;
+
+
+	DECLARE 	@p_REGISTRADA TINYINT ,
+		@p_INICIADA TINYINT ,@p_FINALIZADAOK TINYINT ,@p_FINALIZADAFALLO TINYINT , @p_ABORTADA  TINYINT ,
+		@p_NOINICIADA	TINYINT ,@p_FINALIZADAADVERTENCIA  	TINYINT 
+
+	EXEC WSXML_SFG.SFGESTADOTAREAEJECUTADA_CONSTANT
+		@p_REGISTRADA OUT,@p_INICIADA  OUT,@p_FINALIZADAOK OUT, @p_FINALIZADAFALLO  	 OUT,@p_ABORTADA  OUT,@p_NOINICIADA OUT,
+		@p_FINALIZADAADVERTENCIA  OUT
+
+	DECLARE @p_TIPOINFORMATIVO TINYINT,
+		@p_TIPOERROR TINYINT,@p_TIPOADVERTENCIA TINYINT,@p_TIPOCUALQUIERA TINYINT,
+		@p_PROCESONOTIFICACION TINYINT, @p_ESTADOABIERTA TINYINT,@p_ESTADOCERRADA TINYINT
+
+	EXEC WSXML_SFG.SFGALERTA_CONSTANT
+		@p_TIPOINFORMATIVO  OUT,@p_TIPOERROR  OUT, @p_TIPOADVERTENCIA  OUT,
+		@p_TIPOCUALQUIERA  OUT, @p_PROCESONOTIFICACION  OUT, @p_ESTADOABIERTA  OUT,
+		@p_ESTADOCERRADA  OUT
 
   BEGIN TRY
     -- Buscar el ciclo de facturacion ejecutado en la fecha
@@ -445,18 +466,26 @@ GO
      WHERE CONVERT(DATETIME, CONVERT(DATE,FECHAEJECUCION)) = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAFACTURACION))
        AND ACTIVE = 1;
 
+	IF @@ROWCOUNT = 0 BEGIN
+		SET @p_RETVALUE_out = @p_FINALIZADAFALLO;
+		SET @msg            = 'No existe ciclo de facturacion para la fecha ' + ISNULL(FORMAT(@p_FECHAFACTURACION, 'dd/MM/yyyy'), '');
+		EXEC wsxml_sfg.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA, @msg
+		EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOERROR, 'REVERSARCICLOFACTURACION', @msg, @cCODUSUARIOMODIFICACION
+		RETURN 0
+	END
+	
     IF @cCODCICLOFACTURACION > 0 BEGIN
       -- Verificar que no se haya cargado el primer pago a la facturacion
-      SELECT @countPAGOSVN = COUNT(1)
+		SELECT @countPAGOSVN = COUNT(1)
         FROM WSXML_SFG.PAGOFACTURACIONPDV
-       WHERE CODMAESTROFACTURACIONPDV IN
+		WHERE CODMAESTROFACTURACIONPDV IN
              (SELECT ID_MAESTROFACTURACIONPDV
                 FROM WSXML_SFG.MAESTROFACTURACIONPDV
                WHERE CODCICLOFACTURACIONPDV = @cCODCICLOFACTURACION);
 
-      IF @countPAGOSVN > 0 BEGIN
-        RAISERROR('-20054 No se puede reversar el ciclo porque ya se han aplicado pagos a este', 16, 1);
-      END 
+		IF @countPAGOSVN > 0 BEGIN
+			RAISERROR('-20054 No se puede reversar el ciclo porque ya se han aplicado pagos a este', 16, 1);
+		END 
 
       -- Desactivar registros de facturacion
       SELECT @totalrecords = COUNT(1)
@@ -530,7 +559,7 @@ GO
                     SET @countrecords = @countrecords + 1;
                     IF (@countrecords % @waitnrecords) = 0 BEGIN
 						EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA,@countrecords
-                      COMMIT;
+                      /*COMMIT;*/
                     END 
                   END;
 
@@ -551,23 +580,27 @@ GO
         DEALLOCATE ixMaster;
       END 
 
-      -- Establecer facturacion anterior
+		-- Establecer facturacion anterior
         DECLARE @prevCODCICLOFACTURACION NUMERIC(22,0);
-      BEGIN
-        SELECT @prevCODCICLOFACTURACION = ID_CICLOFACTURACIONPDV
-          FROM WSXML_SFG.CICLOFACTURACIONPDV
-         WHERE SECUENCIA = @cSECUENCIAACTUAL - 1
-           AND ACTIVE = 1;
+		BEGIN
+			SELECT @prevCODCICLOFACTURACION = ID_CICLOFACTURACIONPDV
+			FROM WSXML_SFG.CICLOFACTURACIONPDV
+			WHERE SECUENCIA = @cSECUENCIAACTUAL - 1
+			AND ACTIVE = 1;
+			
+			IF @@ROWCOUNT = 0 BEGIN
+				SELECT NULL;
+			END ELSE BEGIN
 				EXEC WSXML_SFG.SFGFACTURACIONPDV_ReverseFacturActualPDV @prevCODCICLOFACTURACION,@cCODUSUARIOMODIFICACION
-		  IF @@ROWCOUNT = 0
-			SELECT NULL;
-      END;
+			END
+		  
+		END;
 
 
-      -- El ciclo al final
-      UPDATE WSXML_SFG.CICLOFACTURACIONPDV
-         SET ACTIVE = 0
-       WHERE ID_CICLOFACTURACIONPDV = @cCODCICLOFACTURACION;
+		-- El ciclo al final
+		UPDATE WSXML_SFG.CICLOFACTURACIONPDV
+			SET ACTIVE = 0
+		WHERE ID_CICLOFACTURACIONPDV = @cCODCICLOFACTURACION;
 
       -- Permitir facturar los archivos de nuevo
       UPDATE WSXML_SFG.ENTRADAARCHIVOCONTROL
@@ -594,7 +627,7 @@ GO
           UPDATE WSXML_SFG.REGISTROFACTURACION
              SET FACTURADO = 0, CODDETALLEFACTURACIONPDV = NULL
            WHERE CODENTRADAARCHIVOCONTROL = @ifx__IDVALUE;
-          COMMIT;
+          /*COMMIT;*/
         FETCH ifx INTO @ifx__IDVALUE;
         END;
 
@@ -602,84 +635,45 @@ GO
         DEALLOCATE ifx;
       END;
 
-	  DECLARE 			@p_REGISTRADA     TINYINT ,
-                    @p_INICIADA     TINYINT ,
-                    @p_FINALIZADAOK TINYINT ,
-                    @p_FINALIZADAFALLO TINYINT ,
-					@p_ABORTADA  	TINYINT ,
-					@p_NOINICIADA  	TINYINT ,
-					@p_FINALIZADAADVERTENCIA  	TINYINT 
+		EXEC WSXML_SFG.SFGALERTA_CONSTANT
+		@p_TIPOINFORMATIVO  OUT,
+		@p_TIPOERROR  OUT,
+		@p_TIPOADVERTENCIA  OUT,
+		@p_TIPOCUALQUIERA  OUT,
+		@p_PROCESONOTIFICACION  OUT,
+		@p_ESTADOABIERTA  OUT,
+		@p_ESTADOCERRADA  OUT
+		  --Liberar process flag
+		  EXEC WSXML_SFG.SFGCICLOFACTURACIONPDV_FreeProcessFlag @cCODCICLOFACTURACION
 
-	  EXEC WSXML_SFG.SFGESTADOTAREAEJECUTADA_CONSTANT
-					@p_REGISTRADA      		 OUT,
-                    @p_INICIADA         	 OUT,
-                    @p_FINALIZADAOK 		 OUT,
-                    @p_FINALIZADAFALLO  	 OUT,
-					@p_ABORTADA  			 OUT,
-					@p_NOINICIADA  			 OUT,
-					@p_FINALIZADAADVERTENCIA  OUT
-	
-	DECLARE @p_TIPOINFORMATIVO TINYINT,
-	@p_TIPOERROR TINYINT,
-	@p_TIPOADVERTENCIA TINYINT,
-	@p_TIPOCUALQUIERA TINYINT,
-	@p_PROCESONOTIFICACION TINYINT,
-	@p_ESTADOABIERTA TINYINT,
-	@p_ESTADOCERRADA TINYINT
+		  SET @p_RETVALUE_out = @p_FINALIZADAOK
+		  EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA, 'El ciclo de facturacion ha sido reversado exitosamente'
+		END 
 
-	EXEC WSXML_SFG.SFGALERTA_CONSTANT
-	@p_TIPOINFORMATIVO  OUT,
-	@p_TIPOERROR  OUT,
-	@p_TIPOADVERTENCIA  OUT,
-	@p_TIPOCUALQUIERA  OUT,
-	@p_PROCESONOTIFICACION  OUT,
-	@p_ESTADOABIERTA  OUT,
-	@p_ESTADOCERRADA  OUT
-      --Liberar process flag
-      EXEC WSXML_SFG.SFGCICLOFACTURACIONPDV_FreeProcessFlag @cCODCICLOFACTURACION
+		SET @szSQLInstruction = 'UPDATE PLANDEPAGOS SET CodEstadoPago = 5, CODCICLOFACTURACIONPDV = NULL, FECHA_CICLO_FACTURACIONPDV = NULL WHERE CODCICLOFACTURACIONPDV = ' +
+							ISNULL(@cCODCICLOFACTURACION, '');
 
-      SET @p_RETVALUE_out = @p_FINALIZADAOK
-      EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA, 'El ciclo de facturacion ha sido reversado exitosamente'
-    END 
+	--    RESULTADO1 := DBMS_HS_PASSTHROUGH.EXECUTE_IMMEDIATE@DIFERIDOS(szSQLInstruction);
 
-    SET @szSQLInstruction = 'UPDATE PLANDEPAGOS SET CodEstadoPago = 5, CODCICLOFACTURACIONPDV = NULL, FECHA_CICLO_FACTURACIONPDV = NULL WHERE CODCICLOFACTURACIONPDV = ' +
-                        ISNULL(@cCODCICLOFACTURACION, '');
+		SET @RESULTADO1 = 0;
+		IF @RESULTADO1 > 0 BEGIN
+			SET @msg = '-20086 Error al intentar actualizar la tabla [Diferidos].[dbo].[PlanDePagos] de SQLServer durante la reversion del ciclo de facturacion. ' + ISNULL(CONVERT(VARCHAR,@RESULTADO1), '')
+			RAISERROR(@msg, 16, 1);
+		END 
 
---    RESULTADO1 := DBMS_HS_PASSTHROUGH.EXECUTE_IMMEDIATE@DIFERIDOS(szSQLInstruction);
+		SET @szSQLInstruction = 'UPDATE PLANDEPAGOS SET SecuenciaAFacturar = 0, CODCICLOFACTURACIONPDV = 0 WHERE SecuenciaAFacturar > ' + ISNULL(CONVERT(VARCHAR,@cSECUENCIAACTUAL), '') + ' And NumeroCuota > 1 and CodDiferidoInstalacion in (select ID_DiferidoInstalacion from DiferidoInstalacion, ReglaDiferidoInstalacion  where CodReglaDiferidoInstalacion = ID_ReglaDiferidoInstalacion and CodTipoRegla = 1 ) ';
+		--RESULTADO2 := DBMS_HS_PASSTHROUGH.EXECUTE_IMMEDIATE@DIFERIDOS(szSQLInstruction);
 
-    SET @RESULTADO1 = 0;
+		SET @RESULTADO2 = 0;
 
+		IF @RESULTADO2 > 0 BEGIN
+			SET @msg = '-20087 Error al intentar actualizar la tabla [Diferidos].[dbo].[PlanDePagos] de SQLServer durante la reversion del ciclo de facturacion. ' + ISNULL(CONVERT(VARCHAR,@RESULTADO2), '')
+			RAISERROR(@msg, 16, 1);
+		END 
 
-     IF @RESULTADO1 > 0 BEGIN
-	  SET @msg = '-20086 Error al intentar actualizar la tabla [Diferidos].[dbo].[PlanDePagos] de SQLServer durante la reversion del ciclo de facturacion. ' +
-                              ISNULL(@RESULTADO1, '')
-      RAISERROR(@msg, 16, 1);
-    END 
+		/*COMMIT;*/
 
-
-    SET @szSQLInstruction = 'UPDATE PLANDEPAGOS SET SecuenciaAFacturar = 0, CODCICLOFACTURACIONPDV = 0 WHERE SecuenciaAFacturar > ' + ISNULL(@cSECUENCIAACTUAL, '') + ' And NumeroCuota > 1 and CodDiferidoInstalacion in (select ID_DiferidoInstalacion from DiferidoInstalacion, ReglaDiferidoInstalacion  where CodReglaDiferidoInstalacion = ID_ReglaDiferidoInstalacion and CodTipoRegla = 1 ) ';
-
---    RESULTADO2 := DBMS_HS_PASSTHROUGH.EXECUTE_IMMEDIATE@DIFERIDOS(szSQLInstruction);
-
-    SET @RESULTADO2 = 0;
-
-    IF @RESULTADO2 > 0 BEGIN
-		set @msg = '-20087 Error al intentar actualizar la tabla [Diferidos].[dbo].[PlanDePagos] de SQLServer durante la reversion del ciclo de facturacion. ' +
-                              ISNULL(@RESULTADO2, '')
-      RAISERROR(@msg, 16, 1);
-    END 
-
-    COMMIT;
-
-	  IF @@ROWCOUNT = 0 BEGIN
-		  SET @p_RETVALUE_out = @p_FINALIZADAFALLO;
-		  SET @msg            = 'No existe ciclo de facturacion para la fecha ' +
-							ISNULL(FORMAT(@p_FECHAFACTURACION, 'dd/MM/yyyy'), '');
-		  exec wsxml_sfg.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA, @msg
-		  EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @p_TIPOERROR, 'REVERSARCICLOFACTURACION',
-								  @msg,
-								  @cCODUSUARIOMODIFICACION
-		END
+	  
     END TRY
 	BEGIN CATCH
 
@@ -704,6 +698,7 @@ GO
                                          @p_CODDETALLETAREAEJECUTADA NUMERIC(22,0),
                                          @p_RETVALUE_out             NUMERIC(22,0) OUT) AS
  BEGIN
+	SET NOCOUNT ON;
     DECLARE @cCODCICLOFACTURACION    NUMERIC(22,0);
     DECLARE @cTODAY                  DATETIME = @p_FECHAFACTURACION; -- Emula la fecha de facturacion, y es utilizado para efectos de algoritmo de referencia
     DECLARE @cCODUSUARIOMODIFICACION NUMERIC(22,0) = 1;
@@ -717,10 +712,8 @@ GO
     DECLARE @cMAXWARNINGS        NUMERIC(22,0) = 50; -- Maximo numero de advertencias que puede generar antes de fallar completamente
     DECLARE @cDESCUENTOSCOMISION WSXML_SFG.PDVDESCUENTOS--WSXML_SFG.REDDESCUENTOS;
     DECLARE @msg                 VARCHAR(2000);
-	DECLARE @errormsg                 VARCHAR(2000);
+	DECLARE @errormsg            VARCHAR(2000);
    
-  SET NOCOUNT ON;
-
   	DECLARE 	@REGISTRADA      			TINYINT ,
                     @INICIADA         		TINYINT ,
                     @FINALIZADAOK 			TINYINT ,
@@ -756,387 +749,393 @@ GO
 		@ESTADOABIERTA  OUT,
 		@ESTADOCERRADA  OUT
 	
-    SELECT @cCODCICLOFACTURACION = ID_CICLOFACTURACIONPDV, @cSECUENCIACICLO = SECUENCIA
-      FROM WSXML_SFG.CICLOFACTURACIONPDV
-     WHERE ID_CICLOFACTURACIONPDV = WSXML_SFG.ULTIMO_CICLOFACTURACION(GETDATE());
+	BEGIN TRY
+		-- Si no existe parametro entonces obtener ultimo ciclo
+		/*BEGIN
+		IF TRUNC(p_FECHAFACTURACION, 'DD') = TRUNC(SYSDATE, 'DD') THEN*/
+		SELECT @cCODCICLOFACTURACION = ID_CICLOFACTURACIONPDV, @cSECUENCIACICLO = SECUENCIA
+		  FROM WSXML_SFG.CICLOFACTURACIONPDV
+		 WHERE ID_CICLOFACTURACIONPDV = WSXML_SFG.ULTIMO_CICLOFACTURACION(GETDATE());
+		/*ELSE
+			SELECT ID_CICLOFACTURACIONPDV, SECUENCIA INTO cCODCICLOFACTURACION, cSECUENCIACICLO
+			FROM CICLOFACTURACIONPDV
+			WHERE TRUNC(FECHAEJECUCION, 'DD') = TRUNC(p_FECHAFACTURACION, 'DD') AND ACTIVE = 1;
+		  END IF;
+		EXCEPTION WHEN OTHERS THEN
+		  RAISE_APPLICATION_ERROR(-20054, 'No existe facturacion activa para la fecha');
+		END;*/
 
-
-    IF WSXML_SFG.SFGCICLOFACTURACIONPDV_ReadProcessFlag() > 0 BEGIN
-      RAISERROR('-20090 No se pueden recalcular dos ciclos de facturacion simultaneamente', 16, 1);
-    END 
-    IF @cCODCICLOFACTURACION > 0 BEGIN
-      EXEC WSXML_SFG.SFGCICLOFACTURACIONPDV_MarkProcessFlag @cCODCICLOFACTURACION
-      
-	  INSERT INTO @xLINEACONFIGURACION
-	  SELECT ID_LINEADENEGOCIO, LINEAEGRESO
-        FROM (SELECT ID_LINEADENEGOCIO, LINEAEGRESO, ROW_NUMBER() OVER(ORDER BY ID_LINEADENEGOCIO) AS RowNumber
-                FROM WSXML_SFG.LINEADENEGOCIO) T
-
-      IF @@ROWCOUNT <= 0 BEGIN
-        RAISERROR('-20020 No se pudo obtener la configuracion de ingresos y egresos para las lineas de negocio', 16, 1);
-      END 
-      -- Configuraciones de descuentos de comision
-      BEGIN
-		
-        INSERT INTO @cDESCUENTOSCOMISION 
-		SELECT CODPUNTODEVENTA, CONFIGURACION FROM WSXML_SFG.SFGPUNTODEVENTADESCOMISION_GetRedDistribucionDescuentos();
-
-		IF @@ROWCOUNT = 0 BEGIN --  EXCEPTION WHEN OTHERS THEN
-			SET @msg = 'Descuentos de comision: ' + isnull(ERROR_MESSAGE ( ) , '')
-			EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @msg
+		IF WSXML_SFG.SFGCICLOFACTURACIONPDV_ReadProcessFlag() > 0 BEGIN
+		  RAISERROR('-20090 No se pueden recalcular dos ciclos de facturacion simultaneamente', 16, 1);
 		END
-      
-      END;
+		
+		IF @cCODCICLOFACTURACION > 0 BEGIN
+			EXEC WSXML_SFG.SFGCICLOFACTURACIONPDV_MarkProcessFlag @cCODCICLOFACTURACION
+		  
+			INSERT INTO @xLINEACONFIGURACION
+			SELECT ID_LINEADENEGOCIO, LINEAEGRESO
+			FROM (SELECT ID_LINEADENEGOCIO, LINEAEGRESO, ROW_NUMBER() OVER(ORDER BY ID_LINEADENEGOCIO) AS RowNumber
+					FROM WSXML_SFG.LINEADENEGOCIO) T
 
-      -- Conteo de total registros
-      SELECT @cTOTALREGISTROS = COUNT(1)
-        FROM WSXML_SFG.MAESTROFACTURACIONPDV
-       WHERE CODCICLOFACTURACIONPDV = @cCODCICLOFACTURACION
-         AND ACTIVE = 1;
-
-      EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_SetTotalRecords @p_CODDETALLETAREAEJECUTADA,@cTOTALREGISTROS
-
-      -- Iterar por tirillas y luego por maestros
-        DECLARE @lstMAESTROSFACTTIRILLA WSXML_SFG.LONGNUMBERARRAY;
-      BEGIN
-		BEGIN TRY
-			INSERT INTO @lstMAESTROSFACTTIRILLA
+			IF @@ROWCOUNT <= 0 BEGIN
+				RAISERROR('-20020 No se pudo obtener la configuracion de ingresos y egresos para las lineas de negocio', 16, 1);
+			END 
+		  -- Configuraciones de descuentos de comision
+			BEGIN
 			
-			SELECT ID_MAESTROFACTURACIONTIRILLA 
-			  FROM WSXML_SFG.MAESTROFACTURACIONTIRILLA
-			 WHERE CODCICLOFACTURACIONPDV = @cCODCICLOFACTURACION;
+				INSERT INTO @cDESCUENTOSCOMISION 
+				SELECT CODPUNTODEVENTA, CONFIGURACION FROM WSXML_SFG.SFGPUNTODEVENTADESCOMISION_GetRedDistribucionDescuentos();
 
-			IF @@ROWCOUNT > 0 BEGIN
-			  DECLARE it CURSOR FOR SELECT IDVALUE FROM @lstMAESTROSFACTTIRILLA--.First .. lstMAESTROSFACTTIRILLA.Last 
-			  OPEN it;
+				IF @@ROWCOUNT = 0 BEGIN --  EXCEPTION WHEN OTHERS THEN
+					SET @msg = 'Descuentos de comision: ' + isnull(ERROR_MESSAGE ( ) , '')
+					EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @msg
+				END
+		  
+			END;
 
-			  DECLARE @it__IDVALUE NUMERIC(38,0)
-			 FETCH NEXT FROM it INTO @it__IDVALUE; 
-			 WHILE @@FETCH_STATUS=0
-			 BEGIN
-				  DECLARE @cListaReferencia       WSXML_SFG.REFERENCEBILLING;
-				  DECLARE @lstMAESTROSFACTURACION WSXML_SFG.NUMBERARRAY;
-				  DECLARE @xCODPUNTODEVENTA       NUMERIC(22,0);
-				BEGIN
-				  --SET @cListaReferencia = REFERENCEBILLINGLIST();
-				  INSERT INTO @lstMAESTROSFACTURACION
-				  SELECT ID_MAESTROFACTURACIONPDV
-					FROM WSXML_SFG.MAESTROFACTURACIONPDV
-				   WHERE CODCICLOFACTURACIONPDV = @cCODCICLOFACTURACION
-					 AND CODMAESTROFACTURACIONTIRILLA = @it__IDVALUE; 
+			-- Conteo de total registros
+			SELECT @cTOTALREGISTROS = COUNT(1)
+			FROM WSXML_SFG.MAESTROFACTURACIONPDV
+			WHERE CODCICLOFACTURACIONPDV = @cCODCICLOFACTURACION
+				AND ACTIVE = 1;
 
-				  SELECT @xCODPUNTODEVENTA = CODPUNTODEVENTA
-					FROM WSXML_SFG.MAESTROFACTURACIONTIRILLA
-				   WHERE ID_MAESTROFACTURACIONTIRILLA = @it__IDVALUE;
+			EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_SetTotalRecords @p_CODDETALLETAREAEJECUTADA,@cTOTALREGISTROS
 
-				  -- Por cada maestro de la tirilla = por cada ldn de pdv
-				  IF (SELECT COUNT(*) FROM @lstMAESTROSFACTURACION) > 0 BEGIN
-					DECLARE ixMAESTRO CURSOR FOR SELECT IDVALUE FROM @lstMAESTROSFACTURACION--.First .. lstMAESTROSFACTURACION.Last 
-					OPEN ixMAESTRO;
+			-- Iterar por tirillas y luego por maestros
+			DECLARE @lstMAESTROSFACTTIRILLA WSXML_SFG.LONGNUMBERARRAY;
+			BEGIN
+			
+				INSERT INTO @lstMAESTROSFACTTIRILLA
+				
+				SELECT ID_MAESTROFACTURACIONTIRILLA 
+				  FROM WSXML_SFG.MAESTROFACTURACIONTIRILLA
+				 WHERE CODCICLOFACTURACIONPDV = @cCODCICLOFACTURACION;
 
-					DECLARE @ixMAESTRO__IDVALUE NUMERIC(38,0)
-					 FETCH NEXT FROM ixMAESTRO INTO @ixMAESTRO__IDVALUE;
-					 WHILE @@FETCH_STATUS=0
-					 BEGIN
-						DECLARE @cCODMAESTROFACTURACIONPDV  NUMERIC(22,0) = @ixMAESTRO__IDVALUE
-						DECLARE @xCODMAESTROFACTURATIRILLA  NUMERIC(22,0);
-						DECLARE @xCODLINEADENEGOCIO         NUMERIC(22,0);
-						DECLARE @cCODTIPOAGRUPACION         NUMERIC(22,0);
-						DECLARE @cCODAGRUPACIONPUNTODEVENTA NUMERIC(22,0);
-						DECLARE @lstDETALLESFACT            WSXML_SFG.LONGNUMBERARRAY;
-						
+				IF (SELECT COUNT(*) FROM @lstMAESTROSFACTTIRILLA) > 0 BEGIN
+					DECLARE it CURSOR FOR SELECT IDVALUE FROM @lstMAESTROSFACTTIRILLA--.First .. lstMAESTROSFACTTIRILLA.Last 
+					
+					OPEN it;
+					DECLARE @it__IDVALUE NUMERIC(38,0)
+					
+					FETCH NEXT FROM it INTO @it__IDVALUE; 
+					WHILE @@FETCH_STATUS=0
 					BEGIN
-						BEGIN TRY
-							-- Valores de maestro
-							SELECT @xCODMAESTROFACTURATIRILLA = CODMAESTROFACTURACIONTIRILLA,
-								   @xCODPUNTODEVENTA = CODPUNTODEVENTA,
-								   @xCODLINEADENEGOCIO = CODLINEADENEGOCIO,
-								   @cCODAGRUPACIONPUNTODEVENTA = CODAGRUPACIONPUNTODEVENTA,
-								   @cCODTIPOAGRUPACION = CODTIPOPUNTODEVENTA
-						    FROM WSXML_SFG.MAESTROFACTURACIONPDV MFP
-							 INNER JOIN WSXML_SFG.PUNTODEVENTA PDV
-								ON (MFP.CODPUNTODEVENTA = PDV.ID_PUNTODEVENTA)
-							 INNER JOIN WSXML_SFG.AGRUPACIONPUNTODEVENTA AGR
-								ON (PDV.CODAGRUPACIONPUNTODEVENTA = AGR.ID_AGRUPACIONPUNTODEVENTA)
-							 WHERE ID_MAESTROFACTURACIONPDV = @cCODMAESTROFACTURACIONPDV;
+						DECLARE @cListaReferencia       WSXML_SFG.REFERENCEBILLING;
+						DECLARE @lstMAESTROSFACTURACION WSXML_SFG.NUMBERARRAY;
+						DECLARE @xCODPUNTODEVENTA       NUMERIC(22,0);
+						
+						BEGIN
+					  
+							--SET @cListaReferencia = REFERENCEBILLINGLIST();
+							INSERT INTO @lstMAESTROSFACTURACION
+							SELECT ID_MAESTROFACTURACIONPDV
+							FROM WSXML_SFG.MAESTROFACTURACIONPDV
+							WHERE CODCICLOFACTURACIONPDV = @cCODCICLOFACTURACION
+								AND CODMAESTROFACTURACIONTIRILLA = @it__IDVALUE; 
 
-							-- Detalles para limpieza manual
-							INSERT INTO @lstDETALLESFACT
-							SELECT ID_DETALLEFACTURACIONPDV
-							  FROM WSXML_SFG.DETALLEFACTURACIONPDV
-							 WHERE CODMAESTROFACTURACIONPDV = @ixMAESTRO__IDVALUE
-							   AND ACTIVE = 1;
+							SELECT @xCODPUNTODEVENTA = CODPUNTODEVENTA
+							FROM WSXML_SFG.MAESTROFACTURACIONTIRILLA
+							WHERE ID_MAESTROFACTURACIONTIRILLA = @it__IDVALUE;
 
-						   
+							-- Por cada maestro de la tirilla = por cada ldn de pdv
+							IF (SELECT COUNT(*) FROM @lstMAESTROSFACTURACION) > 0 BEGIN
+							DECLARE ixMAESTRO CURSOR FOR SELECT IDVALUE FROM @lstMAESTROSFACTURACION--.First .. lstMAESTROSFACTURACION.Last 
+							OPEN ixMAESTRO;
 
-							-- Recalcular valores para PDVxLDN
-							/* COMMIT SECTION */
-							  DECLARE @lstREGISTROSFACTURABLES WSXML_SFG.REGISTROFACTURABLE;
-							  DECLARE @lstREGISTROSAGRUPADOS    WSXML_SFG.IDVALUENUMERIC--WSXML_SFG.REGISTROSPRODUCTO--WSXML_SFG.REGISTROSLINEADENEGOCIO;
-							  DECLARE @cCOUNTFACTURABLES       NUMERIC(22,0) = 0;
-							  DECLARE @cCODMAESTROFACTURACION  NUMERIC(22,0); -- Nuevo identificador de maestro. Sera el mismo existente
-							BEGIN
-							  -- Obtener los registros
-							  BEGIN
-								BEGIN TRY
-									INSERT INTO @lstREGISTROSFACTURABLES
-									SELECT ID_REGISTROFACTURACION,CODPRODUCTO
-									  FROM WSXML_SFG.ENTRADAARCHIVOCONTROL CTR
-									 INNER JOIN WSXML_SFG.REGISTROFACTURACION REG
-										ON (REG.CODENTRADAARCHIVOCONTROL =
-										   CTR.ID_ENTRADAARCHIVOCONTROL)
-									 INNER JOIN WSXML_SFG.PRODUCTO PRD
-										ON (PRD.ID_PRODUCTO = REG.CODPRODUCTO)
-									 INNER JOIN WSXML_SFG.TIPOPRODUCTO TPR
-										ON (TPR.ID_TIPOPRODUCTO = PRD.CODTIPOPRODUCTO)
-									 WHERE CTR.CODCICLOFACTURACIONPDV =
-										   @cCODCICLOFACTURACION -- Se asegura que solo se recalcule sobre los archivos. sE PUEDE CAMBIAR POR UNA BUSQUEDA DE LOS REGISTROS INICIALMENTE MARCADOS
-									   AND CTR.CODCICLOFACTURACIONPDV =
-										   @cCODCICLOFACTURACION
-									   AND REG.CODPUNTODEVENTA = @xCODPUNTODEVENTA
-									   AND TPR.CODLINEADENEGOCIO = @xCODLINEADENEGOCIO; --AND REG.FACTURADO         = 0;
-								END TRY
-								BEGIN CATCH
-										SET @msg = '-20054 Error al obtener los identificadores de los registros facturados: ' + isnull(ERROR_MESSAGE ( ) , '')
-										RAISERROR(@msg, 16, 1);
-								END CATCH
-							  END;
-
-							  -- No facturar si no hay registros facturables
-							  SET @cCOUNTFACTURABLES = (SELECT COUNT(*) FROM @lstREGISTROSFACTURABLES)
-							  
-							  IF @cCOUNTFACTURABLES > 0 BEGIN
-								-- Agrupar la lista obtenida por producto
-								--SET @lstREGISTROSAGRUPADOS = REGISTROSLINEADENEGOCIO();
-								DECLARE reg CURSOR FOR SELECT ID_REGISTROFACTURACION,CODPRODUCTO FROM @lstREGISTROSFACTURABLES--.First .. lstREGISTROSFACTURABLES.Last 
-								OPEN reg;
-								
-								DECLARE @reg__ID_REGISTROFACTURACION NUMERIC(38,0),@reg__CODPRODUCTO NUMERIC(38,0)
-								 
-								FETCH NEXT FROM reg INTO @reg__ID_REGISTROFACTURACION,@reg__CODPRODUCTO;
-								WHILE @@FETCH_STATUS=0
-								BEGIN
-									DECLARE @regIDREGISTRO  NUMERIC(38,0) = @reg__ID_REGISTROFACTURACION
-									DECLARE @regCODPRODUCTO NUMERIC(38,0) = @reg__CODPRODUCTO
-									DECLARE @prdFOUND       NUMERIC(38,0) = 0;
-									BEGIN
-										-- Buscar
-										IF (SELECT COUNT(*) FROM @lstREGISTROSAGRUPADOS) > 0 BEGIN
-										 DECLARE grup CURSOR FOR SELECT ID AS CODPRODUCTO, VALUE AS IDREGISTRO FROM @lstREGISTROSAGRUPADOS--.First .. lstREGISTROSAGRUPADOS.Last 
-										 OPEN grup;
-										 DECLARE @grup__CODPRODUCTO NUMERIC(38,0), @grup__IDREGISTRO NUMERIC(38,0)
-										 FETCH NEXT FROM grup INTO @grup__CODPRODUCTO, @grup__IDREGISTRO;
-										 WHILE @@FETCH_STATUS=0
-										 BEGIN
-											IF @grup__CODPRODUCTO = @regCODPRODUCTO BEGIN
-											  --lstREGISTROSAGRUPADOS(grup).lstREGISTROS(lstREGISTROSAGRUPADOS(grup).lstREGISTROS.Count) := @regIDREGISTRO;
-											  INSERT INTO @lstREGISTROSAGRUPADOS VALUES(@grup__CODPRODUCTO, @regIDREGISTRO);
-											  
-											  SET @prdFOUND = 1;
-											  BREAK;
-											END
-											
-											FETCH NEXT FROM grup INTO @grup__CODPRODUCTO, @grup__IDREGISTRO;
-											
-										 END
-										 CLOSE grup;
-										 DEALLOCATE grup;
-										  --END WHILE 1=1 BEGIN;
-										END
-										-- Si no se encontro
-										IF @prdFOUND = 0 BEGIN
-											DECLARE @lstREGISTROSNEWPRODUCTO WSXML_SFG.LONGNUMBERARRAY;
-										
-											--lstREGISTROSAGRUPADOS(lstREGISTROSAGRUPADOS.Count) := REGISTROSPRODUCTO(regCODPRODUCTO,lstREGISTROSNEWPRODUCTO);
-											INSERT INTO @lstREGISTROSAGRUPADOS VALUES (@regCODPRODUCTO, @regIDREGISTRO);
-									  
-										END 
-									END;
-
-									FETCH NEXT FROM reg INTO @reg__ID_REGISTROFACTURACION,@reg__CODPRODUCTO;
-								END;
-
-								CLOSE reg;
-								DEALLOCATE reg;
-
-								DECLARE @xLINEAEGRESO NUMERIC(38,0);
-								SELECT @xLINEAEGRESO = VALUE FROM @xLINEACONFIGURACION WHERE ID = @xCODLINEADENEGOCIO;
-								-- Control de reintentos
-								EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_FacturarPOSLDN
-																		@cCODCICLOFACTURACION,
-																		@xCODMAESTROFACTURATIRILLA,
-																		@xCODPUNTODEVENTA,
-																		@cCODTIPOAGRUPACION,
-																		@cCODAGRUPACIONPUNTODEVENTA,
-																		@xCODLINEADENEGOCIO,
-																		@cTODAY,
-																		@lstREGISTROSAGRUPADOS,
-																		xLINEAEGRESO,
-																		@cCODUSUARIOMODIFICACION,
-																		@cCODMAESTROFACTURACION OUT
-							  END 
-							  ELSE BEGIN
-							  
-								EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_FacturarEmptyPOSLDN 
-																			 @cCODCICLOFACTURACION,
-																			 @xCODMAESTROFACTURATIRILLA,
-																			 @xCODPUNTODEVENTA,
-																			 @cCODTIPOAGRUPACION,
-																			 @cCODAGRUPACIONPUNTODEVENTA,
-																			 @xCODLINEADENEGOCIO,
-																			 @cTODAY,
-																			 @cCODUSUARIOMODIFICACION,
-																			 @cCODMAESTROFACTURACION OUT
-							  END 
-							  -- Actualizar la tarea
-							  SET @cCOUNTREGISTROS = @cCOUNTREGISTROS + 1;
-							  IF (@cCOUNTREGISTROS % @cWAITREGISTROS) = 0 OR @cCOUNTREGISTROS = @cTOTALREGISTROS BEGIN
-								
-								EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA, @cCOUNTREGISTROS
-							  END 
-							  -- Ingresar a la lista referenciada
-							  --cListaReferencia.Extend(1);
-							  INSERT INTO @cListaReferencia VALUES(@xCODLINEADENEGOCIO, @cCODMAESTROFACTURACION);
-							  COMMIT;
-							END;
-						END TRY
-						BEGIN CATCH
-						-----
-						  -- Hubo un error al intentar procesar una entrada
-						  SET @msg = ERROR_MESSAGE ( ) ;
-						  SET @errormsg = 'No se pudo recalcular la facturacion de ' +
-												  ISNULL(WSXML_SFG.LINEADENEGOCIO_NOMBRE_F(@xCODLINEADENEGOCIO), '') +
-												  ' para el punto de venta ' +
-												  ISNULL(WSXML_SFG.PUNTODEVENTA_CODIGO_F(@xCODPUNTODEVENTA), '')
-						  EXEC WSXML_SFG.SFGALERTA_GenerarAlerta 
-												  @TIPOADVERTENCIA,
-												  'FACTURACION',
-												  @errormsg,
-												  @msg,
-												  @cCODUSUARIOMODIFICACION
-												  
-						  SET @cTOTALWARNINGS = @cTOTALWARNINGS + 1;
-						  COMMIT;
-						  IF @cTOTALWARNINGS >= @cMAXWARNINGS BEGIN
-							RAISERROR('-20054 Se ha llegado al maximo numero de advertencias para el ciclo de facturacion', 16, 1);
-						  END 
-						END CATCH
-					END;
-
-						FETCH NEXT FROM ixMAESTRO INTO @ixMAESTRO__IDVALUE;
-					END;
-					CLOSE ixMAESTRO;
-					DEALLOCATE ixMAESTRO;
-				  END 
-				  -- Al final, consolidar descuentos de comision
-					DECLARE @thisconfiguration VARCHAR(MAX)--WSXML_SFG.DESCUENTOSLIST;
-				  BEGIN
-						BEGIN TRY
-							SELECT @thisconfiguration = CONFIGURACION
-							  FROM @cDESCUENTOSCOMISION
-							 WHERE CODPUNTODEVENTA = @xCODPUNTODEVENTA;
-							-- thisconfiguration is never empty, due to condition in SFGPUNTODEVENTADESCOMISION.GetRedDistribucionDescuentos
-							DECLARE conf CURSOR FOR SELECT VALUE FROM string_split(@thisconfiguration,'|')--.First .. thisconfiguration.Last 
-							OPEN conf;
-							
-							
-							DECLARE @conf__VALUE VARCHAR(MAX)
-							DECLARE @conf_CODLINEADENEGOCIO NUMERIC(38,0), @conf_CODLINEADENEGOCIODESCUENTO NUMERIC(38,0)
-							FETCH NEXT FROM conf INTO @conf__VALUE;
-							 
+							DECLARE @ixMAESTRO__IDVALUE NUMERIC(38,0)
+							 FETCH NEXT FROM ixMAESTRO INTO @ixMAESTRO__IDVALUE;
 							 WHILE @@FETCH_STATUS=0
 							 BEGIN
-							 
-								SET @conf_CODLINEADENEGOCIO = dbo.SEPARAR_COLUMNAS_F(@conf__VALUE,1,',')
-								SET @conf_CODLINEADENEGOCIODESCUENTO = dbo.SEPARAR_COLUMNAS_F(@conf__VALUE,2,',')
-								  -- Actua solo si no es uno de uno
-								IF @conf_CODLINEADENEGOCIO <> @conf_CODLINEADENEGOCIODESCUENTO BEGIN
-									-- Obtener internamente los valores, dado que el ciclo como tal puede disminuir el valor
-									  DECLARE @xmasterLINEA          NUMERIC(22,0);
-									  DECLARE @xmasterDESCUENTO      NUMERIC(22,0);
-									  DECLARE @xVALORCOMISION        FLOAT;
-									  DECLARE @xVALORAPAGARLINEA     FLOAT;
-									  DECLARE @xVALORAPAGARDESCUENTO FLOAT;
+								DECLARE @cCODMAESTROFACTURACIONPDV  NUMERIC(22,0) = @ixMAESTRO__IDVALUE
+								DECLARE @xCODMAESTROFACTURATIRILLA  NUMERIC(22,0);
+								DECLARE @xCODLINEADENEGOCIO         NUMERIC(22,0);
+								DECLARE @cCODTIPOAGRUPACION         NUMERIC(22,0);
+								DECLARE @cCODAGRUPACIONPUNTODEVENTA NUMERIC(22,0);
+								DECLARE @lstDETALLESFACT            WSXML_SFG.LONGNUMBERARRAY;
+								
+							BEGIN
+								BEGIN TRY
+									-- Valores de maestro
+									SELECT @xCODMAESTROFACTURATIRILLA = CODMAESTROFACTURACIONTIRILLA,
+										   @xCODPUNTODEVENTA = CODPUNTODEVENTA,
+										   @xCODLINEADENEGOCIO = CODLINEADENEGOCIO,
+										   @cCODAGRUPACIONPUNTODEVENTA = CODAGRUPACIONPUNTODEVENTA,
+										   @cCODTIPOAGRUPACION = CODTIPOPUNTODEVENTA
+									FROM WSXML_SFG.MAESTROFACTURACIONPDV MFP
+									 INNER JOIN WSXML_SFG.PUNTODEVENTA PDV
+										ON (MFP.CODPUNTODEVENTA = PDV.ID_PUNTODEVENTA)
+									 INNER JOIN WSXML_SFG.AGRUPACIONPUNTODEVENTA AGR
+										ON (PDV.CODAGRUPACIONPUNTODEVENTA = AGR.ID_AGRUPACIONPUNTODEVENTA)
+									 WHERE ID_MAESTROFACTURACIONPDV = @cCODMAESTROFACTURACIONPDV;
+
+									-- Detalles para limpieza manual
+									INSERT INTO @lstDETALLESFACT
+									SELECT ID_DETALLEFACTURACIONPDV
+									  FROM WSXML_SFG.DETALLEFACTURACIONPDV
+									 WHERE CODMAESTROFACTURACIONPDV = @ixMAESTRO__IDVALUE
+									   AND ACTIVE = 1;
+
+								   
+
+									-- Recalcular valores para PDVxLDN
+									  /*COMMIT SECTION*/
+									  DECLARE @lstREGISTROSFACTURABLES WSXML_SFG.REGISTROFACTURABLE;
+									  DECLARE @lstREGISTROSAGRUPADOS    WSXML_SFG.IDVALUENUMERIC--WSXML_SFG.REGISTROSPRODUCTO--WSXML_SFG.REGISTROSLINEADENEGOCIO;
+									  DECLARE @cCOUNTFACTURABLES       NUMERIC(22,0) = 0;
+									  DECLARE @cCODMAESTROFACTURACION  NUMERIC(22,0); -- Nuevo identificador de maestro. Sera el mismo existente
 									BEGIN
-									  -- Obtener valores de referencia
-									  SELECT @xmasterLINEA = CODMAESTROFACTURACIONPDV
-										FROM @cListaReferencia
-									   WHERE CODLINEADENEGOCIO = @conf_CODLINEADENEGOCIO
-									   
-									  SELECT @xmasterDESCUENTO = CODMAESTROFACTURACIONPDV
-										FROM @cListaReferencia
-									   WHERE CODLINEADENEGOCIO = @conf_CODLINEADENEGOCIODESCUENTO
-									   
-									  -- Obtener valores de tabla de referencia, solo GTECH
-									  SELECT @xVALORCOMISION = TOTALCOMISION,
-											 @xVALORAPAGARLINEA = (NUEVOSALDOENCONTRAGTECH -
-											 NUEVOSALDOAFAVORGTECH)
-										FROM WSXML_SFG.MAESTROFACTURACIONPDV
-									   WHERE ID_MAESTROFACTURACIONPDV = @xmasterLINEA;
-									   
-									  SELECT @xVALORAPAGARDESCUENTO = NUEVOSALDOENCONTRAGTECH -
-											 NUEVOSALDOAFAVORGTECH
-										FROM WSXML_SFG.MAESTROFACTURACIONPDV
-									   WHERE ID_MAESTROFACTURACIONPDV = @xmasterDESCUENTO;
-									  -- Descontar sin considerar valores
-									  EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_ReintegrarComisionATotal @xmasterLINEA,
-															   @xVALORAPAGARLINEA,
-															   @xVALORCOMISION,
-															   @conf_CODLINEADENEGOCIODESCUENTO
-															   
-									  EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_DescontarComisionATotal @xmasterDESCUENTO,
-															  @xVALORAPAGARDESCUENTO,
-															  @xVALORCOMISION
+									  -- Obtener los registros
+									  BEGIN
+										BEGIN TRY
+											INSERT INTO @lstREGISTROSFACTURABLES
+											SELECT ID_REGISTROFACTURACION,CODPRODUCTO
+											  FROM WSXML_SFG.ENTRADAARCHIVOCONTROL CTR
+											 INNER JOIN WSXML_SFG.REGISTROFACTURACION REG
+												ON (REG.CODENTRADAARCHIVOCONTROL =
+												   CTR.ID_ENTRADAARCHIVOCONTROL)
+											 INNER JOIN WSXML_SFG.PRODUCTO PRD
+												ON (PRD.ID_PRODUCTO = REG.CODPRODUCTO)
+											 INNER JOIN WSXML_SFG.TIPOPRODUCTO TPR
+												ON (TPR.ID_TIPOPRODUCTO = PRD.CODTIPOPRODUCTO)
+											 WHERE CTR.CODCICLOFACTURACIONPDV =
+												   @cCODCICLOFACTURACION -- Se asegura que solo se recalcule sobre los archivos. sE PUEDE CAMBIAR POR UNA BUSQUEDA DE LOS REGISTROS INICIALMENTE MARCADOS
+											   AND CTR.CODCICLOFACTURACIONPDV =
+												   @cCODCICLOFACTURACION
+											   AND REG.CODPUNTODEVENTA = @xCODPUNTODEVENTA
+											   AND TPR.CODLINEADENEGOCIO = @xCODLINEADENEGOCIO; --AND REG.FACTURADO         = 0;
+										END TRY
+										BEGIN CATCH
+												SET @msg = '-20054 Error al obtener los identificadores de los registros facturados: ' + isnull(ERROR_MESSAGE ( ) , '')
+												RAISERROR(@msg, 16, 1);
+										END CATCH
+									  END;
+
+									  -- No facturar si no hay registros facturables
+									  SET @cCOUNTFACTURABLES = (SELECT COUNT(*) FROM @lstREGISTROSFACTURABLES)
+									  
+									  IF @cCOUNTFACTURABLES > 0 BEGIN
+										-- Agrupar la lista obtenida por producto
+										--SET @lstREGISTROSAGRUPADOS = REGISTROSLINEADENEGOCIO();
+										DECLARE reg CURSOR FOR SELECT ID_REGISTROFACTURACION,CODPRODUCTO FROM @lstREGISTROSFACTURABLES--.First .. lstREGISTROSFACTURABLES.Last 
+										OPEN reg;
+										
+										DECLARE @reg__ID_REGISTROFACTURACION NUMERIC(38,0),@reg__CODPRODUCTO NUMERIC(38,0)
+										 
+										FETCH NEXT FROM reg INTO @reg__ID_REGISTROFACTURACION,@reg__CODPRODUCTO;
+										WHILE @@FETCH_STATUS=0
+										BEGIN
+											DECLARE @regIDREGISTRO  NUMERIC(38,0) = @reg__ID_REGISTROFACTURACION
+											DECLARE @regCODPRODUCTO NUMERIC(38,0) = @reg__CODPRODUCTO
+											DECLARE @prdFOUND       NUMERIC(38,0) = 0;
+											BEGIN
+												-- Buscar
+												IF (SELECT COUNT(*) FROM @lstREGISTROSAGRUPADOS) > 0 BEGIN
+												 DECLARE grup CURSOR FOR SELECT ID AS CODPRODUCTO, VALUE AS IDREGISTRO FROM @lstREGISTROSAGRUPADOS--.First .. lstREGISTROSAGRUPADOS.Last 
+												 OPEN grup;
+												 DECLARE @grup__CODPRODUCTO NUMERIC(38,0), @grup__IDREGISTRO NUMERIC(38,0)
+												 FETCH NEXT FROM grup INTO @grup__CODPRODUCTO, @grup__IDREGISTRO;
+												 WHILE @@FETCH_STATUS=0
+												 BEGIN
+													IF @grup__CODPRODUCTO = @regCODPRODUCTO BEGIN
+													  --lstREGISTROSAGRUPADOS(grup).lstREGISTROS(lstREGISTROSAGRUPADOS(grup).lstREGISTROS.Count) := @regIDREGISTRO;
+													  INSERT INTO @lstREGISTROSAGRUPADOS VALUES(@grup__CODPRODUCTO, @regIDREGISTRO);
+													  
+													  SET @prdFOUND = 1;
+													  BREAK;
+													END
+													
+													FETCH NEXT FROM grup INTO @grup__CODPRODUCTO, @grup__IDREGISTRO;
+													
+												 END
+												 CLOSE grup;
+												 DEALLOCATE grup;
+												  --END WHILE 1=1 BEGIN;
+												END
+												-- Si no se encontro
+												IF @prdFOUND = 0 BEGIN
+													DECLARE @lstREGISTROSNEWPRODUCTO WSXML_SFG.LONGNUMBERARRAY;
+												
+													--lstREGISTROSAGRUPADOS(lstREGISTROSAGRUPADOS.Count) := REGISTROSPRODUCTO(regCODPRODUCTO,lstREGISTROSNEWPRODUCTO);
+													INSERT INTO @lstREGISTROSAGRUPADOS VALUES (@regCODPRODUCTO, @regIDREGISTRO);
+											  
+												END 
+											END;
+
+											FETCH NEXT FROM reg INTO @reg__ID_REGISTROFACTURACION,@reg__CODPRODUCTO;
+										END;
+
+										CLOSE reg;
+										DEALLOCATE reg;
+
+										DECLARE @xLINEAEGRESO NUMERIC(38,0);
+										SELECT @xLINEAEGRESO = VALUE FROM @xLINEACONFIGURACION WHERE ID = @xCODLINEADENEGOCIO;
+										-- Control de reintentos
+										EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_FacturarPOSLDN
+																				@cCODCICLOFACTURACION,
+																				@xCODMAESTROFACTURATIRILLA,
+																				@xCODPUNTODEVENTA,
+																				@cCODTIPOAGRUPACION,
+																				@cCODAGRUPACIONPUNTODEVENTA,
+																				@xCODLINEADENEGOCIO,
+																				@cTODAY,
+																				@lstREGISTROSAGRUPADOS,
+																				xLINEAEGRESO,
+																				@cCODUSUARIOMODIFICACION,
+																				@cCODMAESTROFACTURACION OUT
+									  END 
+									  ELSE BEGIN
+									  
+										EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_FacturarEmptyPOSLDN 
+																					 @cCODCICLOFACTURACION,
+																					 @xCODMAESTROFACTURATIRILLA,
+																					 @xCODPUNTODEVENTA,
+																					 @cCODTIPOAGRUPACION,
+																					 @cCODAGRUPACIONPUNTODEVENTA,
+																					 @xCODLINEADENEGOCIO,
+																					 @cTODAY,
+																					 @cCODUSUARIOMODIFICACION,
+																					 @cCODMAESTROFACTURACION OUT
+									  END 
+									  -- Actualizar la tarea
+									  SET @cCOUNTREGISTROS = @cCOUNTREGISTROS + 1;
+									  IF (@cCOUNTREGISTROS % @cWAITREGISTROS) = 0 OR @cCOUNTREGISTROS = @cTOTALREGISTROS BEGIN
+										
+										EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_UpdateCountRecords @p_CODDETALLETAREAEJECUTADA, @cCOUNTREGISTROS
+									  END 
+									  -- Ingresar a la lista referenciada
+									  --cListaReferencia.Extend(1);
+									  INSERT INTO @cListaReferencia VALUES(@xCODLINEADENEGOCIO, @cCODMAESTROFACTURACION);
+									  /*COMMIT;*/
 									END;
-								  END
-								FETCH NEXT FROM conf INTO @conf__VALUE;
-							 END
-							 CLOSE conf;
-							 DEALLOCATE conf;
-							
-							 -- No se pudo obtener los datos de configuracion. No mover
-							 IF @@ROWCOUNT = 0 
-							  SELECT NULL;				
-						END TRY
-						BEGIN CATCH
-							  SET @msg = '-20085 No se pudo descontar las comisiones de acuerdo a la configuracion: ' + isnull(ERROR_MESSAGE ( ) , '');
-							  RAISERROR(@msg, 16, 1);
-						END CATCH
-				  END;
+								END TRY
+								BEGIN CATCH
+									-----
+									-- Hubo un error al intentar procesar una entrada
+									SET @msg = ERROR_MESSAGE ( ) ;
+									SET @errormsg = 'No se pudo recalcular la facturacion de ' +
+														  ISNULL(WSXML_SFG.LINEADENEGOCIO_NOMBRE_F(@xCODLINEADENEGOCIO), '') +
+														  ' para el punto de venta ' + ISNULL(CONVERT(VARCHAR,WSXML_SFG.PUNTODEVENTA_CODIGO_F(@xCODPUNTODEVENTA)), '')
+									EXEC WSXML_SFG.SFGALERTA_GenerarAlerta 
+										@TIPOADVERTENCIA, 'FACTURACION', @errormsg, @msg, @cCODUSUARIOMODIFICACION
+														  
+									SET @cTOTALWARNINGS = @cTOTALWARNINGS + 1;
+									/*COMMIT;*/
+									IF @cTOTALWARNINGS >= @cMAXWARNINGS BEGIN
+										RAISERROR('-20054 Se ha llegado al maximo numero de advertencias para el ciclo de facturacion', 16, 1);
+									END 
+								END CATCH
+							END;
 
-				END;
-				FETCH NEXT FROM it INTO @it__IDVALUE;
-			 END;
-			 CLOSE it;
-			 DEALLOCATE it;	 
-
-			END
-		  
-			EXEC WSXML_SFG.SFGCICLOFACTURACIONPDV_FreeProcessFlag @cCODCICLOFACTURACION
-
-			SET @msg = 'Se ha recalculado la facturacion ' +
-												   ISNULL(@cSECUENCIACICLO, '') +
-												   ' correctamente'
-			EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA, @msg
+								FETCH NEXT FROM ixMAESTRO INTO @ixMAESTRO__IDVALUE;
+							END;
+							CLOSE ixMAESTRO;
+							DEALLOCATE ixMAESTRO;
+						  END 
+							-- Al final, consolidar descuentos de comision
+							DECLARE @thisconfiguration VARCHAR(MAX)--WSXML_SFG.DESCUENTOSLIST;
+							BEGIN
+								BEGIN TRY
+									SELECT @thisconfiguration = CONFIGURACION
+									FROM @cDESCUENTOSCOMISION
+									WHERE CODPUNTODEVENTA = @xCODPUNTODEVENTA;
+									
+									IF @@ROWCOUNT > 0 BEGIN								
+									 
+										-- thisconfiguration is never empty, due to condition in SFGPUNTODEVENTADESCOMISION.GetRedDistribucionDescuentos
+										DECLARE conf CURSOR FOR SELECT VALUE FROM string_split(@thisconfiguration,'|')--.First .. thisconfiguration.Last 
+										OPEN conf;
+										
+										
+										DECLARE @conf__VALUE VARCHAR(MAX)
+										DECLARE @conf_CODLINEADENEGOCIO NUMERIC(38,0), @conf_CODLINEADENEGOCIODESCUENTO NUMERIC(38,0)
+										FETCH NEXT FROM conf INTO @conf__VALUE;
+										 
+										 WHILE @@FETCH_STATUS=0
+										 BEGIN
+										 
+											SET @conf_CODLINEADENEGOCIO = dbo.SEPARAR_COLUMNAS_F(@conf__VALUE,1,',')
+											SET @conf_CODLINEADENEGOCIODESCUENTO = dbo.SEPARAR_COLUMNAS_F(@conf__VALUE,2,',')
+											  -- Actua solo si no es uno de uno
+											IF @conf_CODLINEADENEGOCIO <> @conf_CODLINEADENEGOCIODESCUENTO BEGIN
+												-- Obtener internamente los valores, dado que el ciclo como tal puede disminuir el valor
+												  DECLARE @xmasterLINEA          NUMERIC(22,0);
+												  DECLARE @xmasterDESCUENTO      NUMERIC(22,0);
+												  DECLARE @xVALORCOMISION        FLOAT;
+												  DECLARE @xVALORAPAGARLINEA     FLOAT;
+												  DECLARE @xVALORAPAGARDESCUENTO FLOAT;
+												BEGIN
+												  -- Obtener valores de referencia
+												  SELECT @xmasterLINEA = CODMAESTROFACTURACIONPDV
+													FROM @cListaReferencia
+												   WHERE CODLINEADENEGOCIO = @conf_CODLINEADENEGOCIO
 												   
-			SET @p_RETVALUE_out = @FINALIZADAOK;
+												  SELECT @xmasterDESCUENTO = CODMAESTROFACTURACIONPDV
+													FROM @cListaReferencia
+												   WHERE CODLINEADENEGOCIO = @conf_CODLINEADENEGOCIODESCUENTO
+												   
+												  -- Obtener valores de tabla de referencia, solo GTECH
+												  SELECT @xVALORCOMISION = TOTALCOMISION,
+														 @xVALORAPAGARLINEA = (NUEVOSALDOENCONTRAGTECH -
+														 NUEVOSALDOAFAVORGTECH)
+													FROM WSXML_SFG.MAESTROFACTURACIONPDV
+												   WHERE ID_MAESTROFACTURACIONPDV = @xmasterLINEA;
+												   
+												  SELECT @xVALORAPAGARDESCUENTO = NUEVOSALDOENCONTRAGTECH -
+														 NUEVOSALDOAFAVORGTECH
+													FROM WSXML_SFG.MAESTROFACTURACIONPDV
+												   WHERE ID_MAESTROFACTURACIONPDV = @xmasterDESCUENTO;
+												  -- Descontar sin considerar valores
+												  EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_ReintegrarComisionATotal @xmasterLINEA,
+																		   @xVALORAPAGARLINEA,
+																		   @xVALORCOMISION,
+																		   @conf_CODLINEADENEGOCIODESCUENTO
+																		   
+												  EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_DescontarComisionATotal @xmasterDESCUENTO,
+																		  @xVALORAPAGARDESCUENTO,
+																		  @xVALORCOMISION
+												END;
+											  END
+											FETCH NEXT FROM conf INTO @conf__VALUE;
+										 END
+										 CLOSE conf;
+										 DEALLOCATE conf;
+									END
+													
+								END TRY
+								BEGIN CATCH
+									  SET @msg = '-20085 No se pudo descontar las comisiones de acuerdo a la configuracion: ' + isnull(ERROR_MESSAGE ( ) , '');
+									  RAISERROR(@msg, 16, 1);
+								END CATCH
+							END;
+
+						END;
+						FETCH NEXT FROM it INTO @it__IDVALUE;
+					END;
+					CLOSE it;
+					DEALLOCATE it;	 
+
+				END
+			END 
 		
-		END TRY
-		BEGIN CATCH
-		  IF @cCODCICLOFACTURACION > 0 BEGIN
 			EXEC WSXML_SFG.SFGCICLOFACTURACIONPDV_FreeProcessFlag @cCODCICLOFACTURACION
-		  END 
-		  SET @msg = ERROR_MESSAGE ( ) ;
-		  EXEC WSXML_SFG.SFGALERTA_GenerarAlerta_1 @TIPOERROR,
-								  'FACTURACION',
-								  'Error inesperado',
-								  @msg,
-								  @cCODUSUARIOMODIFICACION
-		  EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA, @msg
-		  SET @p_RETVALUE_out = @FINALIZADAFALLO;
-		END CATCH
-	  END
-  END 
+		END 		
+			
+		SET @msg = 'Se ha recalculado la facturacion ' + ISNULL(CONVERT(VARCHAR,@cSECUENCIACICLO), '') + ' correctamente'
+		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA, @msg
+		SET @p_RETVALUE_out = @FINALIZADAOK;	
+		
+	END TRY
+	BEGIN CATCH
+	
+		IF @cCODCICLOFACTURACION > 0 BEGIN
+			EXEC WSXML_SFG.SFGCICLOFACTURACIONPDV_FreeProcessFlag @cCODCICLOFACTURACION
+		END 
+		SET @msg = ERROR_MESSAGE ( ) ;
+		EXEC WSXML_SFG.SFGALERTA_GenerarAlerta_1 @TIPOERROR, 'FACTURACION', 'Error inesperado', @msg, @cCODUSUARIOMODIFICACION
+		EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_FinalizeExecution @p_CODDETALLETAREAEJECUTADA, @msg
+		SET @p_RETVALUE_out = @FINALIZADAFALLO;
+		
+	END CATCH
 END
 GO
 
@@ -1323,7 +1322,7 @@ GO
 			
     END;
 
-    COMMIT;
+    /*COMMIT;*/
 
     IF @cCODMAESTROFACTURACIONPDV > 0 BEGIN
       /**** REGISTROS DE FACTURACION PARA LA PAREJA PUNTODEVENTA LINEADENEGOCIO *********/
@@ -2100,7 +2099,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_CicloFacturacion(@p_FECH
 			 SET FACTURADO = 1, CODCICLOFACTURACIONPDV = @cCODCICLOFACTURACION
 		   WHERE ID_ENTRADAARCHIVOCONTROL IN
 				 (SELECT IDVALUE FROM @BillingFiles);
-		  COMMIT;
+		  /*COMMIT;*/
 
 		  -- Primero se obtiene los registros de FACTURACIONLINEADENEGOCIO que aplican hoy /* Optimized */
 			DECLARE @cVERIFICACION VARCHAR(10);
@@ -2239,7 +2238,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_CicloFacturacion(@p_FECH
 
 		  -- Conteo de total registros
 		  EXEC WSXML_SFG.SFGDETALLETAREAEJECUTADA_SetTotalRecords @p_CODDETALLETAREAEJECUTADA,@cTOTALREGISTROS
-		  COMMIT;
+		  /*COMMIT;*/
 
 		  -- Despues de obtener la lista, iterar
 		  IF (SELECT COUNT(*) FROM @cPDVLINEASDENEGOCIO) > 0 BEGIN
@@ -2286,7 +2285,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_CicloFacturacion(@p_FECH
 					FETCH NEXT FROM tLDN INTO @tLDN__LINEASDENEGOCIO
 					WHILE (@@FETCH_STATUS = 0)
 					BEGIN
-					  /* COMMIT SECTION */
+					  /*COMMIT SECTION*/
 						DECLARE @xCODLINEADENEGOCIO     NUMERIC(22,0) = @tLDN__LINEASDENEGOCIO
 						DECLARE @cCODMAESTROFACTURACION NUMERIC(38,0) = 0;
 						DECLARE @cCODFACTURACIONPDV     NUMERIC(38,0) = 0;
@@ -2439,7 +2438,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_CicloFacturacion(@p_FECH
 														  @errormsg ,
 														  @cCODUSUARIOMODIFICACION
 								  SET @cTOTALWARNINGS = @cTOTALWARNINGS + 1;
-								  COMMIT;
+								  /*COMMIT;*/
 								  IF @cTOTALWARNINGS >= @cMAXWARNINGS BEGIN
 									RAISERROR('-20054 Se ha llegado al maximo numero de advertencias para el ciclo de facturacion', 16, 1);
 								  END
@@ -2460,64 +2459,64 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_CicloFacturacion(@p_FECH
 							SELECT @thisconfiguration = CONFIGURACION
 							FROM @cDESCUENTOSCOMISION
 							WHERE CODPUNTODEVENTA = @xCODPUNTODEVENTA;
-							-- thisconfiguration is never empty, due to condition in SFGPUNTODEVENTADESCOMISION.GetRedDistribucionDescuentos
-							DECLARE conf CURSOR FOR SELECT VALUE FROM string_split(@thisconfiguration,'|')--.First .. thisconfiguration.Last 
-							OPEN conf;
-
-							DECLARE @conf__VALUE VARCHAR(MAX)
-							DECLARE @conf_CODLINEADENEGOCIO NUMERIC(38,0), @conf_CODLINEADENEGOCIODESCUENTO NUMERIC(38,0)
-							FETCH NEXT FROM conf INTO @conf__VALUE;
-							WHILE @@FETCH_STATUS=0
+							
+							IF @@ROWCOUNT > 0  -- No se pudo obtener los datos de configuracion. No mover
 							BEGIN
+								-- thisconfiguration is never empty, due to condition in SFGPUNTODEVENTADESCOMISION.GetRedDistribucionDescuentos
+								DECLARE conf CURSOR FOR SELECT VALUE FROM string_split(@thisconfiguration,'|')--.First .. thisconfiguration.Last 
+								OPEN conf;
 
-								SET @conf_CODLINEADENEGOCIO = dbo.SEPARAR_COLUMNAS_F(@conf__VALUE,1,',')
-								SET @conf_CODLINEADENEGOCIODESCUENTO = dbo.SEPARAR_COLUMNAS_F(@conf__VALUE,2,',')
-					
-								-- Actua solo si no es uno de uno
-								IF @conf_CODLINEADENEGOCIO <> @conf_CODLINEADENEGOCIODESCUENTO BEGIN
-							  -- Obtener internamente los valores, dado que el ciclo como tal puede disminuir el valor
-								DECLARE @xmasterLINEA          NUMERIC(22,0);
-								DECLARE @xmasterDESCUENTO      NUMERIC(22,0);
-								DECLARE @xVALORCOMISION        FLOAT;
-								DECLARE @xVALORAPAGARLINEA     FLOAT;
-								DECLARE @xVALORAPAGARDESCUENTO FLOAT;
-							  BEGIN
-								-- Obtener valores de referencia
-								SELECT @xmasterLINEA = CODMAESTROFACTURACIONPDV
-								  FROM @cListaReferencia
-								 WHERE CODLINEADENEGOCIO = @conf_CODLINEADENEGOCIO;
-								SELECT @xmasterDESCUENTO = CODMAESTROFACTURACIONPDV
-								  FROM @cListaReferencia
-								 WHERE CODLINEADENEGOCIO = @conf_CODLINEADENEGOCIODESCUENTO
-								-- Obtener valores de tabla de referencia, solo GTECH
-								SELECT @xVALORCOMISION = TOTALCOMISION,
-									   @xVALORAPAGARLINEA = (NUEVOSALDOENCONTRAGTECH - NUEVOSALDOAFAVORGTECH)
-								  FROM WSXML_SFG.MAESTROFACTURACIONPDV
-								 WHERE ID_MAESTROFACTURACIONPDV = @xmasterLINEA;
-								SELECT @xVALORAPAGARDESCUENTO = NUEVOSALDOENCONTRAGTECH - NUEVOSALDOAFAVORGTECH
-								  FROM WSXML_SFG.MAESTROFACTURACIONPDV
-								 WHERE ID_MAESTROFACTURACIONPDV = @xmasterDESCUENTO;
-								-- Descontar sin considerar valores
-
-								EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_ReintegrarComisionATotal
-														@xmasterLINEA,
-														 @xVALORAPAGARLINEA,
-														 @xVALORCOMISION,
-														 @conf_CODLINEADENEGOCIODESCUENTO
-								EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_DescontarComisionATotal @xmasterDESCUENTO,
-														@xVALORAPAGARDESCUENTO,
-														@xVALORCOMISION
-							  END;
-							END
-
+								DECLARE @conf__VALUE VARCHAR(MAX)
+								DECLARE @conf_CODLINEADENEGOCIO NUMERIC(38,0), @conf_CODLINEADENEGOCIODESCUENTO NUMERIC(38,0)
 								FETCH NEXT FROM conf INTO @conf__VALUE;
+								WHILE @@FETCH_STATUS=0
+								BEGIN
+
+									SET @conf_CODLINEADENEGOCIO = dbo.SEPARAR_COLUMNAS_F(@conf__VALUE,1,',')
+									SET @conf_CODLINEADENEGOCIODESCUENTO = dbo.SEPARAR_COLUMNAS_F(@conf__VALUE,2,',')
+						
+									-- Actua solo si no es uno de uno
+									IF @conf_CODLINEADENEGOCIO <> @conf_CODLINEADENEGOCIODESCUENTO BEGIN
+								  -- Obtener internamente los valores, dado que el ciclo como tal puede disminuir el valor
+									DECLARE @xmasterLINEA          NUMERIC(22,0);
+									DECLARE @xmasterDESCUENTO      NUMERIC(22,0);
+									DECLARE @xVALORCOMISION        FLOAT;
+									DECLARE @xVALORAPAGARLINEA     FLOAT;
+									DECLARE @xVALORAPAGARDESCUENTO FLOAT;
+								  BEGIN
+									-- Obtener valores de referencia
+									SELECT @xmasterLINEA = CODMAESTROFACTURACIONPDV
+									  FROM @cListaReferencia
+									 WHERE CODLINEADENEGOCIO = @conf_CODLINEADENEGOCIO;
+									SELECT @xmasterDESCUENTO = CODMAESTROFACTURACIONPDV
+									  FROM @cListaReferencia
+									 WHERE CODLINEADENEGOCIO = @conf_CODLINEADENEGOCIODESCUENTO
+									-- Obtener valores de tabla de referencia, solo GTECH
+									SELECT @xVALORCOMISION = TOTALCOMISION,
+										   @xVALORAPAGARLINEA = (NUEVOSALDOENCONTRAGTECH - NUEVOSALDOAFAVORGTECH)
+									  FROM WSXML_SFG.MAESTROFACTURACIONPDV
+									 WHERE ID_MAESTROFACTURACIONPDV = @xmasterLINEA;
+									SELECT @xVALORAPAGARDESCUENTO = NUEVOSALDOENCONTRAGTECH - NUEVOSALDOAFAVORGTECH
+									  FROM WSXML_SFG.MAESTROFACTURACIONPDV
+									 WHERE ID_MAESTROFACTURACIONPDV = @xmasterDESCUENTO;
+									-- Descontar sin considerar valores
+
+									EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_ReintegrarComisionATotal
+															@xmasterLINEA,
+															 @xVALORAPAGARLINEA,
+															 @xVALORCOMISION,
+															 @conf_CODLINEADENEGOCIODESCUENTO
+									EXEC WSXML_SFG.SFGMAESTROFACTURACIONPDV_DescontarComisionATotal @xmasterDESCUENTO,
+															@xVALORAPAGARDESCUENTO,
+															@xVALORCOMISION
+								  END;
+								END
+
+									FETCH NEXT FROM conf INTO @conf__VALUE;
+								END
+								CLOSE conf;
+								DEALLOCATE conf;
 							END
-							CLOSE conf;
-							DEALLOCATE conf;
-
-							IF @@ROWCOUNT = 0  -- No se pudo obtener los datos de configuracion. No mover
-								SELECT NULL
-
 							--END WHILE 1=1 BEGIN;
 						END TRY
 						BEGIN CATCH
@@ -2540,7 +2539,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_CicloFacturacion(@p_FECH
 											  @cCODUSUARIOMODIFICACION
 
 					  SET @cTOTALWARNINGS = @cTOTALWARNINGS + 1;
-					  COMMIT;
+					  /*COMMIT;*/
 					  IF @cTOTALWARNINGS >= @cMAXWARNINGS BEGIN
 						RAISERROR('-20054 Se ha llegado al maximo numero de advertencias para el ciclo de facturacion', 16, 1);
 					  END 
@@ -2699,38 +2698,40 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_AddRecord(@p_CODCICLOFAC
        WHERE CODCICLOFACTURACIONPDV = @p_CODCICLOFACTURACIONPDV
          AND CODPUNTODEVENTA = @p_CODPUNTODEVENTA
          AND CODLINEADENEGOCIO = @p_CODLINEADENEGOCIO;
-      IF @codEXISTINGMASTER > 0 BEGIN
-        SET @p_ID_MAESTROFACTURACIONPDV_out = @codEXISTINGMASTER;
-		SET @msg = 'Existing master: ' + CAST(@codEXISTINGMASTER AS NVARCHAR(MAX)) +
-                             '. It will be cleaned. This is an error in billing cycle'
-        EXEC WSXML_SFG.SFGTMPTRACE_TRACELOG  @msg
-      END 
+		 
+
 		IF @@ROWCOUNT = 0 BEGIN
-        INSERT INTO WSXML_SFG.MAESTROFACTURACIONPDV
-          (
-           CODMAESTROFACTURACIONTIRILLA,
-           CODCICLOFACTURACIONPDV,
-           CODMAESTROFACTURACIONCOMPCONSI,
-           CODLINEADENEGOCIO,
-           CODLINEADENEGOCIODESCUENTO,
-           CODPUNTODEVENTA,
-           CODUSUARIOMODIFICACION)
-        VALUES
-          (
-           @p_CODMAESTROFACTURATIRILLA,
-           @p_CODCICLOFACTURACIONPDV,
-           @p_CODMAESTROFACTURACIONCOMPCO2,
-           @p_CODLINEADENEGOCIO,
-           @p_CODLINEADENEGOCIO,
-           @p_CODPUNTODEVENTA,
-           @p_CODUSUARIOMODIFICACION);
-        SET @p_ID_MAESTROFACTURACIONPDV_out = SCOPE_IDENTITY();
-	END
+			INSERT INTO WSXML_SFG.MAESTROFACTURACIONPDV(
+			   CODMAESTROFACTURACIONTIRILLA,
+			   CODCICLOFACTURACIONPDV,
+			   CODMAESTROFACTURACIONCOMPCONSI,
+			   CODLINEADENEGOCIO,
+			   CODLINEADENEGOCIODESCUENTO,
+			   CODPUNTODEVENTA,
+			   CODUSUARIOMODIFICACION)
+			VALUES
+			  (
+			   @p_CODMAESTROFACTURATIRILLA,
+			   @p_CODCICLOFACTURACIONPDV,
+			   @p_CODMAESTROFACTURACIONCOMPCO2,
+			   @p_CODLINEADENEGOCIO,
+			   @p_CODLINEADENEGOCIO,
+			   @p_CODPUNTODEVENTA,
+			   @p_CODUSUARIOMODIFICACION);
+			SET @p_ID_MAESTROFACTURACIONPDV_out = SCOPE_IDENTITY();
+			RETURN 0;
+		END	
+		
+		IF @codEXISTINGMASTER > 0 BEGIN
+			SET @p_ID_MAESTROFACTURACIONPDV_out = @codEXISTINGMASTER;
+			SET @msg = 'Existing master: ' + CAST(@codEXISTINGMASTER AS NVARCHAR(MAX)) +
+                             '. It will be cleaned. This is an error in billing cycle'
+			EXEC WSXML_SFG.SFGTMPTRACE_TRACELOG  @msg
+		END 
+		
     END;
   END;
 GO
-
-
 
 
   IF OBJECT_ID('WSXML_SFG.SFGMAESTROFACTURACIONPDV_ActualizarValoresPago', 'P') IS NOT NULL
@@ -2802,11 +2803,13 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_ReadFlagNotificacion(@p_
 		WHERE FLAGNOTIFICACION = @p_FLAGNOTIFICACION
 			AND ACTIVE = 1;
 	   
-		IF @@ROWCOUNT = 0 BEGIN -- EXCEPTION WHEN NO_DATA_FOUND THEN
+		DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+		
+		IF @rowcount = 0 BEGIN -- EXCEPTION WHEN NO_DATA_FOUND THEN
 			 SET @p_CODCICLOFACTURACIONPDV = 0;
 		END
 		
-		IF @@ROWCOUNT > 1 BEGIN -- EXCEPTION WHEN TOO_MANY_ROWS THEN
+		IF @rowcount > 1 BEGIN -- EXCEPTION WHEN TOO_MANY_ROWS THEN
 			SELECT @p_CODCICLOFACTURACIONPDV = MAX(ID_CICLOFACTURACIONPDV)
 			FROM WSXML_SFG.CICLOFACTURACIONPDV
 			WHERE FLAGNOTIFICACION = @p_FLAGNOTIFICACION
@@ -2836,12 +2839,13 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONPDV_GetRecord(@pk_ID_MAESTRO
     END 
     IF @l_count > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
+
     END 
 
     -- Get the row from the query.  Checksum value will be
     -- returned along the row data to support concurrency.
 	 
-		SELECT ID_MAESTROFACTURACIONPDV,
+		SELECT TOP 10 ID_MAESTROFACTURACIONPDV,
              CODCICLOFACTURACIONPDV,
              CODMAESTROFACTURACIONCOMPCONSI,
              CODPUNTODEVENTA,

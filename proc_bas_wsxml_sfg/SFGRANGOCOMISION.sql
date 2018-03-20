@@ -51,10 +51,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGRANGOCOMISION_UpdateRecord(@pk_ID_RANGOCOMISIO
            ACTIVE                 = @p_ACTIVE
      WHERE ID_RANGOCOMISION = @pk_ID_RANGOCOMISION;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;
@@ -74,10 +76,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGRANGOCOMISION_DeactivateRecord(@pk_ID_RANGOCOM
            ACTIVE                 = 0
      WHERE ID_RANGOCOMISION       = @pk_ID_RANGOCOMISION;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;
@@ -208,7 +211,7 @@ GO
 
 CREATE     FUNCTION WSXML_SFG.SFGRANGOCOMISION_GetCommissionName(@pk_ID_RANGOCOMISION NUMERIC(22,0)) RETURNS NVARCHAR(2000) AS
  BEGIN
-    DECLARE @cCOMMISSIONNAME          NVARCHAR(100);
+    DECLARE @cCOMMISSIONNAME          NVARCHAR(100) = '';
     DECLARE @cCODTIPOCOMISION         NUMERIC(22,0);
     DECLARE @cCODTIPORANGO            NUMERIC(22,0);
     DECLARE @cANTICIPO                NUMERIC(22,0);
@@ -220,6 +223,13 @@ CREATE     FUNCTION WSXML_SFG.SFGRANGOCOMISION_GetCommissionName(@pk_ID_RANGOCOM
     SELECT @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO, @cANTICIPO = ANTICIPO, @cINCENTIVOCOMISIONGLOBAL = CODINCENTIVOCOMISIONGLOBAL
     FROM WSXML_SFG.RANGOCOMISION WHERE ID_RANGOCOMISION = @pk_ID_RANGOCOMISION;
     
+	IF @@ROWCOUNT = 0 BEGIN
+		SET @msgTracert = 'Invalid reference to commission structure ' + ISNULL(CONVERT(VARCHAR,@pk_ID_RANGOCOMISION), '');
+		EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @msgTracert
+		--RAISE NO_DATA_FOUND;
+		RETURN @cCOMMISSIONNAME;
+	END
+
     SELECT @cCOUNTRANGOTIEMPO = COUNT(1) FROM WSXML_SFG.COMISIONRANGOTIEMPO WHERE CODRANGOCOMISION = @pk_ID_RANGOCOMISION;
         
     IF @cCODTIPOCOMISION IN (1, 2, 3) BEGIN
@@ -230,6 +240,20 @@ CREATE     FUNCTION WSXML_SFG.SFGRANGOCOMISION_GetCommissionName(@pk_ID_RANGOCOM
 		BEGIN
 			SELECT @cVALORPORCENTUAL = VALORPORCENTUAL, @cVALORTRANSACCIONAL = VALORTRANSACCIONAL, @cINCENTIVO = INCENTIVO FROM WSXML_SFG.RANGOCOMISIONDETALLE
 			WHERE CODRANGOCOMISION = @pk_ID_RANGOCOMISION;
+
+			DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+			IF @ROWCOUNT = 0 BEGIN
+				SET @msgTracert = 'Single commission value inconsistency, no subrecord for ' + CONVERT(VARCHAR,@pk_ID_RANGOCOMISION);
+				EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @msgTracert
+				--RAISE @COMMISSIONINCONSISTENCY;
+			END
+			
+			IF @ROWCOUNT > 1 BEGIN
+				SET @msgTracert = 'Single commission value inconsistency, too many subrecords for ' + CONVERT(VARCHAR,@pk_ID_RANGOCOMISION);
+				EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @msgTracert
+				--RAISE @COMMISSIONINCONSISTENCY;
+			END
+
 			IF @cCODTIPOCOMISION = 1 BEGIN    -- Porcentual
 			  SELECT @cCOMMISSIONNAME = ISNULL(RTRIM(LTRIM(FORMAT(@cVALORPORCENTUAL, '#,##0.000'))), '') + '%';
 			END
@@ -250,17 +274,7 @@ CREATE     FUNCTION WSXML_SFG.SFGRANGOCOMISION_GetCommissionName(@pk_ID_RANGOCOM
 			  SET @cCOMMISSIONNAME = ISNULL(@cCOMMISSIONNAME, '') + ' (Ant.)';
 			END 
 			
-			IF @@ROWCOUNT = 0 BEGIN
-				SET @msgTracert = 'Single commission value inconsistency, no subrecord for ' + CONVERT(VARCHAR,@pk_ID_RANGOCOMISION);
-				EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @msgTracert
-				--RAISE @COMMISSIONINCONSISTENCY;
-			END
 			
-			IF @@ROWCOUNT > 1 BEGIN
-				SET @msgTracert = 'Single commission value inconsistency, too many subrecords for ' + CONVERT(VARCHAR,@pk_ID_RANGOCOMISION);
-				EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @msgTracert
-				--RAISE @COMMISSIONINCONSISTENCY;
-			END
 
         
     
@@ -342,10 +356,7 @@ CREATE     FUNCTION WSXML_SFG.SFGRANGOCOMISION_GetCommissionName(@pk_ID_RANGOCOM
         SET @cCOMMISSIONNAME = ISNULL(@cCOMMISSIONNAME, '') + ' w/ Rangos Tiempo '; 
     END
 
-	/*IF @@ROWCOUNT = 0 BEGIN
-		SFGTMPTRACE.TraceLog('Invalid reference to commission structure ' + ISNULL(@pk_ID_RANGOCOMISION, ''));
-		RAISE NO_DATA_FOUND;
-	END*/
+	
     
     RETURN @cCOMMISSIONNAME;
 	 

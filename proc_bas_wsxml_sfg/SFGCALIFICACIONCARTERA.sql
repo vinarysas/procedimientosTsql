@@ -48,11 +48,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGCALIFICACIONCARTERA_UpdateRecord(@pk_ID_CALIFI
            active = @p_ACTIVE
      where id_calificacioncartera = @pk_ID_CALIFICACIONCARTERA;
 
-
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
 

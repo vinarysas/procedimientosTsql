@@ -75,15 +75,15 @@ BEGIN
   DECLARE @CANTCIUDAD                   NUMERIC(22,0)
   --exINVALIDASSIGN              EXCEPTION
 	
-  DECLARE @msg VARCHAR(2000)
+	DECLARE @msg VARCHAR(2000)
    
-  SET NOCOUNT ON
+	SET NOCOUNT ON
   
-  --Verificando consistencias 
+	--Verificando consistencias 
 	SET @msg = 'Sincronizando punto de venta : ' + CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX))
-  EXEC WSXML_SFG.sfgtmptrace_tracelog @msg
+	EXEC WSXML_SFG.sfgtmptrace_tracelog @msg
     
-  -- vDANECOMPLETO := p_CODDANEDEPTOPDV || p_CODDANECIUDADPDV
+	-- vDANECOMPLETO := p_CODDANEDEPTOPDV || p_CODDANECIUDADPDV
   
   --Obtencion del Id de la ciudad
   SELECT @vCOUNT = COUNT(1)
@@ -92,11 +92,9 @@ BEGIN
   
   IF @vCOUNT = 0 
   BEGIN
-    SET @MSGERROR = '-20000 No se puede crear el punto de venta ' +
-                CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) +
-                ' por que no existe el codigo ciudad dane ' +
-                CAST(@p_CODDANECIUDADPDV AS NVARCHAR(MAX))
+    SET @MSGERROR = '-20000 No se puede crear el punto de venta ' + CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) + ' por que no existe el codigo ciudad dane ' + CAST(@p_CODDANECIUDADPDV AS NVARCHAR(MAX))
     RAISERROR(@MSGERROR, 16, 1)
+	RETURN 0;
   END 
   
   SELECT @vID_CIUDAD = ID_CIUDAD
@@ -110,11 +108,9 @@ BEGIN
   
   IF @vCOUNT = 0 
   BEGIN
-    SET @MSGERROR = '-20000 No se puede crear el punto de venta ' +
-                CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) +
-                ' por que el no existe la razonsocial con el codigo  ' +
-                CAST(@p_CODIGOGTECHRAZONSOCIAL AS NVARCHAR(MAX))
+    SET @MSGERROR = '-20000 No se puede crear el punto de venta ' + CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) + ' por que el no existe la razonsocial con el codigo  ' + CAST(@p_CODIGOGTECHRAZONSOCIAL AS NVARCHAR(MAX))
     RAISERROR(@MSGERROR, 16, 1)
+	RETURN 0
   END
 
   SELECT @vID_RAZONSOCIAL = RAZONSOCIAL.ID_RAZONSOCIAL, @vDIGITOVERIFICACION = RAZONSOCIAL.DIGITOVERIFICACION
@@ -154,12 +150,9 @@ BEGIN
   
   IF @vCOUNT = 0 
   BEGIN
-    SET @MSGERROR = '-20000 No se puede crear el punto de venta ' +
-                CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) +
-                ' por que no existe el tipo de negocio con el nombre  ' +
-                CAST(@p_TIPONEGOCIO AS NVARCHAR(MAX))
-
+    SET @MSGERROR = '-20000 No se puede crear el punto de venta ' + CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) + ' por que no existe el tipo de negocio con el nombre  ' + CAST(@p_TIPONEGOCIO AS NVARCHAR(MAX))
     RAISERROR(@MSGERROR, 16, 1)
+	RETURN 0;
   END 
     
   SELECT @vID_TIPONEGOCIO = ID_TIPONEGOCIO
@@ -182,58 +175,53 @@ BEGIN
     WHERE NOMTIPOTERMINAL = @p_TIPOTERMINAL  
   END
   
-  --Obtencion del Id del puerto terminal
-  SELECT @vCOUNT = COUNT(1)
-  FROM WSXML_SFG.PUERTOTERMINAL
-  WHERE NOMPUERTOTERMINAL = @p_PUERTOTERMINAL
+	--Obtencion del Id del puerto terminal
+	SELECT @vCOUNT = COUNT(1)
+	FROM WSXML_SFG.PUERTOTERMINAL
+	WHERE NOMPUERTOTERMINAL = @p_PUERTOTERMINAL
   
-  IF @vCOUNT = 0 
-  BEGIN
-    SET @MSGERROR = '-20000 No se puede crear el punto de venta ' +
-                CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) +
-                ' por que no existe el puerto terminal con el nombre  ' +
-                CAST(@p_PUERTOTERMINAL AS NVARCHAR(MAX))
+	IF @vCOUNT = 0 
+	BEGIN
+		SET @MSGERROR = '-20000 No se puede crear el punto de venta ' + CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) + ' por que no existe el puerto terminal con el nombre  ' + CAST(@p_PUERTOTERMINAL AS NVARCHAR(MAX))
+		RAISERROR(@MSGERROR, 16, 1)
+		RETURN 0
+	END 
   
-    RAISERROR(@MSGERROR, 16, 1)
-  END 
-  
-  SELECT @vID_PUERTOTERMINAL = ID_PUERTOTERMINAL
-  FROM WSXML_SFG.PUERTOTERMINAL
-  WHERE NOMPUERTOTERMINAL = @p_PUERTOTERMINAL
+	SELECT @vID_PUERTOTERMINAL = ID_PUERTOTERMINAL
+	FROM WSXML_SFG.PUERTOTERMINAL
+	WHERE NOMPUERTOTERMINAL = @p_PUERTOTERMINAL
                                      
-  --Obtencion del Id de Ruta Pdv
-  SELECT @vCOUNT = COUNT(1) 
-  FROM WSXML_SFG.RUTAPDV 
-  WHERE NOMRUTAPDV = @p_RUTA
+	--Obtencion del Id de Ruta Pdv
+	SELECT @vCOUNT = COUNT(1) 
+	FROM WSXML_SFG.RUTAPDV 
+	WHERE NOMRUTAPDV = @p_RUTA
   
-  IF @vCOUNT = 0 
-  BEGIN
-    SET @MSGERROR = '-20000 No se puede crear el punto de venta ' +
-                  CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) +
-                  ' por que no existe una ruta con el nombre  ' +
-                  CAST(@p_RUTA AS NVARCHAR(MAX))
+	IF @vCOUNT = 0 
+	BEGIN
+		SET @MSGERROR = '-20000 No se puede crear el punto de venta ' + CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) + ' por que no existe una ruta con el nombre  ' + CAST(@p_RUTA AS NVARCHAR(MAX))
+		RAISERROR(@MSGERROR, 16, 1)
+		RETURN 0
+	END 
     
-    RAISERROR(@MSGERROR, 16, 1)
-  END 
+	SELECT @vID_RUTAPDV = ID_RUTAPDV, @vCODREGIONAL = CODREGIONAL 
+	FROM WSXML_SFG.RUTAPDV 
+	WHERE NOMRUTAPDV = @p_RUTA
     
-  SELECT @vID_RUTAPDV = ID_RUTAPDV, @vCODREGIONAL = CODREGIONAL 
-  FROM WSXML_SFG.RUTAPDV 
-  WHERE NOMRUTAPDV = @p_RUTA
+	--Obtencion del id de la cadena  
+	SELECT @vCOUNT = COUNT(1)
+	FROM WSXML_SFG.AGRUPACIONPUNTODEVENTA
+	WHERE AGRUPACIONPUNTODEVENTA.CODIGOAGRUPACIONGTECH = @p_CODIGOGTECHCADENA
     
-  --Obtencion del id de la cadena  
-  SELECT @vCOUNT = COUNT(1)
-  FROM WSXML_SFG.AGRUPACIONPUNTODEVENTA
-  WHERE AGRUPACIONPUNTODEVENTA.CODIGOAGRUPACIONGTECH = @p_CODIGOGTECHCADENA
-    
-  IF @vCOUNT =0 
-  BEGIN 
-    SET @MSGERROR = '-20000 No se puede crear el punto de venta ' +
+	IF @vCOUNT =0 
+	BEGIN 
+		SET @MSGERROR = '-20000 No se puede crear el punto de venta ' +
                 CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) +
                 ' por que no existe una cadena con el codigo ' +
                 CAST(@p_CODIGOGTECHCADENA AS NVARCHAR(MAX))
   
-    RAISERROR(@MSGERROR, 16, 1)
-  END 
+		RAISERROR(@MSGERROR, 16, 1)
+		RETURN 0
+	END 
     
   SELECT @vID_AGRUPACIONPUNTODEVENTA = ID_AGRUPACIONPUNTODEVENTA, @vCODREDPDV = CODREDPDV , @vCODTIPOPUNTODEVENTA = CODTIPOPUNTODEVENTA
   FROM WSXML_SFG.AGRUPACIONPUNTODEVENTA 
@@ -390,6 +378,14 @@ BEGIN
     FROM WSXML_SFG.PUNTODEVENTA
     WHERE CODIGOGTECHPUNTODEVENTA= @p_CODIGOGTECHPUNTODEVENTA
     
+	IF @@ROWCOUNT = 0 
+    BEGIN
+		SET @tmpERROR = 'ecNONEXISTANTCPDV El punto de venta ' +
+			CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) + ' no existe: ' + CAST(ERROR_MESSAGE() AS NVARCHAR(MAX))
+		RAISERROR(@tmpERROR, 16, 1)
+		RETURN 0;
+	END
+	
     IF @prevCODCIUDAD <> @newcodCiudadPDV OR
        @prevCODAGRUPACIONPUNTODEVENTA <> @newcodAgrupacionPuntoDeVenta OR
        @prevCODREDPDV <> @newcodRedPDV 
@@ -397,185 +393,158 @@ BEGIN
       SET @flagReglasCambioPlantilla = 1
     END 
 		  
-	  IF @@ROWCOUNT = 0 
-    BEGIN
-		  SET @tmpERROR = 'ecNONEXISTANTCPDV El punto de venta ' +
-								  CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX)) +
-								  ' no existe: ' + CAST(ERROR_MESSAGE() AS NVARCHAR(MAX))
-		  RAISERROR(@tmpERROR, 16, 1)
-	  END
+	
   END
   
-  /* TRAMPA DE PLANTILLAS. Aplica cuando es nuevo, o actualizado y ha cambiado alguna de las reglas de plantillas */
-  IF (@flagActualizacion = 0 OR (@flagActualizacion = 1 AND @flagReglasCambioPlantilla = 1))
-  BEGIN
-    BEGIN TRY
+	/* TRAMPA DE PLANTILLAS. Aplica cuando es nuevo, o actualizado y ha cambiado alguna de las reglas de plantillas */
+	IF (@flagActualizacion = 0 OR (@flagActualizacion = 1 AND @flagReglasCambioPlantilla = 1))
+	BEGIN
+		BEGIN TRY
+			
 			DECLARE tLDN CURSOR FOR 
-        SELECT ID_LINEADENEGOCIO
-        FROM WSXML_SFG.LINEADENEGOCIO
-				WHERE ACTIVE = 1 
-      OPEN tLDN
+			SELECT ID_LINEADENEGOCIO
+			FROM WSXML_SFG.LINEADENEGOCIO
+					WHERE ACTIVE = 1 
+			OPEN tLDN
 			DECLARE @tLDN__ID_LINEADENEGOCIO NUMERIC(38,0)
+			
 			FETCH NEXT FROM tLDN INTO @tLDN__ID_LINEADENEGOCIO
 			WHILE @@FETCH_STATUS=0
 			BEGIN
-  			DECLARE @cCODLDN       NUMERIC(22,0) = @tLDN__Id_Lineadenegocio
-  			DECLARE @cCODPLANTILLA NUMERIC(22,0) = 0
-  			DECLARE @cPDVPLANT_out NUMERIC(22,0)
-  			DECLARE @cCIUDADBUSCA  NUMERIC(22,0) = @newcodCiudadPDV
-  			DECLARE @cCADENABUSCA  NUMERIC(22,0) = @newcodAgrupacionPuntoDeVenta
-  			DECLARE @cREDPDVBUSCA  NUMERIC(22,0) = @newcodRedPDV
+				DECLARE @cCODLDN       NUMERIC(22,0) = @tLDN__Id_Lineadenegocio
+				DECLARE @cCODPLANTILLA NUMERIC(22,0) = 0
+				DECLARE @cPDVPLANT_out NUMERIC(22,0)
+				DECLARE @cCIUDADBUSCA  NUMERIC(22,0) = @newcodCiudadPDV
+				DECLARE @cCADENABUSCA  NUMERIC(22,0) = @newcodAgrupacionPuntoDeVenta
+				DECLARE @cREDPDVBUSCA  NUMERIC(22,0) = @newcodRedPDV
+			
 				BEGIN
-  				-- Buscar por orden y peso de criterios. Ciudad, Agrupacion, Red
-  				BEGIN
-          
-  				  -- Criterio 1. Ciudad, Cadena y Red
-  				  SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
-  					FROM WSXML_SFG.PLANTILLAPRODUCTO P, WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
-  				  WHERE C.CODPLANTILLAPRODUCTO = P.ID_PLANTILLAPRODUCTO
-  					  AND P.CODLINEADENEGOCIO = @cCODLDN
-  					  AND C.CODCIUDAD = @cCIUDADBUSCA
-  					  AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA
-  					  AND P.CODREDPDV = @cREDPDVBUSCA
+					-- Buscar por orden y peso de criterios. Ciudad, Agrupacion, Red
+					BEGIN
+						-- Criterio 1. Ciudad, Cadena y Red
+						SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
+						FROM WSXML_SFG.PLANTILLAPRODUCTO P, WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
+						WHERE C.CODPLANTILLAPRODUCTO = P.ID_PLANTILLAPRODUCTO
+						  AND P.CODLINEADENEGOCIO = @cCODLDN
+						  AND C.CODCIUDAD = @cCIUDADBUSCA
+						  AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA
+						  AND P.CODREDPDV = @cREDPDVBUSCA
 
-					  IF @@ROWCOUNT = 0 
-            BEGIN
-              BEGIN
+						IF @@ROWCOUNT = 0 
+						BEGIN
+							-- Criterio 2. Cadena y Red
+							SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
+							FROM WSXML_SFG.PLANTILLAPRODUCTO P
+							WHERE P.CODLINEADENEGOCIO = @cCODLDN
+							  AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA
+							  AND P.CODREDPDV = @cREDPDVBUSCA
 							
-                -- Criterio 2. Cadena y Red
-							  SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
+							IF @@ROWCOUNT = 0 
+							BEGIN
+								-- Criterio 3. Cadena
+								SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
 								FROM WSXML_SFG.PLANTILLAPRODUCTO P
-							  WHERE P.CODLINEADENEGOCIO = @cCODLDN
+								WHERE P.CODLINEADENEGOCIO = @cCODLDN
 								  AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA
-								  AND P.CODREDPDV = @cREDPDVBUSCA
-                
-							  IF @cCODPLANTILLA > 0 
-                BEGIN
-                  
-  								SELECT @CANTCIUDAD = COUNT(*)
-  								FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
-  								WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA
-                  
-								  IF @CANTCIUDAD > 0 
-                  BEGIN
-  								  --RAISE EXINVALIDASSIGN
-  								  SET @vID_RAZONSOCIAL=  @vCODRAZONSOCIAL_SFG 
-								  END 
-                  
-							  END 
 
-							  IF @@ROWCOUNT = 0 
-                BEGIN
-                
-									-- Criterio 3. Cadena
+								IF @@ROWCOUNT = 0 
+								BEGIN
+
+									-- Criterio 4. Red
+									SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
+									FROM WSXML_SFG.PLANTILLAPRODUCTO P
+									WHERE P.CODLINEADENEGOCIO = @cCODLDN
+										AND P.CODREDPDV = @cREDPDVBUSCA
+						
+									IF @@ROWCOUNT = 0 
 									BEGIN
-									  SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
+										-- Default. Plantilla Master
+										SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
 										FROM WSXML_SFG.PLANTILLAPRODUCTO P
-									  WHERE P.CODLINEADENEGOCIO = @cCODLDN
-										  AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA
-                    
-									  IF @cCODPLANTILLA > 0 
-                    BEGIN
-                      
-  										SELECT @CANTCIUDAD = COUNT(*)
-  										FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
-  										WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA
-                      
-  										IF @CANTCIUDAD > 0 
-                      BEGIN
-  										  --RAISE EXINVALIDASSIGN
-  										  SET @vID_RAZONSOCIAL=  @vCODRAZONSOCIAL_SFG 
-  										END 
-                      
-									  END 
-                    
-										IF @@ROWCOUNT = 0 
-                    BEGIN
-										 
-											BEGIN
-											  -- Criterio 4. Red
-											  SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
-												FROM WSXML_SFG.PLANTILLAPRODUCTO P
-											  WHERE P.CODLINEADENEGOCIO = @cCODLDN
-												  AND P.CODREDPDV = @cREDPDVBUSCA
-                        
-											  IF @cCODPLANTILLA > 0 
-                        BEGIN
-                          
-  												SELECT @CANTCIUDAD = COUNT(*)
-  												FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
-  												WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA
-                          
-												  IF @CANTCIUDAD > 0 
-                          BEGIN
-					                  -- RAISE EXINVALIDASSIGN
-													  SET @vID_RAZONSOCIAL=  @vCODRAZONSOCIAL_SFG 
-												  END 
-                          
-											  END 
-
-											  IF @@ROWCOUNT = 0 
-                        BEGIN
-													-- Default. Plantilla Master
-													BEGIN
-													  SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
-														FROM WSXML_SFG.PLANTILLAPRODUCTO P
-													  WHERE P.CODLINEADENEGOCIO = @tLDN__ID_LINEADENEGOCIO
-														  AND P.MASTERPLANTILLA = 1
-                              
-														IF @@ROWCOUNT = 0 
-                            BEGIN
-															SET @msg = '-20054 No existe plantilla master unica configurada para la linea de negocio ' +
-																					CAST(WSXML_SFG.LINEADENEGOCIO_NOMBRE_F(@tLDN__ID_LINEADENEGOCIO) AS NVARCHAR(MAX)) 
-															RAISERROR(@msg, 16, 1)
-														END
-													END
-													-- NO SE VINCULARA LA PLANTILLA MASTER: LA PREFACTURACION LA BUSCA POR DEFECTO
-													SET @cCODPLANTILLA = 0
-											  END
-										  END
-										END
+										WHERE P.CODLINEADENEGOCIO = @tLDN__ID_LINEADENEGOCIO
+										  AND P.MASTERPLANTILLA = 1
+						  
+										IF @@ROWCOUNT = 0 BEGIN
+											SET @msg = '-20054 No existe plantilla master unica configurada para la linea de negocio ' + CAST(WSXML_SFG.LINEADENEGOCIO_NOMBRE_F(@tLDN__ID_LINEADENEGOCIO) AS NVARCHAR(MAX)) 
+											RAISERROR(@msg, 16, 1)
+										END									
+										-- NO SE VINCULARA LA PLANTILLA MASTER: LA PREFACTURACION LA BUSCA POR DEFECTO
+										SET @cCODPLANTILLA = 0
+									END ELSE BEGIN
+										IF @cCODPLANTILLA > 0 
+										BEGIN
+											SELECT @CANTCIUDAD = COUNT(*)
+											FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
+											WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA
+							  
+											IF @CANTCIUDAD > 0 BEGIN
+												-- RAISE EXINVALIDASSIGN
+											  SET @vID_RAZONSOCIAL=  @vCODRAZONSOCIAL_SFG 
+											END 
+							  
+										END 
 									END
-							  END
-							END
-					 END
-				  END
-          
-				  -- Si se encontro plantilla para asignar
-				  IF @cCODPLANTILLA > 0 
-          BEGIN
-          
-  					-- Si se esta cambiando la plantilla, desactivar primero
-  					EXEC WSXML_SFG.SFGPUNTODEVENTAPLANTILLA_DeactivateRecordByData @vID_PUNTODEVENTA,@cCODLDN, 1
-              
-				    EXEC WSXML_SFG.SFGPUNTODEVENTAPLANTILLA_AddRecord 
-              @vID_PUNTODEVENTA,
-              @cCODPLANTILLA,
-              NULL,
-              NULL,
-              NULL,
-              1,
-              @cPDVPLANT_out OUT
-			    END 
-			  END
-			  FETCH NEXT FROM tLDN INTO @tLDN__ID_LINEADENEGOCIO
+
+								END ELSE BEGIN
+									IF @cCODPLANTILLA > 0 
+									BEGIN
+				  
+										SELECT @CANTCIUDAD = COUNT(*)
+										FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
+										WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA
+				  
+										IF @CANTCIUDAD > 0 BEGIN
+											--RAISE EXINVALIDASSIGN
+											SET @vID_RAZONSOCIAL=  @vCODRAZONSOCIAL_SFG 
+										END 
+				  
+									END 
+								END
+							
+							END ELSE BEGIN
+							
+								IF @cCODPLANTILLA > 0 
+								BEGIN
+					  
+									SELECT @CANTCIUDAD = COUNT(*)
+									FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
+									WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA
+								  
+									IF @CANTCIUDAD > 0 
+									BEGIN
+										--RAISE EXINVALIDASSIGN
+										SET @vID_RAZONSOCIAL=  @vCODRAZONSOCIAL_SFG 
+									END 
+								  
+								END
+							END	
+						END
+					END
+				END 
+
+				-- Si se encontro plantilla para asignar
+				IF @cCODPLANTILLA > 0 
+				BEGIN
+					-- Si se esta cambiando la plantilla, desactivar primero
+					EXEC WSXML_SFG.SFGPUNTODEVENTAPLANTILLA_DeactivateRecordByData @vID_PUNTODEVENTA,@cCODLDN, 1
+					EXEC WSXML_SFG.SFGPUNTODEVENTAPLANTILLA_AddRecord @vID_PUNTODEVENTA, @cCODPLANTILLA, NULL, NULL, NULL, 1, @cPDVPLANT_out OUT
+				END 
+			  
+				FETCH NEXT FROM tLDN INTO @tLDN__ID_LINEADENEGOCIO
 			END
 			CLOSE tLDN
 			DEALLOCATE tLDN
 		END TRY
 		BEGIN CATCH
-      SET @msg = ERROR_MESSAGE() 
-      SET @msg = @msg + '. Trampa de plantilla para PDV: ' + CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX))
-      EXEC WSXML_SFG.SFGTMPTRACE_TraceLog_1 @msg, 'CARGUEAGTINFO_TEMPLATE_INS'
+			SET @msg = ERROR_MESSAGE() 
+			SET @msg = @msg + '. Trampa de plantilla para PDV: ' + CAST(@p_CODIGOGTECHPUNTODEVENTA AS NVARCHAR(MAX))
+			EXEC WSXML_SFG.SFGTMPTRACE_TraceLog_1 @msg, 'CARGUEAGTINFO_TEMPLATE_INS'
 		END CATCH
-    
-  END
-
+	END
 END
-    
- GO
+GO
  
-  IF OBJECT_ID('WSXML_SFG.SFGSINCRONIZACIONSAG_UpdateAgrupacionPDVCabeza', 'P') IS NOT NULL
+IF OBJECT_ID('WSXML_SFG.SFGSINCRONIZACIONSAG_UpdateAgrupacionPDVCabeza', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_UpdateAgrupacionPDVCabeza;
 GO
 
@@ -601,6 +570,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_UpdateAgrupacionPDVCabeza(@p
                       ISNULL(CONVERT(VARCHAR, @p_CODIGOAGRUPACIONGTECH), '') +
                       ' por que la cadena no existe  ';
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0;
     END
     ELSE BEGIN
       SELECT @vID_AGRUPACIONPUNTODEVENTA = AGRUPACIONPUNTODEVENTA.ID_AGRUPACIONPUNTODEVENTA
@@ -620,6 +590,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_UpdateAgrupacionPDVCabeza(@p
                       ' por que no existe el punto de venta ' +
                       ISNULL(@p_CODPUNTODEVENTACABEZA, '');
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0;
     END
     ELSE BEGIN
       SELECT @vID_PUNTODEVENTA = PUNTODEVENTA.ID_PUNTODEVENTA
@@ -639,6 +610,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_UpdateAgrupacionPDVCabeza(@p
                       ' por que el punto de venta ' +
                       ISNULL(@p_CODPUNTODEVENTACABEZA, '') + 'no pertenece a la cadena';
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0;
     END 
   
     EXEC WSXML_SFG.SFGAGRUPACIONPUNTODEVENTA_UpdateCabeza @vID_AGRUPACIONPUNTODEVENTA,@vID_PUNTODEVENTA
@@ -667,16 +639,16 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateAgrupacionPDV(@p
     DECLARE @MSGERROERROR VARCHAR(8000);
     DECLARE @vCOUNT       INT;
    
-  SET NOCOUNT ON;
+	SET NOCOUNT ON;
   
-          --Verificando consistencias 
-		  SET @MSGERROERROR = 'Sincronizando punto de venta : ' +isnull(convert(varchar, @p_CODIGOAGRUPACIONGTECH), '')
+	--Verificando consistencias 
+	SET @MSGERROERROR = 'Sincronizando punto de venta : ' +isnull(convert(varchar, @p_CODIGOAGRUPACIONGTECH), '')
     EXEC WSXML_SFG.sfgtmptrace_tracelog @MSGERROERROR
   
     --Get the id of tipo punto de venta
     SELECT @vCOUNT = COUNT(1)
-      FROM WSXML_SFG.TIPOPUNTODEVENTA
-     WHERE TIPOPUNTODEVENTA.ID_TIPOPUNTODEVENTA = @p_CODTIPOPUNTODEVENTA;
+	FROM WSXML_SFG.TIPOPUNTODEVENTA
+	WHERE TIPOPUNTODEVENTA.ID_TIPOPUNTODEVENTA = @p_CODTIPOPUNTODEVENTA;
   
     IF @vCOUNT = 0 BEGIN
       SET @MSGERROERROR = '-20000 No se puede sincronizar la cadena ' +
@@ -684,6 +656,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateAgrupacionPDV(@p
                       ' por que no existe un tipo punto de venta con el codigo  ' +
                       ISNULL(CONVERT(VARCHAR, @p_CODTIPOPUNTODEVENTA), '');
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END
     ELSE BEGIN
       SELECT @vID_TIPOPUNTODEVENTA = ID_TIPOPUNTODEVENTA
@@ -705,6 +678,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateAgrupacionPDV(@p
                       ' por que no existe una red con el nombre   ' +
                       ISNULL(@p_REDPUNTODEVENTA, '');
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     
     END
     ELSE BEGIN
@@ -787,6 +761,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRedPDV(@p_ACTIVE
                       ' , por que no existe un canal de negocio con el codigo ' +
                       ISNULL(@p_CODIGOCANALNEGOCIO, '');
       RAISERROR(@MSGERROERROR, 16, 1);
+	  RETURN 0
     END
     ELSE BEGIN
       SELECT @vID_CANALNEGOCIO = CANALNEGOCIO.ID_CANALNEGOCIO
@@ -912,6 +887,7 @@ CREATE PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRegional(@p_NOMREGIO
                   ' , por que no existe un jefe de distritro con el codigo  ' +
                   ISNULL(CONVERT(VARCHAR, @p_CODJEFEDISTRITO), '');
       RAISERROR(@MSGERROR, 16, 1);
+	  RETURN 0;
     END 
   
     SELECT @vID_JEFEDISTRITRO = JEFEDISTRITO.ID_JEFEDISTRITO
@@ -1077,6 +1053,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRutaPDV(@p_RUTA 
                   ' , por que no existe un representante de ventas con el codigo  ' +
                   ISNULL(CONVERT(VARCHAR, @p_CODIGOFMR), '');
       RAISERROR( @MSGERROR, 16, 1);
+	  RETURN 0;
     END
     ELSE BEGIN
       SELECT @vID_REPVENTAS = FMR.ID_FMR
@@ -1095,6 +1072,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdateRutaPDV(@p_RUTA 
                   ' , por que no existe la regional con el nombre ' +
                   ISNULL(CONVERT(VARCHAR, @p_NOMREGIONAL), '');
       RAISERROR(@MSGERROR, 16, 1);
+	  RETURN 0;
    END
    ELSE BEGIN
      SELECT @vID_REGIONAL = REGIONAL.ID_REGIONAL
@@ -1528,19 +1506,21 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
                @prevCODREDPDV = CODREDPDV,
                @prevCODRAZONSOCIAL = CODRAZONSOCIAL
                    FROM WSXML_SFG.PUNTODEVENTA
-         WHERE CODIGOGTECHPUNTODEVENTA= @p_CODIGOPDVMOVIL;
-        IF @prevCODCIUDAD <> @vID_CIUDAD OR
+        WHERE CODIGOGTECHPUNTODEVENTA= @p_CODIGOPDVMOVIL;
+        
+		IF @@ROWCOUNT = 0 BEGIN
+			SET @tmpERROR = 'ecNONEXISTANTCPDV El punto de venta ' + ISNULL(@p_CODIGOPDVMOVIL, '') + ' no existe: ' + ISNULL(ERROR_MESSAGE ( ) , '');
+			RAISERROR(@tmpERROR, 16, 1);
+			RETURN 0
+		END
+		
+		IF @prevCODCIUDAD <> @vID_CIUDAD OR
            @prevCODAGRUPACIONPUNTODEVENTA <> @vID_AGRUPACIONPUNTODEVENTA OR
            @prevCODREDPDV <> @vID_REDPDV BEGIN
           SET @flagReglasCambioPlantilla = 1;
         END 
-		  IF @@ROWCOUNT = 0 BEGIN
-			SET @tmpERROR = 'ecNONEXISTANTCPDV El punto de venta ' +
-                                  ISNULL(@p_CODIGOPDVMOVIL, '') +
-                                  ' no existe: ' + ISNULL(ERROR_MESSAGE ( ) , '');
-			RAISERROR(@tmpERROR, 16, 1);
-			RETURN 0
-		  END
+		
+		
       END;
   
   /* TRAMPA DE PLANTILLAS. Aplica cuando es nuevo, o actualizado y ha cambiado alguna de las reglas de plantillas */
@@ -1564,77 +1544,40 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
 			  BEGIN
 				-- Buscar por orden y peso de criterios. Ciudad, Agrupacion, Red
 				BEGIN
-				  -- Criterio 1. Ciudad, Cadena y Red
-				  SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
+					-- Criterio 1. Ciudad, Cadena y Red
+					SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
 					FROM WSXML_SFG.PLANTILLAPRODUCTO P, WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
-				   WHERE C.CODPLANTILLAPRODUCTO = P.ID_PLANTILLAPRODUCTO
-					 AND P.CODLINEADENEGOCIO = @cCODLDN
-					 AND C.CODCIUDAD = @cCIUDADBUSCA
-					 AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA
-					 AND P.CODREDPDV = @cREDPDVBUSCA;
-					IF @@ROWCOUNT = 0
-					BEGIN
-					  -- Criterio 2. Cadena y Red
-					  SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
-						FROM WSXML_SFG.PLANTILLAPRODUCTO P
-					   WHERE P.CODLINEADENEGOCIO = @cCODLDN
+					WHERE C.CODPLANTILLAPRODUCTO = P.ID_PLANTILLAPRODUCTO
+						 AND P.CODLINEADENEGOCIO = @cCODLDN
+						 AND C.CODCIUDAD = @cCIUDADBUSCA
 						 AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA
 						 AND P.CODREDPDV = @cREDPDVBUSCA;
-                
-					  IF @cCODPLANTILLA > 0 BEGIN
-                  
-						SELECT @CANTCIUDAD = COUNT(*)
-						  FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
-						 WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA;
-                  
-					  /*  IF CANTCIUDAD > 0 THEN
-						  --RAISE EXINVALIDASSIGN;
-						  vID_RAZONSOCIAL:=  vCODRAZONSOCIAL_SFG; 
-						END IF;*/
-                  
-					  END 
-                
+
+					IF @@ROWCOUNT = 0
+					BEGIN
+						-- Criterio 2. Cadena y Red
+						SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
+						FROM WSXML_SFG.PLANTILLAPRODUCTO P
+						WHERE P.CODLINEADENEGOCIO = @cCODLDN
+							AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA
+							AND P.CODREDPDV = @cREDPDVBUSCA;
+					
 						IF @@ROWCOUNT = 0
 						-- Criterio 3. Cadena
 						BEGIN
-						  SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
+							SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
 							FROM WSXML_SFG.PLANTILLAPRODUCTO P
-						   WHERE P.CODLINEADENEGOCIO = @cCODLDN
-							 AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA;
-                    
-						  IF @cCODPLANTILLA > 0 BEGIN
-                      
-							SELECT @CANTCIUDAD = COUNT(*)
-							  FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
-							 WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA;
-                      
-							/*IF CANTCIUDAD > 0 THEN
-							  --RAISE EXINVALIDASSIGN;
-							  vID_RAZONSOCIAL:=  vCODRAZONSOCIAL_SFG; 
-							END IF;*/
-                      
-						  END 
-                    
+							WHERE P.CODLINEADENEGOCIO = @cCODLDN
+								AND P.CODAGRUPACIONPUNTODEVENTA = @cCADENABUSCA;
+
 							IF @@ROWCOUNT = 0
 							BEGIN
-							  -- Criterio 4. Red
-							  SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
+								-- Criterio 4. Red
+								SELECT @cCODPLANTILLA = ID_PLANTILLAPRODUCTO
 								FROM WSXML_SFG.PLANTILLAPRODUCTO P
-							   WHERE P.CODLINEADENEGOCIO = @cCODLDN
-								 AND P.CODREDPDV = @cREDPDVBUSCA;
-                        
-							  IF @cCODPLANTILLA > 0 BEGIN
-                          
-								SELECT @CANTCIUDAD = COUNT(*)
-								  FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
-								 WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA;
-                          
-							   /* IF CANTCIUDAD > 0 THEN
-	--                              RAISE EXINVALIDASSIGN;
-									vID_RAZONSOCIAL:=  vCODRAZONSOCIAL_SFG; 
-								END IF;*/
-                          
-							  END 
+								WHERE P.CODLINEADENEGOCIO = @cCODLDN
+									AND P.CODREDPDV = @cREDPDVBUSCA;
+								
 								IF @@ROWCOUNT = 0 BEGIN
 								-- Default. Plantilla Master
 									BEGIN
@@ -1651,26 +1594,61 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
 									END;
 									-- NO SE VINCULARA LA PLANTILLA MASTER: LA PREFACTURACION LA BUSCA POR DEFECTO
 									SET @cCODPLANTILLA = 0;
+								END ELSE BEGIN
+								
+									IF @cCODPLANTILLA > 0 BEGIN
+							  
+										SELECT @CANTCIUDAD = COUNT(*)
+										  FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
+										 WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA;
+								  
+									   /* IF CANTCIUDAD > 0 THEN
+			--                              RAISE EXINVALIDASSIGN;
+											vID_RAZONSOCIAL:=  vCODRAZONSOCIAL_SFG; 
+										END IF;*/
+							  
+									END 
 								END
-							END;
+								
+							END ELSE BEGIN
+								IF @cCODPLANTILLA > 0 BEGIN
+                      
+									SELECT @CANTCIUDAD = COUNT(*)
+									  FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
+									 WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA;
+							  
+									/*IF CANTCIUDAD > 0 THEN
+									  --RAISE EXINVALIDASSIGN;
+									  vID_RAZONSOCIAL:=  vCODRAZONSOCIAL_SFG; 
+									END IF;*/
+                      
+								END 
+							END
 
 
-						END;
+						END ELSE BEGIN
+							IF @cCODPLANTILLA > 0 BEGIN
+					  
+								SELECT @CANTCIUDAD = COUNT(*)
+								FROM WSXML_SFG.PLANTILLAPRODUCTOCIUDAD C
+								WHERE C.CODPLANTILLAPRODUCTO = @cCODPLANTILLA;
+					  
+								  /*  IF CANTCIUDAD > 0 THEN
+									  --RAISE EXINVALIDASSIGN;
+									  vID_RAZONSOCIAL:=  vCODRAZONSOCIAL_SFG; 
+									END IF;*/
+					  
+							END 
+						END
+						
 					END;
 				END;
 				  -- Si se encontro plantilla para asignar
-				  IF @cCODPLANTILLA > 0 BEGIN
+				IF @cCODPLANTILLA > 0 BEGIN
 					-- Si se esta cambiando la plantilla, desactivar primero
 					EXEC WSXML_SFG.SFGPUNTODEVENTAPLANTILLA_DeactivateRecordByData @vID_PUNTODEVENTA,@cCODLDN,1
-                
-					EXEC WSXML_SFG.SFGPUNTODEVENTAPLANTILLA_AddRecord @vID_PUNTODEVENTA,
-													   @cCODPLANTILLA,
-													   NULL,
-													   NULL,
-													   NULL,
-													   1,
-													   @cPDVPLANT_out OUT
-				  END 
+					EXEC WSXML_SFG.SFGPUNTODEVENTAPLANTILLA_AddRecord @vID_PUNTODEVENTA, @cCODPLANTILLA, NULL, NULL, NULL, 1, @cPDVPLANT_out OUT
+				END 
 			  END;
 			FETCH NEXT FROM tLDN INTO @tLDN__ID_LINEADENEGOCIO;
 			END;
@@ -1678,28 +1656,21 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_InsertUpdatePdvStreetSeller(
 			DEALLOCATE tLDN;
 		END TRY
 		BEGIN CATCH
-			       DECLARE @msg VARCHAR(2000);
-          BEGIN
-            SET @msg = ERROR_MESSAGE ( ) ;
-            SET @msg = isnull(@msg, '') + '. Trampa de plantilla para PDV: ' + ISNULL(@p_CODIGOPDVMOVIL, '');
-            EXEC WSXML_SFG.SFGTMPTRACE_TraceLog_1 @msg, 'CARGUEAGTINFO_TEMPLATE_INS'
-          END;
-
+			DECLARE @msg VARCHAR(2000);
+			BEGIN
+				SET @msg = ERROR_MESSAGE ( ) ;
+				SET @msg = isnull(@msg, '') + '. Trampa de plantilla para PDV: ' + ISNULL(@p_CODIGOPDVMOVIL, '');
+				EXEC WSXML_SFG.SFGTMPTRACE_TraceLog_1 @msg, 'CARGUEAGTINFO_TEMPLATE_INS'
+			END;
 		END CATCH
 
-     
-     
-      END;
-    
-  
-  
-  END;
+	END;
 
+END;
 GO
  
 
-
-  IF OBJECT_ID('WSXML_SFG.SFGSINCRONIZACIONSAG_SetRazonSocialContrato', 'P') IS NOT NULL
+IF OBJECT_ID('WSXML_SFG.SFGSINCRONIZACIONSAG_SetRazonSocialContrato', 'P') IS NOT NULL
   DROP PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_SetRazonSocialContrato;
 GO
 
@@ -1719,15 +1690,18 @@ CREATE     PROCEDURE WSXML_SFG.SFGSINCRONIZACIONSAG_SetRazonSocialContrato(@p_CO
    BEGIN TRY
  
     SELECT @cCODRAZONSOCIAL = CODRAZONSOCIAL
-      FROM WSXML_SFG.PUNTODEVENTA
-     WHERE ID_PUNTODEVENTA = @p_CODPUNTODEVENTA;
-    SELECT @cCODSERVICIO = ID_SERVICIO
-      FROM WSXML_SFG.SERVICIO
-     WHERE ORDEN = @p_CODIGOGTECHSERVICIO;
-    SELECT @cCODCOMPANIA = ID_COMPANIA
-      FROM WSXML_SFG.COMPANIA
-     WHERE CODIGO = @p_CODIGOCOMPANIA;
-    EXEC WSXML_SFG.SFGRAZONSOCIAL_SetContrato @cCODRAZONSOCIAL,
+	FROM WSXML_SFG.PUNTODEVENTA
+	WHERE ID_PUNTODEVENTA = @p_CODPUNTODEVENTA;
+    
+	SELECT @cCODSERVICIO = ID_SERVICIO
+	FROM WSXML_SFG.SERVICIO
+	WHERE ORDEN = @p_CODIGOGTECHSERVICIO;
+    
+	SELECT @cCODCOMPANIA = ID_COMPANIA
+	FROM WSXML_SFG.COMPANIA
+	WHERE CODIGO = @p_CODIGOCOMPANIA;
+    
+	EXEC WSXML_SFG.SFGRAZONSOCIAL_SetContrato @cCODRAZONSOCIAL,
                                @cCODSERVICIO,
                                @cCODCOMPANIA,
                                @p_CODTIPOCONTRATOPDV,
@@ -1764,9 +1738,7 @@ BEGIN
   DECLARE @vACTIVO                    NUMERIC(22,0);
   DECLARE @vID_CANALTRANSMISION       NUMERIC(22,0);
   DECLARE @MSGERROR                   NVARCHAR(2000);
-  
-  
-   
+
   SET NOCOUNT ON; 
     
      EXEC WSXML_SFG.sfgtmptrace_tracelog 'Sincronizando canal de transmision...'
@@ -1915,12 +1887,9 @@ BEGIN
                 ACTIVE=  @vACTIVO
             WHERE  CODIGOLINEA=@p_CODIGOLINEA;
             --ID_CANALTRANSMISION= vID_CANALTRANSMISION;
-       
-       
+
        END 
-       
-       
-       
+   
   END;
 GO
 
@@ -1979,11 +1948,12 @@ BEGIN
     FROM WSXML_SFG.DUENOPUNTODEVENTA 
     WHERE ID_DUENOPUNTODEVENTA = @p_CODDUENOPUNTODEVENTA
     
-		IF @@ROWCOUNT = 0 
+	IF @@ROWCOUNT = 0 
     BEGIN
-			SET @MSGERROR = 'No se encontro un dueño de puntos de venta con el codigo ' + CAST(@p_CODDUENOPUNTODEVENTA AS NVARCHAR(MAX))
-			RAISERROR(20000, @MSGERROR, 16, 1)
-		END
+		SET @MSGERROR = 'No se encontro un dueño de puntos de venta con el codigo ' + CAST(@p_CODDUENOPUNTODEVENTA AS NVARCHAR(MAX))
+		RAISERROR(20000, @MSGERROR, 16, 1)
+		RETURN 0
+	END
   END  
     
   IF @vID_AGRUPACIONPDV IS NULL 
@@ -1991,6 +1961,7 @@ BEGIN
     SET @MSGERROR = '-20000 No se encontro una cadena configurada en el dueno de punto de venta codigo :' + CAST(@p_CODDUENOPUNTODEVENTA AS NVARCHAR(MAX))
     SELECT @MSGERROR
     RAISERROR(@MSGERROR, 16, 1)
+	RETURN 0
   END 
     
   --- Get vID_REDPDV
@@ -2002,6 +1973,7 @@ BEGIN
   BEGIN 
     SET @MSGERROR = '-20000 No se encontro una cadena configurada en el dueno de punto de venta codigo :' + CAST(@p_CODDUENOPUNTODEVENTA AS NVARCHAR(MAX))
     RAISERROR(@MSGERROR, 16, 1)
+	RETURN 0
   END 
     
   SELECT 
@@ -2026,6 +1998,7 @@ BEGIN
       ' , por que no existe una ciudad con el codigo dane  ' +
       CONVERT(VARCHAR, @vDANECOMPLETO)
     RAISERROR(@MSGERROR, 16, 1)
+	RETURN 0
   END 
   
   SELECT @vID_CIUDAD = CIUDAD.ID_CIUDAD
@@ -2040,15 +2013,15 @@ BEGIN
     FROM WSXML_SFG.REGIONAL 
     WHERE NOMREGIONAL = @p_NOMREGIONAL
           
-		IF @@ROWCOUNT = 0 
+	IF @@ROWCOUNT = 0 
     BEGIN
       SET @MSGERROR = 
-        '-20000 No se puede crear el punto de venta   ' + 
-        CAST(@p_CODIGOPUNTODEVENTA AS NVARCHAR(MAX)) + 
+        '-20000 No se puede crear el punto de venta   ' + CAST(@p_CODIGOPUNTODEVENTA AS NVARCHAR(MAX)) + 
         ' por que no existe una regional con el nombre : ' + 
         CAST(@p_NOMREGIONAL AS NVARCHAR(MAX))
       RAISERROR(@MSGERROR, 16, 1)
-		END
+	  RETURN 0
+	END
   END
   ELSE 
   BEGIN
@@ -2064,18 +2037,43 @@ BEGIN
       @vCURRENTCODDUENOPDV = CODDUENOPUNTODEVENTA
     FROM WSXML_SFG.PUNTODEVENTA
     WHERE CODIGOGTECHPUNTODEVENTA = @p_CODIGOPUNTODEVENTA
-      
+    
+	IF @@ROWCOUNT = 0
+
+      --El punto de venta es nuevo y debe crearse
+      EXEC WSXML_SFG.SFGPUNTODEVENTA_AddRecord 
+        @p_CODIGOPUNTODEVENTA,
+        @p_NUMEROTERMINAL,
+        @p_NONMBREPDV,
+        @vID_CIUDAD,
+        @p_TELEFONO,
+        @p_DIRECCION,
+        @vID_REGIMEN,
+        @vID_IDENTIFICACION,
+        @vDIGITOVERIFICACION,
+        @vID_AGRUPACIONPDV,
+        @vID_RAZONSOCIAL, 
+        1/*dueno terminal*/,
+        @p_CODDUENOPUNTODEVENTA,
+        @p_CODIGOPUNTODEVENTARED,
+        1,--ACTIVE
+        @vID_USUARIOSISTEMA,
+        @vID_PUNTODEVENTA OUT
+        
+	END	
     --El punto de venta existe , entonces validamos que el codigo externo de punto de venta y el dueno de terminal es el mismo .
     IF @vCURRENTCODEXTERNO <> @p_CODIGOPUNTODEVENTARED 
     BEGIN 
       SET @MSGERROR = '-20000 No se puede crear el punto de venta  ' + CAST(@p_CODIGOPUNTODEVENTA AS NVARCHAR(MAX)) + ' por que cambiaria el codigo externo del punto.'
       RAISERROR(@MSGERROR, 16, 1)
+	  RETURN 0
     END 
       
     IF @vCURRENTCODDUENOPDV <> @p_CODDUENOPUNTODEVENTA 
     BEGIN 
       SET @MSGERROR = '-20000 No se puede crear el punto de venta  ' + CAST(@p_CODIGOPUNTODEVENTA AS NVARCHAR(MAX)) + ' por que cambiaria el due?o del punto.'
       RAISERROR(@MSGERROR, 16, 1)
+	  RETURN 0;
     END 
       
     -- Si llega hasta aqui entonces se actualiza el punto de venta
@@ -2098,29 +2096,7 @@ BEGIN
       @vID_USUARIOSISTEMA,
       @p_ACTIVE
     
-		IF @@ROWCOUNT = 0
-
-      --El punto de venta es nuevo y debe crearse
-      EXEC WSXML_SFG.SFGPUNTODEVENTA_AddRecord 
-        @p_CODIGOPUNTODEVENTA,
-        @p_NUMEROTERMINAL,
-        @p_NONMBREPDV,
-        @vID_CIUDAD,
-        @p_TELEFONO,
-        @p_DIRECCION,
-        @vID_REGIMEN,
-        @vID_IDENTIFICACION,
-        @vDIGITOVERIFICACION,
-        @vID_AGRUPACIONPDV,
-        @vID_RAZONSOCIAL, 
-        1/*dueno terminal*/,
-        @p_CODDUENOPUNTODEVENTA,
-        @p_CODIGOPUNTODEVENTARED,
-        1,--ACTIVE
-        @vID_USUARIOSISTEMA,
-        @vID_PUNTODEVENTA OUT
-        
-  END
+	
 
   EXEC WSXML_SFG.SFGPUNTODEVENTA_UpdateDatosTecnicos 
     @vID_PUNTODEVENTA,

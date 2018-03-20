@@ -79,12 +79,13 @@ SET NOCOUNT ON;
             COD_AJUSTE = @p_COD_AJUSTE
     WHERE ID_CON_NO_CONCILIA_ALI = @pk_ID_CON_NO_CONCILIA_ALI;
 
+	DECLARE @ROWCOUNT NUMERIC(22,0) = @@ROWCOUNT
     -- Make sure only one record is affected
-    IF @@rowcount = 0
+    IF @ROWCOUNT = 0
     BEGIN
         RAISERROR ('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1
+    IF @ROWCOUNT > 1
     BEGIN
         RAISERROR ('-20053 Duplicate object instances.', 16, 1);
     END 

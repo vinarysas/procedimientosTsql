@@ -38,7 +38,7 @@ CREATE     FUNCTION WSXML_SFG.SFGINF_CARTASFIDUCIA_PARAMETRO_NUMBER(@p_PARAMETRO
      WHERE P.NOMPARAMETRO = @p_PARAMETRO;
 
 	 IF @@ROWCOUNT = 0
-		RETURN 0
+		SET @result = 0;
 
     RETURN @result;
 
@@ -2771,34 +2771,33 @@ create PROCEDURE WSXML_SFG.SFGINF_CARTASFIDUCIA_ValidarArchivos(@pCODCICLODEFACT
           IF UPPER(@pNOMBREARCHIVO) like '%LIAB%' 
             BEGIN
           --Recorre cursor fecha archivo
-          declare fechas cursor for select CONVERT(DATETIME,CONVERT(DATE,e.fechaarchivo)) as fecha
+			declare fechas cursor for select CONVERT(DATETIME,CONVERT(DATE,e.fechaarchivo)) as fecha
                           from WSXML_SFG.entradaarchivocontrol e 
                           where e.codciclofacturacionpdv = @pCODCICLODEFACTURACION; 
-              open fechas;
-			  DECLARE @fechas__fecha datetime
-              fetch next from fechas into @fechas__fecha;
-              while @@fetch_status=0
-              begin
-              begin
-				
-					  select l.cdc
-					  from WSXML_SFG.control_l1liab01 l 
-					  order by 1;
-				 if @@ROWCOUNT = 0 begin
-					SET @msg = '-20054 El archivo L1Liab del dia  ' +
-											  isnull(@fechas__fecha, '') +
-											  ', No se encuentra cargado en la base de datos '
-					  RAISERROR(@msg, 16, 1);
-				end
-              END;
-            fetch next from fechas into @fechas__fecha;
-            end;
-            close fechas;
-            deallocate fechas;
-            end 
+				open fechas;
+				DECLARE @fechas__fecha datetime
+				fetch next from fechas into @fechas__fecha;
+				while @@fetch_status=0
+				begin
+					BEGIN
+					
+						select l.cdc
+						from WSXML_SFG.control_l1liab01 l 
+						order by 1;
+						
+						IF @@ROWCOUNT = 0 BEGIN
+							SET @msg = '-20054 El archivo L1Liab del dia  ' + ISNULL(CONVERT(VARCHAR,@fechas__fecha,120), '') + ', No se encuentra cargado en la base de datos '
+							RAISERROR(@msg, 16, 1);
+							RETURN 0
+						END
+					END;
+					fetch next from fechas into @fechas__fecha;
+				end;
+				close fechas;
+				deallocate fechas;
+            END 
             --Valida archivos ventas avanzadas
-           
-          
+
            end
 go
            

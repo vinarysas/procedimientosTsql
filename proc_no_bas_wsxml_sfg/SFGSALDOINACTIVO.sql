@@ -20,11 +20,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGSALDOINACTIVO_UpdateSaldoInactivo(@p_CODPUNTOD
   SET NOCOUNT ON;
     BEGIN
       SELECT @xACTIVESTATUS = ACTIVE FROM WSXML_SFG.PUNTODEVENTA WHERE ID_PUNTODEVENTA = @p_CODPUNTODEVENTA;
-		IF @@ROWCOUNT = 0 
+		IF @@ROWCOUNT = 0 BEGIN
 			RAISERROR('-20090 El punto de venta no existe', 16, 1);
+			RETURN 0;
+		END
     END;
     IF @xACTIVESTATUS = 1 BEGIN
       RAISERROR('-20090 El punto de venta esta activo y por tanto su saldo no se puede trasladar', 16, 1);
+	  RETURN 0;
     END 
     /* Verify Existence or Create Item */
     BEGIN

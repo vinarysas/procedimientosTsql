@@ -114,6 +114,18 @@ CREATE     PROCEDURE WSXML_SFG.SFGWEBORDENDECOMPRA_UpdateRecord(@pk_ID_ORDENDECO
            RECIBIDO             = @p_RECIBIDO,
            FECHAHORARECIBIDO    = @p_FECHAHORARECIBIDO
      WHERE ID_ORDENDECOMPRA = @pk_ID_ORDENDECOMPRA;
+	
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;	
+	 -- Make sure only one record is affected
+    IF @rowcount = 0 BEGIN
+      RAISERROR('-20054 The record no longer exists.', 16, 1);
+	  RETURN 0;
+    END 
+    IF @rowcount > 1 BEGIN
+      RAISERROR('-20053 Duplicate object instances.', 16, 1);
+	  RETURN 0;
+    END 
+	
     IF @xCurrentState = 'I' AND @p_ESTADOAPROBACION = 'A' BEGIN
         DECLARE @xUsuarioAprobacion VARCHAR(4000)   /* Use -meta option USUARIO.NOMUSUARIO%TYPE */;
         DECLARE @xAliadoOrdenDeCompra VARCHAR(4000) /* Use -meta option ALIADOESTRATEGICO.NOMALIADOESTRATEGICO%TYPE */;
@@ -124,13 +136,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGWEBORDENDECOMPRA_UpdateRecord(@pk_ID_ORDENDECO
       END;
 
     END 
-    -- Make sure only one record is affected
-    IF @@rowcount = 0 BEGIN
-      RAISERROR('-20054 The record no longer exists.', 16, 1);
-    END 
-    IF @@rowcount > 1 BEGIN
-      RAISERROR('-20053 Duplicate object instances.', 16, 1);
-    END 
+    
   END;
 GO
 

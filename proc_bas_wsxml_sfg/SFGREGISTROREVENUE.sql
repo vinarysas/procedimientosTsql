@@ -819,7 +819,6 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_ReverseRevenueByFile(@p_CODENT
 
     IF (SELECT COUNT(*) FROM @lstREVENUEREGISTRIES) > 0 
 	BEGIN
-
 			
 		BEGIN TRANSACTION;
 		
@@ -1174,7 +1173,7 @@ GO
 		--Setea comisiones diferenciales multiples, dejando valida solo la de menor prioridad
 
 		BEGIN
-		  SELECT @V_CODREDPDVCOMDIF = CASE
+			SELECT @V_CODREDPDVCOMDIF = CASE
 				   WHEN ISNULL(CD1.CODREDPDV, 0) = 0 THEN 0 ELSE CODREDPDV END ,
 				 @V_CODAGRUPACIONPDVCOMDIF = CASE WHEN ISNULL(CD1.CODAGRUPACIONPUNTODEVENTA, 0) = 0 THEN 0 ELSE CODAGRUPACIONPUNTODEVENTA END,
 				 @V_CODDEPARTAMENTOCOMDIF = CASE WHEN ISNULL(CD1.CODDEPARTAMENTO, 0) = 0 THEN 0
@@ -1182,17 +1181,17 @@ GO
 					CODDEPARTAMENTO
 				 END,
 				 @V_PRODUCTOCONTRATOCOMDIF = CD1.ID_PRODUCTOCONTRATOCOMDIF
-				   FROM WSXML_SFG.PRODUCTOCONTRATOCOMDIF CD1
-		   WHERE CD1.PRIORIDAD =
-				 (SELECT MIN(CD.PRIORIDAD)
+			FROM WSXML_SFG.PRODUCTOCONTRATOCOMDIF CD1
+			WHERE CD1.PRIORIDAD = (
+					SELECT MIN(CD.PRIORIDAD)
 					FROM WSXML_SFG.PRODUCTOCONTRATOCOMDIF CD
-				   WHERE CD.CODPRODUCTOCONTRATO = CD1.CODPRODUCTOCONTRATO
-					 AND (CD.CODREDPDV = @p_CODREDPDV OR
-						 CD.CODAGRUPACIONPUNTODEVENTA =
-						 @p_CODAGRUPACIONPUNTODEVENTA OR
-						 CD.CODDEPARTAMENTO = @V_DepartamentoDiferencial)
-					 AND CD.CODPRODUCTOCONTRATO = @V_PRODUCTOCONTRATO
-					 AND CD.PRIORIDAD > 0)
+					WHERE CD.CODPRODUCTOCONTRATO = CD1.CODPRODUCTOCONTRATO
+						AND (CD.CODREDPDV = @p_CODREDPDV OR
+							CD.CODAGRUPACIONPUNTODEVENTA =
+							@p_CODAGRUPACIONPUNTODEVENTA OR
+							CD.CODDEPARTAMENTO = @V_DepartamentoDiferencial)
+						AND CD.CODPRODUCTOCONTRATO = @V_PRODUCTOCONTRATO
+						AND CD.PRIORIDAD > 0)
 			 AND (CD1.CODREDPDV = @p_CODREDPDV OR
 				 CD1.CODAGRUPACIONPUNTODEVENTA = @p_CODAGRUPACIONPUNTODEVENTA OR
 				 CD1.CODDEPARTAMENTO = @V_DepartamentoDiferencial)
@@ -2015,6 +2014,8 @@ GO
                                     @p_CODPRODUCTO         NUMERIC(22,0),
                                     @p_REPEVALUACIONVENTAS INT = 1) AS
  BEGIN
+	SET NOCOUNT ON;
+
     DECLARE @errormsg         VARCHAR(2000);
     DECLARE @cFECHA           DATETIME = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAARCHIVO));
     DECLARE @cCODSERVICIO     NUMERIC(22,0);
@@ -2060,8 +2061,10 @@ GO
     DECLARE @tCommission__ID_RANGOCOMISIONDETALLE NUMERIC(38,0), @tCommission__RANGOINICIAL FLOAT
 										, @tCommission__RANGOFINAL FLOAT, @tCommission__VALORPORCENTUAL FLOAT, @tCommission__VALORTRANSACCIONAL FLOAT
 
-	SET NOCOUNT ON;
+	
     
+	DECLARE @rowcount NUMERIC(22,0)
+
 	SET @msg = 'Invoked Product Revenue Calculation for ' + ISNULL(FORMAT(@p_FECHAARCHIVO, 'dd/MM/yyyy'), '') + ' ' + ISNULL(CONVERT(VARCHAR,@p_CODPRODUCTO), '')
 	EXEC WSXML_SFG.sfgtmptrace_tracelog @msg
 
@@ -2453,8 +2456,10 @@ GO
 																 @cCODRANGOCOMISIONDIFRED OUT,
 																 @cCODRANGOCOMISIONDIFDTO OUT,
 																 @cFLAGCOMISIONDIFERENCIALBIN OUT,
-																 @cLISTCOMISIONDIFERENCIALBIN OUT,
-																 @cLISTADVTRANSACCIONES OUT,
+																 @cLISTCOMISIONDIFERENCIALBIN OUT, -- Cursor varying
+																 @cCOUNTCOMISIONDIFERENCIALBIN OUT,
+																 @cLISTADVTRANSACCIONES OUT, -- Cursor varying 
+																 @cCOUNTADVTRANSACCIONES OUT, 
 																 @cCODRANGOCOMISIONESTANDAR OUT
 								END TRY
 								BEGIN CATCH
@@ -2486,8 +2491,10 @@ GO
 																   @cCODRANGOCOMISIONDIFRED OUT,
 																   @cCODRANGOCOMISIONDIFDTO OUT,
 																   @cFLAGCOMISIONDIFERENCIALBIN OUT,
-																   @cLISTCOMISIONDIFERENCIALBIN OUT,
-																   @cLISTADVTRANSACCIONES OUT,
+																   @cLISTCOMISIONDIFERENCIALBIN OUT, -- Cursor varying
+																   @cCOUNTCOMISIONDIFERENCIALBIN OUT,
+																   @cLISTADVTRANSACCIONES OUT, -- Cursor varying 
+																   @cCOUNTADVTRANSACCIONES OUT, 
 																   @cCODRANGOCOMISIONESTANDAR OUT
 								END CATCH
 							  END;
@@ -2580,17 +2587,18 @@ GO
 									SELECT @cpsvcodeTIPOCOMISION = CODTIPOCOMISION,
 										   @cpsvcalcVALORPORCENTUA = VALORPORCENTUAL,
 										   @cpsvcalcVALORTRANSCCNL = VALORTRANSACCIONAL
-														   FROM WSXML_SFG.RANGOCOMISION
-									 INNER JOIN RANGOCOMISIONDETALLE
-										ON (CODRANGOCOMISION = ID_RANGOCOMISION)
-									 WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONESTANDAR;
+									FROM WSXML_SFG.RANGOCOMISION
+										INNER JOIN WSXML_SFG.RANGOCOMISIONDETALLE ON (CODRANGOCOMISION = ID_RANGOCOMISION)
+									WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONESTANDAR;
 									
-									IF @@ROWCOUNT = 0 BEGIN
+									SET @rowcount = @@ROWCOUNT;
+									
+									IF @rowcount = 0 BEGIN
 										SET @msg = '-20080 No existe comision estandar configurada para el producto ' + ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO), '') + '. No se puede continuar'
 										RAISERROR(@msg, 16, 1);
 									END
 									
-									IF @@ROWCOUNT > 1 BEGIN
+									IF @rowcount > 1 BEGIN
 										SET @tmpvCOMISIONPOSESTANDAR = 0;
 									
 									END ELSE BEGIN
@@ -2770,15 +2778,14 @@ GO
 					  ON (CODRANGOCOMISION = ID_RANGOCOMISION)
 					WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONESTANDAR;
 				  
-					IF @@ROWCOUNT = 0 BEGIN
-					
+					SET @rowcount = @@ROWCOUNT;
+					IF @rowcount = 0 BEGIN
 						SET @msg = '-20080 No existe comision estandar configurada para el producto ' + ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO), '') + '. No se puede continuar' 
 						RAISERROR(@msg, 16, 1);
 						RETURN 0
-					
 					END
 					
-					IF @@ROWCOUNT > 1 BEGIN
+					IF @rowcount > 1 BEGIN
 						SET @vCOMISIONPOSESTANDAR = 0;
 					END ELSE
 					BEGIN
@@ -3620,6 +3627,7 @@ GO
     DECLARE @annulmntREVENUEBASE   FLOAT = 0;
     DECLARE @annulmntVCOMESTANDAR  FLOAT = 0;
     DECLARE @annulmntCODRGRVTRANS  NUMERIC(22,0);
+	DECLARE @rowcount NUMERIC(22,0) = 0;
    
 	DECLARE @VENTAFACT SMALLINT, @ANULACION SMALLINT, @FREETICKT SMALLINT, @PREMIOPAG SMALLINT, @RGSTOTROS SMALLINT, @VENNOFACT SMALLINT
 		
@@ -4150,15 +4158,16 @@ GO
                  INNER JOIN WSXML_SFG.RANGOCOMISIONDETALLE
                     ON (CODRANGOCOMISION = ID_RANGOCOMISION)
                  WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONESTANDAR;
-				 
-				IF @@ROWCOUNT = 0 BEGIN
+				
+				SET @rowcount = @@ROWCOUNT;
+				IF @rowcount = 0 BEGIN
 					SET @errormsg = '-20080 No existe comisión estandar configurada para el producto ' +
                                           WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO) + '. No se puede continuar'
 					RAISERROR(@errormsg, 16, 1);
 					RETURN 0
 				END
 				
-				IF @@ROWCOUNT > 1 BEGIN
+				IF @rowcount > 1 BEGIN
 					SET @tmpvCOMISIONPOSESTANDAR = 0;
 				END ELSE 
 				BEGIN
@@ -4289,7 +4298,7 @@ GO
         -- Verificar si se encontro comision (tarifa) diferencial
         BEGIN
 			BEGIN TRY
-				DECLARE @rowcount NUMERIC(22,0) = 0;
+				SET  @rowcount = 0;
 				IF @cCODRANGOCOMISIONDIFAGR <> 0 BEGIN
 					SELECT @cCODRANGOCOMISION = ID_RANGOCOMISION, @cCODTIPOCOMISION = CODTIPOCOMISION, @cCODTIPORANGO = CODTIPORANGO
 					  FROM WSXML_SFG.RANGOCOMISION
@@ -4335,13 +4344,15 @@ GO
               ON (CODRANGOCOMISION = ID_RANGOCOMISION)
            WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONESTANDAR;
 		   
-		   IF @@ROWCOUNT = 0 BEGIN
+			SET @rowcount = @@ROWCOUNT;
+
+		   IF @rowcount = 0 BEGIN
 			  SET @errormsg = '-20080 No existe comision estandar configurada para el producto ' + ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO), '') + '. No se puede continuar'
 				RAISERROR(@errormsg, 16, 1);
 				RETURN 0
 		   END
 		  
-		  IF @@ROWCOUNT > 1 BEGIN
+		  IF @rowcount > 1 BEGIN
             SET @vCOMISIONPOSESTANDAR = 0;
             SET @annulmntVCOMESTANDAR = 0;
 		  END ELSE 
@@ -5390,15 +5401,12 @@ GO
     END
 END
 
- GO
-
-
-
-
-  IF OBJECT_ID('WSXML_SFG.SFGREGISTROREVENUE_RevisarValoresPYGyCostos', 'P') IS NOT NULL
-  DROP PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_RevisarValoresPYGyCostos;
 GO
 
+
+IF OBJECT_ID('WSXML_SFG.SFGREGISTROREVENUE_RevisarValoresPYGyCostos', 'P') IS NOT NULL
+  DROP PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_RevisarValoresPYGyCostos;
+GO
 
  CREATE PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_RevisarValoresPYGyCostos(@p_FECHA DATETIME) AS
  BEGIN
@@ -6073,6 +6081,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
     DECLARE @cachetarifadif WSXML_SFG.PRODUCTTARIFA;
     DECLARE @cacheconfigpyg WSXML_SFG.CONFIGPYGREGISTRY;
     DECLARE @cacheconfigdsc WSXML_SFG.CONFIGPYGDISCOUNT;
+	DECLARE @rowcount NUMERIC(22,0) = 0;
 	
 	DECLARE @ix__IDVALUE NUMERIC(38,0)
 	DECLARE @ir__IDVALUE NUMERIC(38,0)
@@ -6639,13 +6648,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
 													   WHERE ID_RANGOCOMISION =
 															 @cCODRANGOCOMISIONESTANDAR;
 
-													IF @@ROWCOUNT = 0 BEGIN
+													SET @rowcount = @@ROWCOUNT;
+													IF @rowcount = 0 BEGIN
 														SET @errormsg = '-20080 No existe comision estandar configurada para el producto ' + 
 																	ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO), '') + '. No se puede continuar'
 														RAISERROR(@errormsg, 16, 1);
 													END
 													
-													IF @@ROWCOUNT > 1 BEGIN
+													IF @rowcount > 1 BEGIN
 														SET @tmpvCOMISIONPOSESTANDAR = 0;
 													END ELSE BEGIN
 														
@@ -6841,14 +6851,16 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGISTROREVENUE_CalcularRevenue(@p_FECHA      
 									INNER JOIN WSXML_SFG.RANGOCOMISIONDETALLE ON (CODRANGOCOMISION = ID_RANGOCOMISION)
 								WHERE ID_RANGOCOMISION = @cCODRANGOCOMISIONESTANDAR;
 								
-								IF @@ROWCOUNT = 0 BEGIN
+								SET @rowcount = @@ROWCOUNT;
+
+								IF @rowcount = 0 BEGIN
 									SET @errormsg =  '-20080 No existe comision estandar configurada para el producto ' +
 														  ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@cCODPRODUCTO), '') +
 														  '. No se puede continuar'
 								  RAISERROR(@errormsg, 16, 1);
 								END
 								
-								IF @@ROWCOUNT > 1 BEGIN
+								IF @rowcount > 1 BEGIN
 									SET @vCOMISIONPOSESTANDAR = 0;
 								END ELSE 
 								BEGIN

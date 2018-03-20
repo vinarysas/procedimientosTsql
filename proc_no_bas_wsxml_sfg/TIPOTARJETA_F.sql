@@ -14,7 +14,7 @@ GO
   SELECT @returnvalue = ID_TIPOTARJETA FROM WSXML_SFG.TIPOTARJETA WHERE RTRIM(LTRIM(UPPER(NOMTIPOTARJETA))) = RTRIM(LTRIM(UPPER(@p_NOMTIPOTARJETA)));
   
   IF @@ROWCOUNT = 0 BEGIN
-  RETURN CAST('-20054: No existe el tipo de tarjeta' AS INT);
+	RETURN CAST('-20054: No existe el tipo de tarjeta' AS INT);
   END
   RETURN @returnvalue;
   

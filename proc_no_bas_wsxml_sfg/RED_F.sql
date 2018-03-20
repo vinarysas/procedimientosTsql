@@ -19,7 +19,7 @@ CREATE FUNCTION WSXML_SFG.RED_F (@p_NOMREDPDV NVARCHAR(2000)) RETURNS NUMERIC(22
 		SET @traceLog = 'Network ' + ISNULL(@p_NOMREDPDV, '') + ' not found';
 		--EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @traceLog;
 
-		RETURN 0
+		SET @result = 0;
 	END
 
 	RETURN @result;

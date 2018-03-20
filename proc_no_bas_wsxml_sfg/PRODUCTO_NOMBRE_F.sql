@@ -15,7 +15,7 @@ CREATE FUNCTION WSXML_SFG.PRODUCTO_NOMBRE_F (@pk_ID_PRODUCTO NUMERIC(22,0))
   	
 		IF @@ROWCOUNT = 0 BEGIN
 		 --SFGTMPTRACE.TraceLog('No es posible encontrar el producto con identificador ' + ISNULL(@pk_ID_PRODUCTO, ''));
-		 RETURN 0
+			SET @result = 0
 		END
   RETURN @result;
 END; 

@@ -46,10 +46,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGPDVCATEGORIACUPO_UpdateRecord(@pk_ID_PDVCATEGO
                                 ACTIVE                 = @p_ACTIVE,
                                 CODCATEGORIACUPO       = @p_CODCATEGORIACUPO
     WHERE ID_PDVCATEGORIACUPO = @pk_ID_PDVCATEGORIACUPO;
-    IF @@rowcount = 0 BEGIN
+
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;
@@ -320,12 +322,7 @@ BEGIN
   IF @@ROWCOUNT = 0 
   BEGIN
     SET @msg = 'CupoAutomatico: ' + @p_VALORCUPO
-    EXEC WSXML_SFG.SFGCATEGORIACUPO_AddRecord 
-      @msg,
-      @p_VALORCUPO, 
-      1, 
-      0, 
-      @result out
+    EXEC WSXML_SFG.SFGCATEGORIACUPO_AddRecord @msg, @p_VALORCUPO, 1, 0, @result out
   END 
   
   RETURN @result

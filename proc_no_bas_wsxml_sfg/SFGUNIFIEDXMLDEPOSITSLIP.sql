@@ -32,7 +32,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGUNIFIEDXMLDEPOSITSLIP_GetDepositSlipHeader(@p_
     DECLARE @vLastBillingDate DATETIME;
     DECLARE @msg VARCHAR(2000);
    
-  SET NOCOUNT ON;
+	SET NOCOUNT ON;
     -- Get expected cycle identifier
     BEGIN
       IF @p_SECUENCIACICLO = -1 BEGIN
@@ -42,14 +42,19 @@ CREATE     PROCEDURE WSXML_SFG.SFGUNIFIEDXMLDEPOSITSLIP_GetDepositSlipHeader(@p_
         SET @cMAXSECUENCIAFACTURACION = @p_SECUENCIACICLO;
       END 
 
-      SELECT @cCODCICLOFACTURACIONPDV = ID_CICLOFACTURACIONPDV FROM WSXML_SFG.CICLOFACTURACIONPDV
-      WHERE SECUENCIA = @cMAXSECUENCIAFACTURACION AND ACTIVE = 1;
-		IF @@ROWCOUNT = 0 BEGIN
-			SET @msg = '-20054 No existe el ciclo de facturacion No. ' + ISNULL(@p_SECUENCIACICLO, '') 
+		SELECT @cCODCICLOFACTURACIONPDV = ID_CICLOFACTURACIONPDV FROM WSXML_SFG.CICLOFACTURACIONPDV
+		WHERE SECUENCIA = @cMAXSECUENCIAFACTURACION AND ACTIVE = 1;
+		
+		DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+		
+		IF @rowcount = 0 BEGIN
+			SET @msg = '-20054 No existe el ciclo de facturacion No. ' + ISNULL(CONVERT(VARCHAR,@p_SECUENCIACICLO), '') 
 			RAISERROR(@msg, 16, 1);
+			RETURN 0;
 		END	
-		IF @@ROWCOUNT > 1 BEGIN	
-			  RAISERROR('-20054 Hay mas de un ciclo de facturacion con el mismo codigo de secuencia. Este es un problema de consistencia de datos.', 16, 1);
+		IF @rowcount > 1 BEGIN	
+			RAISERROR('-20054 Hay mas de un ciclo de facturacion con el mismo codigo de secuencia. Este es un problema de consistencia de datos.', 16, 1);
+			RETURN 0;  
 		END
     END;
 
@@ -69,7 +74,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGUNIFIEDXMLDEPOSITSLIP_GetDepositSlipHeader(@p_
     EXEC WSXML_SFG.SFGPARAMETRO_GetValorByKey 'BarcodeGamesGTECH', @vBarcodeGTECH OUT
     EXEC WSXML_SFG.SFGPARAMETRO_GetValorByKey 'BarcodeGamesFiducia', @vBarcodeFiducia OUT
 
-      SELECT @vLastBillingDate                 AS LASTBILLINGDATE,
+	SELECT @vLastBillingDate                 AS LASTBILLINGDATE,
              CFP.FECHAEJECUCION               AS BILLINGDATE,
              AGR.CODIGOAGRUPACIONGTECH        AS CHAINNUMBER,
              PDV.CODIGOGTECHPUNTODEVENTA      AS POSNUMBER,
@@ -494,15 +499,19 @@ CREATE     PROCEDURE WSXML_SFG.SFGUNIFIEDXMLDEPOSITSLIP_GetDepositSlipChainHeade
         SET @cMAXSECUENCIAFACTURACION = @p_SECUENCIACICLO;
       END 
 
-      SELECT @cCODCICLOFACTURACIONPDV = ID_CICLOFACTURACIONPDV FROM WSXML_SFG.CICLOFACTURACIONPDV
-      WHERE SECUENCIA = @cMAXSECUENCIAFACTURACION AND ACTIVE = 1;
-    
-		IF @@ROWCOUNT = 0 BEGIN
-			SET @msg = '-20054 No existe el ciclo de facturacion No. ' + ISNULL(@p_SECUENCIACICLO, '') 
+		SELECT @cCODCICLOFACTURACIONPDV = ID_CICLOFACTURACIONPDV FROM WSXML_SFG.CICLOFACTURACIONPDV
+		WHERE SECUENCIA = @cMAXSECUENCIAFACTURACION AND ACTIVE = 1;
+		
+		DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+		IF @rowcount = 0 BEGIN
+			SET @msg = '-20054 No existe el ciclo de facturacion No. ' + ISNULL(CONVERT(VARCHAR,@p_SECUENCIACICLO), '') 
 			RAISERROR(@msg, 16, 1);
+			RETURN 0;
 		END
-		IF @@ROWCOUNT > 1
+		IF @rowcount > 1 BEGIN
 			RAISERROR('-20054 Hay mas de un ciclo de facturacion con el mismo codigo de secuencia. Este es un problema de consistencia de datos.', 16, 1);
+			RETURN 0;
+		END
     END;
 
     /* Ciclo de facturacion previo (SECUENCIA MENOR ACTIVA) */
@@ -921,13 +930,16 @@ CREATE     PROCEDURE WSXML_SFG.SFGUNIFIEDXMLDEPOSITSLIP_GetDepositSlipDetails(@p
       SELECT @cCODCICLOFACTURACIONPDV = ID_CICLOFACTURACIONPDV FROM WSXML_SFG.CICLOFACTURACIONPDV
       WHERE SECUENCIA = @cMAXSECUENCIAFACTURACION AND ACTIVE = 1;
 	  
-	  IF @@ROWCOUNT = 0 BEGIN
-			SET @msg = '-20054 No existe el ciclo de facturacion No. ' + ISNULL(@p_SECUENCIACICLO, '')
+	  DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+	  IF @rowcount = 0 BEGIN
+			SET @msg = '-20054 No existe el ciclo de facturacion No. ' + ISNULL(CONVERT(VARCHAR,@p_SECUENCIACICLO), '')
 			RAISERROR(@msg, 16, 1);
+			RETURN 0
 	  END
 	  
-	  IF @@ROWCOUNT > 1 BEGIN
+	  IF @rowcount > 1 BEGIN
 		RAISERROR('-20054 Hay mas de un ciclo de facturacion con el mismo codigo de secuencia. Este es un problema de consistencia de datos.', 16, 1);
+		RETURN 0;
 	  END
 		
 		  
@@ -1002,13 +1014,16 @@ CREATE     PROCEDURE WSXML_SFG.SFGUNIFIEDXMLDEPOSITSLIP_GetDepositSlipChainDetai
       SELECT @cCODCICLOFACTURACIONPDV = ID_CICLOFACTURACIONPDV FROM WSXML_SFG.CICLOFACTURACIONPDV
       WHERE SECUENCIA = @cMAXSECUENCIAFACTURACION AND ACTIVE = 1;
 	  
-		IF @@ROWCOUNT = 0 BEGIN
-			SET @msgError = '-20054 No existe el ciclo de facturacion No. ' + ISNULL(@p_SECUENCIACICLO, '')
+		DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+		IF @rowcount = 0 BEGIN
+			SET @msgError = '-20054 No existe el ciclo de facturacion No. ' + ISNULL(CONVERT(VARCHAR,@p_SECUENCIACICLO), '')
 			RAISERROR(@msgError, 16, 1);
+			RETURN 0;
 		END
 		
-		IF @@ROWCOUNT > 1 BEGIN
+		IF @rowcount > 1 BEGIN
 			RAISERROR('-20054 Hay mas de un ciclo de facturacion con el mismo codigo de secuencia. Este es un problema de consistencia de datos.', 16, 1);
+			RETURN 0;
 		END
 		  
     END;

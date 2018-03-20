@@ -935,48 +935,49 @@ IF EXISTS (
 GO
 
 CREATE     FUNCTION WSXML_SFG.SFG_PACKAGE_GETNUMEROCDC(@FECHA DATETIME) RETURNS NUMERIC(22,0) AS
-  BEGIN
-      DECLARE @strPARAM     NVARCHAR(255);
-      DECLARE @iniNUMEROCDC NUMERIC(22,0);
-      DECLARE @iniFECHACDC  DATETIME;
-      DECLARE @sector       NUMERIC(22,0);
-      DECLARE @difference   NUMERIC(22,0);
+BEGIN
+    DECLARE @strPARAM     NVARCHAR(255);
+    DECLARE @iniNUMEROCDC NUMERIC(22,0);
+    DECLARE @iniFECHACDC  DATETIME;
+    DECLARE @sector       NUMERIC(22,0);
+    DECLARE @difference   NUMERIC(22,0);
+
     BEGIN
 	
-	  SELECT @strPARAM = WSXML_SFG.SFGPARAMETRO_GetValorByKey_F('NumeroCDCInicial')
-      SELECT @iniNUMEROCDC = CONVERT(NUMERIC,@strPARAM);
+		SET @strPARAM = WSXML_SFG.SFGPARAMETRO_GetValorByKey_F('NumeroCDCInicial')
+		SET @iniNUMEROCDC = CONVERT(NUMERIC,@strPARAM);
 	  
-	  SELECT @strPARAM = WSXML_SFG.SFGPARAMETRO_GetValorByKey_F('FechaCDCInicial')
-      SELECT @iniFECHACDC = CONVERT(DATETIME, @strPARAM, 103);
+		SET @strPARAM = WSXML_SFG.SFGPARAMETRO_GetValorByKey_F('FechaCDCInicial')
+		SET @iniFECHACDC = CONVERT(DATETIME, @strPARAM, 103);
 	  
-      SET @difference = WSXML_SFG.SFG_PACKAGE_DIAS_ENTRE(@iniFECHACDC, @FECHA);
-      SELECT @sector = FLOOR(@difference / 100);
+		SET @difference = WSXML_SFG.SFG_PACKAGE_DIAS_ENTRE(@iniFECHACDC, @FECHA);
+		SET @sector = FLOOR(@difference / 100);
 	  
-      IF @sector > 0 BEGIN
-          DECLARE @updNUMEROCDC NUMERIC(22,0);
-          DECLARE @updFECHACDC  DATETIME;
-        BEGIN
-          SET @updNUMEROCDC = @iniNUMEROCDC + (@sector * 100);
-          SET @updFECHACDC  = WSXML_SFG.SFG_PACKAGE_SUM_DIA_DATE(@iniFECHACDC,(@sector * 100));
-          
-		  UPDATE WSXML_SFG.PARAMETRO
-             SET VALOR = @updNUMEROCDC
-           WHERE NOMPARAMETRO = 'NumeroCDCInicial';
-		   
-          UPDATE WSXML_SFG.PARAMETRO
-             SET VALOR = FORMAT(@updFECHACDC, 'dd/MM/yyyy')
-           WHERE NOMPARAMETRO = 'FechaCDCInicial';
-		  
-		  IF @@ROWCOUNT = 0
-			RETURN 0;
-        END;
-      END 
-
-		IF @@ROWCOUNT = 0
-			RETURN @iniNUMEROCDC;	  
+		IF @sector > 0 
+		BEGIN
+			DECLARE @updNUMEROCDC NUMERIC(22,0);
+			DECLARE @updFECHACDC  DATETIME;
+			
+			BEGIN
+			  SET @updNUMEROCDC = @iniNUMEROCDC + (@sector * 100);
+			  SET @updFECHACDC  = WSXML_SFG.SFG_PACKAGE_SUM_DIA_DATE(@iniFECHACDC,(@sector * 100));
+			  
+			  UPDATE WSXML_SFG.PARAMETRO
+				 SET VALOR = @updNUMEROCDC
+			   WHERE NOMPARAMETRO = 'NumeroCDCInicial';
+			   
+			  UPDATE WSXML_SFG.PARAMETRO
+				 SET VALOR = FORMAT(@updFECHACDC, 'dd/MM/yyyy')
+			   WHERE NOMPARAMETRO = 'FechaCDCInicial';
+			  
+			  IF @@ROWCOUNT = 0
+				RETURN 0;
+			END;
+		END
+			
 		RETURN(@iniNUMEROCDC + @difference);
     
-    END;
+    END 
   END;
 GO
 

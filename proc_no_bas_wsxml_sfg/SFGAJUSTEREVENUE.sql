@@ -142,6 +142,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
     DECLARE @lstoriginfiles   WSXML_SFG.NUMBERARRAY;
     DECLARE @cFECHAORIGEN     DATETIME = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAREFERENCIA));
     DECLARE @errormsg         NVARCHAR(2000);
+		DECLARE @rowcount NUMERIC(22,0) = 0;
 
 	DECLARE 
 	  @MODIFICACIONTARIFA SMALLINT,
@@ -208,6 +209,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
     SELECT @countfilescl = COUNT(1) FROM WSXML_SFG.ENTRADAARCHIVOCONTROL WHERE FECHAARCHIVO = @cFECHAORIGEN AND REVERSADO = 0 AND REVENUECALCULADO = 1;
     IF @countservics <> @countfilescl BEGIN
       RAISERROR('-20054 No se puede ajustar el revenue a partir de la fecha porque no se calculo revenue', 16, 1);
+	  RETURN 0;
     END 
 
     -- Tarifas por contrato
@@ -241,6 +243,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
     END
     ELSE BEGIN
       RAISERROR('-20090 No se reconoce el tipo de ajuste', 16, 1);
+	  RETURN 0;
     END 
 
     -- Para todos los archivos, calcular
@@ -285,8 +288,10 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 			SELECT @newENTRADAARCHIVOCONTROL = ID_ENTRADAARCHIVOCONTROL FROM WSXML_SFG.ENTRADAARCHIVOCONTROL
             WHERE REVERSADO = 0 AND TIPOARCHIVO = @cCODSERVICIOARCHIVO AND FECHAARCHIVO = CONVERT(DATETIME, CONVERT(DATE,@p_FECHAINGRESOAJUSTE)) AND REVENUECALCULADO = 1;
           
-			IF @@ROWCOUNT = 0 
+			IF @@ROWCOUNT = 0 BEGIN
 				RAISERROR('-20050 No es posible ingresar un ajuste en la fecha debido a que no se ha corrido el revenue sobre esta', 16, 1);
+				RETURN 0
+			END
           END;
 
           -- Para cada uno de los registros, calcular en variables y comparar contra calculados
@@ -388,7 +393,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 							BEGIN
 								BEGIN TRY
 								  IF @treference__CODREGISTROANULADO IS NULL BEGIN
-									SET @errormsg = 'No se pudo obtener los valores originales de transaccion para la referencia anulacion de id ' + ISNULL(@treference__ID_REGISTROFACTREFERENCIA, '')
+									SET @errormsg = 'No se pudo obtener los valores originales de transaccion para la referencia anulacion de id ' + ISNULL(CONVERT(VARCHAR,@treference__ID_REGISTROFACTREFERENCIA), '')
 									EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @errormsg							  
 									EXEC WSXML_SFG.SFGREGISTROREVENUE_GetRegistryRevenueValues @treference__FECHA, @originREGISTROFACTURACION, @dmyCODENTRADAARCHIVOCONTROL OUT, @dmyCODTIPOREGISTRO OUT, @xCODPUNTODEVENTA OUT, @xCODTIPOCONTRATOPDV OUT, @xCODPRODUCTO OUT, @xCODTIPOCONTRATOPRODUCTO OUT, @xCODCOMPANIA OUT, @xNUMTRANSACCIONES OUT, @xVALORTRANSACCION OUT, @xTOTALVENTASBRUTAS OUT, @xCODAGRUPACIONPUNTODEVENTA OUT, @xCODREDPDV OUT, @xCODCIUDAD OUT, @xCODRANGOCOMISION OUT, @xCODTIPOCOMISION OUT, @xCODTIPORANGO OUT, @xCODRANGOCOMISIONDIFAGR OUT, @xCODRANGOCOMISIONDIFRED OUT, @xCODRANGOCOMISIONDIFDTO OUT, @cFLAGCOMISIONDIFERENCIALBIN OUT, @cLISTCOMISIONDIFERENCIALBIN OUT, @cLISTADVTRANSACCIONES OUT, @xCODRANGOCOMISIONESTANDAR OUT
 								  END 
@@ -402,7 +407,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 								
 								END TRY
 								BEGIN CATCH
-								  SET @errormsg = 'No se pudo obtener los valores originales de transaccion para la referencia anulacion de id ' + ISNULL(@treference__ID_REGISTROFACTREFERENCIA, '')
+								  SET @errormsg = 'No se pudo obtener los valores originales de transaccion para la referencia anulacion de id ' + ISNULL(CONVERT(VARCHAR,@treference__ID_REGISTROFACTREFERENCIA), '')
 								  EXEC WSXML_SFG.SFGTMPTRACE_TraceLog @errormsg							  
 								  EXEC WSXML_SFG.SFGREGISTROREVENUE_GetRegistryRevenueValues @treference__FECHA, @originREGISTROFACTURACION, @dmyCODENTRADAARCHIVOCONTROL OUT, @dmyCODTIPOREGISTRO OUT, @xCODPUNTODEVENTA OUT, @xCODTIPOCONTRATOPDV OUT, @xCODPRODUCTO OUT, @xCODTIPOCONTRATOPRODUCTO OUT, @xCODCOMPANIA OUT, @xNUMTRANSACCIONES OUT, @xVALORTRANSACCION OUT, @xTOTALVENTASBRUTAS OUT, @xCODAGRUPACIONPUNTODEVENTA OUT, @xCODREDPDV OUT, @xCODCIUDAD OUT, @xCODRANGOCOMISION OUT, @xCODTIPOCOMISION OUT, @xCODTIPORANGO OUT, @xCODRANGOCOMISIONDIFAGR OUT, @xCODRANGOCOMISIONDIFRED OUT, @xCODRANGOCOMISIONDIFDTO OUT, @cFLAGCOMISIONDIFERENCIALBIN OUT, @cLISTCOMISIONDIFERENCIALBIN OUT, @cLISTADVTRANSACCIONES OUT, @xCODRANGOCOMISIONESTANDAR OUT
 								END CATCH
@@ -424,6 +429,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 								  EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @TIPOADVERTENCIA, 'REVENUE', @errormsg, 1
 								  SET @errormsg = '-20060 Maximo numero de advertencias alcanzado: ' + isnull(@errormsg, '')
 								  RAISERROR(@errormsg, 16, 1);
+								  RETURN 0;
 								END CATCH
 							END;
 							-- Calcular (Emular) Comision POS Estandar
@@ -435,6 +441,17 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 							  SELECT @cpsvcodeTIPOCOMISION = CODTIPOCOMISION, @cpsvcalcVALORPORCENTUA = VALORPORCENTUAL, @cpsvcalcVALORTRANSCCNL = VALORTRANSACCIONAL FROM WSXML_SFG.RANGOCOMISION
 							  INNER JOIN WSXML_SFG.RANGOCOMISIONDETALLE ON (CODRANGOCOMISION = ID_RANGOCOMISION)
 							  WHERE ID_RANGOCOMISION = @xCODRANGOCOMISIONESTANDAR;
+							  
+							  SET @rowcount = @@ROWCOUNT
+							  IF @rowcount > 1
+								SET @tmpvCOMISIONPOSESTANDAR = 0;
+								
+							  IF @rowcount = 0 BEGIN
+								SET @errormsg = '-20080 No existe comision estandar configurada para el producto ' + ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@xCODPRODUCTO), '') + '. No se puede continuar'
+								RAISERROR(@errormsg, 16, 1);
+								RETURN 0
+							  END
+							  
 							  IF @cpsvcodeTIPOCOMISION IN (1, 2, 3) BEGIN
 								IF @cpsvcodeTIPOCOMISION = 1 BEGIN    -- Porcentual
 								  SET @tmpvCOMISIONPOSESTANDAR = (@cpsvcalcVALORPORCENTUA * @treference__VALORTRANSACCION) / 100;
@@ -450,13 +467,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 								SET @tmpvCOMISIONPOSESTANDAR = 0;
 							  END 
 							  
-							  IF @@ROWCOUNT > 1
-								SET @tmpvCOMISIONPOSESTANDAR = 0;
-								
-							  IF @@ROWCOUNT = 0 BEGIN
-								SET @errormsg = '-20080 No existe comision estandar configurada para el producto ' + ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@xCODPRODUCTO), '') + '. No se puede continuar'
-								RAISERROR(@errormsg, 16, 1);
-							  END
+							  
 							
 							  
 							END;
@@ -534,6 +545,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 						EXEC WSXML_SFG.SFGALERTA_GenerarAlerta @TIPOADVERTENCIA, 'REVENUE', @errormsg, 1
 						SET @errormsg = '-20060 Maximo numero de advertencias alcanzado: ' + isnull(ERROR_MESSAGE ( ) , '')
 						RAISERROR(@errormsg, 16, 1);
+						RETURN 0;
 					END CATCH
                   END;
                   -- Calcular (Emular) Comision POS Estandar
@@ -545,6 +557,17 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
                     SELECT @cpsvcodeTIPOCOMISION = CODTIPOCOMISION, @cpsvcalcVALORPORCENTUA = VALORPORCENTUAL, @cpsvcalcVALORTRANSCCNL = VALORTRANSACCIONAL
                     FROM WSXML_SFG.RANGOCOMISION INNER JOIN WSXML_SFG.RANGOCOMISIONDETALLE ON (CODRANGOCOMISION = ID_RANGOCOMISION)
                     WHERE ID_RANGOCOMISION = @xCODRANGOCOMISIONESTANDAR;
+					
+					SET @rowcount = @@ROWCOUNT;
+					
+					IF @rowcount > 1 
+						SET @nCOMISIONPOSESTANDAR = 0;
+					
+					IF @rowcount = 0 BEGIN
+						SET @errormsg = '-20080 No existe comision estandar configurada para el producto ' + ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@xCODPRODUCTO), '') + '. No se puede continuar'
+						RAISERROR(@errormsg, 16, 1);
+						RETURN 0;
+					END
                     -- Emular
                     IF @cpsvcodeTIPOCOMISION IN (1, 2, 3) BEGIN
                       IF @cpsvcodeTIPOCOMISION = 1 BEGIN    -- Porcentual
@@ -561,13 +584,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
                       SET @nCOMISIONPOSESTANDAR = 0;
                     END 
 					
-					IF @@ROWCOUNT > 1 
-						SET @nCOMISIONPOSESTANDAR = 0;
 					
-					IF @@ROWCOUNT = 0 BEGIN
-						SET @errormsg = '-20080 No existe comision estandar configurada para el producto ' + ISNULL(WSXML_SFG.PRODUCTO_CODIGO_F(@xCODPRODUCTO), '') + '. No se puede continuar'
-						RAISERROR(@errormsg, 16, 1);
-					END
                   
                     
                   END;
@@ -811,7 +828,6 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 										END
 										CLOSE ccpv;
 										DEALLOCATE ccpv;
-										--END WHILE 1=1 BEGIN;
 									  END
 									END
 									-- Calculate agains actual value depending on operator
@@ -833,6 +849,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGAJUSTEREVENUE_CreateAdjustment(@p_FECHAINGRESO
 								END TRY
 								BEGIN CATCH
 									RAISERROR('-20054 No se pueden calcular las formulas de costos a partir de las configuraciones', 16, 1);
+									RETURN 0;
 								END  CATCH
                           END 
 						  FETCH NEXT FROM iclc INTO @iclc__CODTIPOVALOR, @iclc__VALOR, @iclc__OPERADOR;

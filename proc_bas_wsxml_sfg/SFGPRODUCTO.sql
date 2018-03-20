@@ -231,40 +231,46 @@ CREATE     PROCEDURE WSXML_SFG.SFGPRODUCTO_UpdateRecord(@pk_ID_PRODUCTO         
 									@p_PORCENTAJEFIDUCIA      NUMERIC(22,0),
 									@p_CODUSUARIOMODIFICACION NUMERIC(22,0),
 									@p_ACTIVE                 NUMERIC(22,0)) AS
-			BEGIN
-			SET NOCOUNT ON;
+BEGIN
+	SET NOCOUNT ON;
 
 
-			UPDATE WSXML_SFG.PRODUCTO
-				SET CODIGOGTECHPRODUCTO    = @p_CODIGOGTECHPRODUCTO,
-					NOMPRODUCTO            = @p_NOMPRODUCTO,
-					CODALIADOESTRATEGICO   = @p_CODALIADOESTRATEGICO,
-					CODTIPOPRODUCTO        = @p_CODTIPOPRODUCTO,
-					PORCENTAJEGTECH        = @p_PORCENTAJEGTECH,
-					PORCENTAJEFIDUCIA      = @p_PORCENTAJEFIDUCIA,
-					CODUSUARIOMODIFICACION = @p_CODUSUARIOMODIFICACION,
-					ACTIVE                 = @p_ACTIVE
-				WHERE ID_PRODUCTO = @pk_ID_PRODUCTO;
+	UPDATE WSXML_SFG.PRODUCTO
+		SET CODIGOGTECHPRODUCTO    = @p_CODIGOGTECHPRODUCTO,
+			NOMPRODUCTO            = @p_NOMPRODUCTO,
+			CODALIADOESTRATEGICO   = @p_CODALIADOESTRATEGICO,
+			CODTIPOPRODUCTO        = @p_CODTIPOPRODUCTO,
+			PORCENTAJEGTECH        = @p_PORCENTAJEGTECH,
+			PORCENTAJEFIDUCIA      = @p_PORCENTAJEFIDUCIA,
+			CODUSUARIOMODIFICACION = @p_CODUSUARIOMODIFICACION,
+			ACTIVE                 = @p_ACTIVE
+		WHERE ID_PRODUCTO = @pk_ID_PRODUCTO;
 
-				IF @@rowcount = 0 BEGIN
-				RAISERROR('-20054 The record no longer exists.', 16, 1);
-				END 
-				IF @@rowcount > 1 BEGIN
-				RAISERROR('-20053 Duplicate object instances.', 16, 1);
-		        END 
+		DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
 
-			    UPDATE WSXML_SFG.PRDOCUTOAREAVENTAS
-				SET    ACTIVE                 = @p_ACTIVE
-				WHERE CODPRODUCTO = @pk_ID_PRODUCTO;
+		IF @rowcount = 0 BEGIN
+			RAISERROR('-20054 The record no longer exists.', 16, 1);
+			RETURN 0
+		END 
+		IF @rowcount > 1 BEGIN
+			RAISERROR('-20053 Duplicate object instances.', 16, 1);
+			RETURN 0
+		END 
 
-				IF @@rowcount = 0 BEGIN
-				RAISERROR('-20054 The record no longer exists.', 16, 1);
-				END 
-				IF @@rowcount > 1 BEGIN
-				RAISERROR('-20053 Duplicate object instances.', 16, 1);
-				END 
+		UPDATE WSXML_SFG.PRDOCUTOAREAVENTAS
+		SET    ACTIVE                 = @p_ACTIVE
+		WHERE CODPRODUCTO = @pk_ID_PRODUCTO;
 
-			END;
+		SET @rowcount = @@ROWCOUNT;
+
+		IF @rowcount = 0 BEGIN
+		RAISERROR('-20054 The record no longer exists.', 16, 1);
+		END 
+		IF @rowcount > 1 BEGIN
+		RAISERROR('-20053 Duplicate object instances.', 16, 1);
+		END 
+
+END;
 GO
 
   IF OBJECT_ID('WSXML_SFG.SFGPRODUCTO_DeactivateRecord', 'P') IS NOT NULL
@@ -273,33 +279,37 @@ GO
 
 CREATE     PROCEDURE WSXML_SFG.SFGPRODUCTO_DeactivateRecord(@pk_ID_PRODUCTO           NUMERIC(22,0),
 									 @p_CODUSUARIOMODIFICACION NUMERIC(22,0)) AS
-		  BEGIN
-  		SET NOCOUNT ON;
-			UPDATE WSXML_SFG.PRODUCTO
-			   SET CODUSUARIOMODIFICACION = @p_CODUSUARIOMODIFICACION,
-				   FECHAHORAMODIFICACION  = GETDATE(),
-				   ACTIVE                 = 0
-			 WHERE ID_PRODUCTO = @pk_ID_PRODUCTO;
+BEGIN
+	SET NOCOUNT ON;
+	UPDATE WSXML_SFG.PRODUCTO
+	SET CODUSUARIOMODIFICACION = @p_CODUSUARIOMODIFICACION,
+		FECHAHORAMODIFICACION  = GETDATE(),
+		ACTIVE                 = 0
+	WHERE ID_PRODUCTO = @pk_ID_PRODUCTO;
 
-			IF @@rowcount = 0 BEGIN
-			  RAISERROR('-20054 The record no longer exists.', 16, 1);
-			END 
-			IF @@rowcount > 1 BEGIN
-			  RAISERROR('-20053 Duplicate object instances.', 16, 1);
-			END 
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+	IF @rowcount = 0 BEGIN
+		RAISERROR('-20054 The record no longer exists.', 16, 1);
+		RETURN 0
+	END 
+	IF @rowcount > 1 BEGIN
+		RAISERROR('-20053 Duplicate object instances.', 16, 1);
+		RETURN 0
+	END 
 
-			UPDATE WSXML_SFG.PRDOCUTOAREAVENTAS
-			   SET ACTIVE                 = 0
-			 WHERE CODPRODUCTO = @pk_ID_PRODUCTO;
+	UPDATE WSXML_SFG.PRDOCUTOAREAVENTAS
+	SET ACTIVE                 = 0
+	WHERE CODPRODUCTO = @pk_ID_PRODUCTO;
 
-			IF @@rowcount = 0 BEGIN
-			  RAISERROR('-20054 The record no longer exists.', 16, 1);
-			END 
-			IF @@rowcount > 1 BEGIN
-			  RAISERROR('-20053 Duplicate object instances.', 16, 1);
-			END 
+	SET @rowcount = @@ROWCOUNT;
+	IF @rowcount = 0 BEGIN
+	  RAISERROR('-20054 The record no longer exists.', 16, 1);
+	END 
+	IF @rowcount > 1 BEGIN
+	  RAISERROR('-20053 Duplicate object instances.', 16, 1);
+	END 
 
-		  END;
+END;
 GO
 
   IF OBJECT_ID('WSXML_SFG.SFGPRODUCTO_GetRecord', 'P') IS NOT NULL

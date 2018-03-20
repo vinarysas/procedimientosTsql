@@ -26,16 +26,13 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONTIRILLA_AddRecord(
             @p_CODPUNTODEVENTA);
     SET @p_ID_MAESTROFACTURATIRILLA_out = SCOPE_IDENTITY();
 	*/
-	IF(@@rowcount = 0)
-	  BEGIN
-	   INSERT INTO WSXML_SFG.MAESTROFACTURACIONTIRILLA (
-                                           CODCICLOFACTURACIONPDV,
-                                           CODPUNTODEVENTA)
-    VALUES (
-            @p_CODCICLOFACTURACIONPDV,
-            @p_CODPUNTODEVENTA);
-    SET @p_ID_MAESTROFACTURATIRILLA_out = SCOPE_IDENTITY();
-      END
+	IF @@rowcount = 0
+	BEGIN
+		INSERT INTO WSXML_SFG.MAESTROFACTURACIONTIRILLA (CODCICLOFACTURACIONPDV,CODPUNTODEVENTA)
+		VALUES (@p_CODCICLOFACTURACIONPDV,@p_CODPUNTODEVENTA);
+		
+		SET @p_ID_MAESTROFACTURATIRILLA_out = SCOPE_IDENTITY();
+	END
   END;
 GO
 
@@ -52,10 +49,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGMAESTROFACTURACIONTIRILLA_UpdateRecord(@p_id_m
            SET generado = @p_generado
          WHERE ID_MAESTROFACTURACIONTIRILLA = @p_id_maestrofacturaciontirilla;
 
-        IF @@rowcount = 0 BEGIN
+		DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+        IF @rowcount = 0 BEGIN
           RAISERROR('-20054 The record no longer exists.', 16, 1);
         END 
-        IF @@rowcount > 1 BEGIN
+        IF @rowcount > 1 BEGIN
           RAISERROR('-20053 Duplicate object instances.', 16, 1);
         END 
    END;

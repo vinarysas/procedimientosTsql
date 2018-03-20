@@ -27,15 +27,16 @@ BEGIN
   DECLARE @cCODPUNTODEVENTA NUMERIC(22,0);
   DECLARE @cCODPRODUCTO     NUMERIC(22,0);
   DECLARE @cCODHUERFANOSC   NUMERIC(22,0);
+  DECLARE @rowcount NUMERIC(22,0) = 0;
   BEGIN
 
     DECLARE 
-    @VENTAFACT SMALLINT ,
-    @ANULACION SMALLINT ,
-    @FREETICKT SMALLINT ,
-    @PREMIOPAG SMALLINT ,
-    @RGSTOTROS SMALLINT ,
-    @VENNOFACT SMALLINT 
+		@VENTAFACT SMALLINT ,
+		@ANULACION SMALLINT ,
+		@FREETICKT SMALLINT ,
+		@PREMIOPAG SMALLINT ,
+		@RGSTOTROS SMALLINT ,
+		@VENNOFACT SMALLINT 
 
     EXEC WSXML_SFG.SFGTIPOREGISTRO_CONSTANT 
       @VENTAFACT OUT,
@@ -45,12 +46,7 @@ BEGIN
       @RGSTOTROS OUT,
       @VENNOFACT OUT
 
-
-    EXEC WSXML_SFG.PUNTODEVENTA_F 
-      @p_PUNTOVENTA, 
-      0 , 
-      @cCODPUNTODEVENTA OUT
-    
+    EXEC WSXML_SFG.PUNTODEVENTA_F @p_PUNTOVENTA,  0 , @cCODPUNTODEVENTA OUT
     SET @cCODPRODUCTO = WSXML_SFG.PRODUCTO_F(@p_CODIGOPRODUCTO);
 
     BEGIN
@@ -62,25 +58,10 @@ BEGIN
         AND CODPUNTODEVENTA = @cCODPUNTODEVENTA
         AND CODPRODUCTO     = @cCODPRODUCTO
         AND CODTIPOREGISTRO = @VENTAFACT;
-        
-      -- Insertar registro en registro prefacturado
-      INSERT INTO WSXML_SFG.REGISTROFACTREFERENCIA (
-        CODREGISTROFACTURACION,
-        NUMEROREFERENCIA,
-        FECHAHORATRANSACCION,
-        VALORTRANSACCION,
-        ESTADO
-      ) VALUES (
-        @cCODREGISTROFACTURACION,
-        @p_NUMEROREFERENCIA,
-        @p_FECHAHORATRANSACCION,
-        @p_VALORTRANSACCION,
-        @p_ESTADO
-      );
-      
-      SET @p_ID_REGFACTREFERENCIA_out = SCOPE_IDENTITY();
-
-      IF @@ROWCOUNT = 0 
+		
+	  SET @rowcount = @@ROWCOUNT;
+	  
+	  IF @rowcount = 0 
       BEGIN
       
         -- Verificar si se encuentra en la lista de huerfanos
@@ -105,20 +86,40 @@ BEGIN
           @p_FECHAHORATRANSACCION,
           @p_VALORTRANSACCION,
           @p_ESTADO);
-      END
+      END ELSE BEGIN
+        
+		  -- Insertar registro en registro prefacturado
+		  INSERT INTO WSXML_SFG.REGISTROFACTREFERENCIA (
+			CODREGISTROFACTURACION,
+			NUMEROREFERENCIA,
+			FECHAHORATRANSACCION,
+			VALORTRANSACCION,
+			ESTADO
+		  ) VALUES (
+			@cCODREGISTROFACTURACION,
+			@p_NUMEROREFERENCIA,
+			@p_FECHAHORATRANSACCION,
+			@p_VALORTRANSACCION,
+			@p_ESTADO
+		  );
+		  
+		  SET @p_ID_REGFACTREFERENCIA_out = SCOPE_IDENTITY();
+	  END
+
+      
       
     END
     
     DECLARE @msg varchar(2000)
     
-    IF @@ROWCOUNT = 0 
+    IF @rowcount = 0 
     BEGIN
       set @msg = '-20010 No se encontro la venta a la que se hace referencia: Archivo ID ' + CAST(@p_CODENTRADAARCHIVOCONTROL AS NVARCHAR(MAX)) + ', POS ' + 
                 CAST(@p_PUNTOVENTA AS NVARCHAR(MAX)) + ', Producto ' + CAST(@p_CODIGOPRODUCTO AS NVARCHAR(MAX)) + ', Referencia ' + CAST(@p_NUMEROREFERENCIA AS NVARCHAR(MAX))
       RAISERROR(@msg, 16, 1);
     END
 
-    IF @@ROWCOUNT > 1 
+    IF @rowcount > 1 
     BEGIN
       set @msg = '-20011 No se pueden cargar referencias a archivos no agrupados: Archivo ID ' + CAST(@p_CODENTRADAARCHIVOCONTROL AS NVARCHAR(MAX)) + ', POS ' + 
                 CAST(@p_PUNTOVENTA AS NVARCHAR(MAX)) + ', Producto ' + CAST(@p_CODIGOPRODUCTO AS NVARCHAR(MAX)) + ', Referencia ' + CAST(@p_NUMEROREFERENCIA AS NVARCHAR(MAX))
@@ -141,11 +142,14 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGFACTURACIONREFERENCIA_FindRegistryForRefere
                                      @p_MARKHUERFANO_out         NUMERIC(22,0) OUT,
                                      @p_REGISTROFACTURACION_out  NUMERIC(22,0) OUT) AS
   BEGIN
-  SET NOCOUNT ON;
-    SET @p_MARKHUERFANO_out = 0;
-      DECLARE @cCODPUNTODEVENTA NUMERIC(22,0);
-      DECLARE @cCODPRODUCTO     NUMERIC(22,0);
-    BEGIN
+	SET NOCOUNT ON;
+    
+	SET @p_MARKHUERFANO_out = 0;
+	DECLARE @cCODPUNTODEVENTA NUMERIC(22,0);
+	DECLARE @cCODPRODUCTO     NUMERIC(22,0);
+	DECLARE @rowcount NUMERIC(22,0) = 0;
+    
+	BEGIN
 		EXEC WSXML_SFG.PUNTODEVENTA_F @p_PUNTOVENTA, 0 , @cCODPUNTODEVENTA OUT
 		SET @cCODPRODUCTO     = WSXML_SFG.PRODUCTO_F(@p_CODIGOPRODUCTO);
       BEGIN
@@ -155,8 +159,9 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGFACTURACIONREFERENCIA_FindRegistryForRefere
           AND CODPUNTODEVENTA = @cCODPUNTODEVENTA
           AND CODPRODUCTO     = @cCODPRODUCTO
           AND CODTIPOREGISTRO = @p_ESTADO;
-      
-		IF @@ROWCOUNT = 0 begin
+		
+		SET @rowcount = @@ROWCOUNT;
+		IF @rowcount = 0 begin
         -- Verificar si se encuentra en la lista de huerfanos
 			SELECT @p_REGISTROFACTURACION_out = ID_HUERFANOSERVICIOSCOMERCIALS FROM WSXML_SFG.HUERFANOSERVICIOSCOMERCIALES
 			WHERE CODENTRADAARCHIVOCONTROL = @p_CODENTRADAARCHIVOCONTROL
@@ -167,12 +172,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGREGFACTURACIONREFERENCIA_FindRegistryForRefere
 		END
       END;
 		DECLARE @msgError varchar(2000);
-		IF @@ROWCOUNT = 0 BEGIN
-			set @msgError  = '-20054 No se encontro la venta a la que se hace referencia: Archivo ID ' + ISNULL(@p_CODENTRADAARCHIVOCONTROL, '') + ', POS ' + ISNULL(@p_PUNTOVENTA, '') + ', Producto ' + ISNULL(@p_CODIGOPRODUCTO, '')
+		IF @rowcount = 0 BEGIN
+			set @msgError  = '-20054 No se encontro la venta a la que se hace referencia: Archivo ID ' + ISNULL(CONVERT(VARCHAR,@p_CODENTRADAARCHIVOCONTROL), '') + ', POS ' + ISNULL(@p_PUNTOVENTA, '') + ', Producto ' + ISNULL(@p_CODIGOPRODUCTO, '')
 			RAISERROR(@msgError, 16, 1);
 		END
-		IF @@ROWCOUNT > 1 BEGIN
-			set @msgError  = '-20055 No se pueden cargar referencias a archivos no agrupados: Archivo ID ' + ISNULL(@p_CODENTRADAARCHIVOCONTROL, '') + ', POS ' + ISNULL(@p_PUNTOVENTA, '') + ', Producto ' + ISNULL(@p_CODIGOPRODUCTO, '')
+		IF @rowcount > 1 BEGIN
+			set @msgError  = '-20055 No se pueden cargar referencias a archivos no agrupados: Archivo ID ' + ISNULL(CONVERT(VARCHAR,@p_CODENTRADAARCHIVOCONTROL), '') + ', POS ' + ISNULL(@p_PUNTOVENTA, '') + ', Producto ' + ISNULL(@p_CODIGOPRODUCTO, '')
 			RAISERROR(@msgError, 16, 1);
 		END
     END;

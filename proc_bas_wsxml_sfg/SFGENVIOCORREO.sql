@@ -117,10 +117,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGENVIOCORREO_UpdateRecord(@pk_ID_ENVIOCORREO   
            ACTIVE                 = @p_ACTIVE
      WHERE ID_ENVIOCORREO = @pk_ID_ENVIOCORREO;
 
-    IF @@ROWCOUNT < 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists', 16, 1);
     END 
-    IF @@ROWCOUNT > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20054 Multiple object instances', 16, 1);
     END 
   END;

@@ -50,23 +50,24 @@ CREATE     PROCEDURE WSXML_SFG.SFGDETALLEFACTURACIONRETUVT_CrearRetencionUVT(@p_
       AND CODDETALLEFACTURACIONPDV = @p_CODDETALLEFACTURACIONPDV
       AND CODRETENCIONUVT = @p_CODRETENCIONUVT
       AND ACTIVE = 1;
-    -- Sumar a retencion
-    UPDATE WSXML_SFG.DETALLEFACTURACIONRETUVT SET VALORRETENCION = VALORRETENCION + @p_VALORRETENCION
-    WHERE ID_DETALLEFACTURACIONRETUVT = @p_ID_DETALLEFACTRETUVT_out;
-  --  EXCEPTION WHEN NO_DATA_FOUND THEN
+
+	--  EXCEPTION WHEN NO_DATA_FOUND THEN
     -- Nueva retencion
 	IF(@@rowcount = 0)
-	  BEGIN
+	BEGIN
 	    EXEC WSXML_SFG.SFGDETALLEFACTURACIONRETUVT_AddRecord
 		                                  @p_CODMAESTROFACTURACIONPDV,
                                           @p_CODDETALLEFACTURACIONPDV,
                                           @p_CODRETENCIONUVT,
                                           @p_VALORRETENCION,
                                           @p_CODUSUARIOMODIFICACION,
-                                          @p_ID_DETALLEFACTRETUVT_out;
-      END
+                                          @p_ID_DETALLEFACTRETUVT_out OUT;
+    END	ELSE BEGIN
+		-- Sumar a retencion
+		UPDATE WSXML_SFG.DETALLEFACTURACIONRETUVT SET VALORRETENCION = VALORRETENCION + @p_VALORRETENCION
+		WHERE ID_DETALLEFACTURACIONRETUVT = @p_ID_DETALLEFACTRETUVT_out;
+	END 
 
-    
   END;
 GO
 
@@ -129,10 +130,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGDETALLEFACTURACIONRETUVT_UpdateRecord(@pk_ID_D
            ACTIVE                   = @p_ACTIVE
      WHERE ID_DETALLEFACTURACIONRETUVT = @pk_ID_DETALLEFACTRETUVT;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;

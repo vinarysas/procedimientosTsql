@@ -106,12 +106,13 @@ SET NOCOUNT ON;
             FECHAHORAREVERSADO = @p_FECHAHORAREVERSADO
     WHERE ID_ARCHIVOPAGO = @pk_ID_ARCHIVOPAGO;
 
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
     -- Make sure only one record is affected
-    IF @@rowcount = 0
+    IF @rowcount = 0
     BEGIN
         RAISERROR ('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1
+    IF @rowcount > 1
     BEGIN
         RAISERROR ('-20053 Duplicate object instances.', 16, 1);
     END 

@@ -17,21 +17,25 @@ GO
   DECLARE @msg VARCHAR(2000)
   DECLARE @fechahoy DATETIME = GETDATE();
  
+	BEGIN TRY
 	  SELECT @v_CODTIPOAGRUPACION = AGRUPACIONPUNTODEVENTA.Codtipopuntodeventa,@v_CODAGRUPACIONPUNTODEVENTA = AGRUPACIONPUNTODEVENTA.Id_Agrupacionpuntodeventa,@v_CODPUNTODEVENTA = PUNTODEVENTA.Id_Puntodeventa
 	  FROM WSXML_SFG.PUNTODEVENTA
 	  INNER JOIN WSXML_SFG.AGRUPACIONPUNTODEVENTA ON PUNTODEVENTA.CODAGRUPACIONPUNTODEVENTA = AGRUPACIONPUNTODEVENTA.ID_AGRUPACIONPUNTODEVENTA
 	  WHERE PUNTODEVENTA.CODIGOGTECHPUNTODEVENTA = @p_CODIGOPUNTODEVENTA;
 	 -- Call the procedure
-
 	 
-	 exec wsxml_sfg.sfgmaestrofacturacioncompconsi_getnumeroreferencia 3/*independiencia*/,@v_CODAGRUPACIONPUNTODEVENTA,@v_CODPUNTODEVENTA,@fechahoy,@result OUTPUT
-	  
-	  
-	  IF @@ROWCOUNT = 0  BEGIN
-		SET @msg = 'Error al tratar de calcular la referencia del punto de venta ' + ISNULL(@p_CODIGOPUNTODEVENTA, '') + ' : El punto de venta no existe'
+	IF @@ROWCOUNT = 0  BEGIN
+		SET @msg = 'Error al tratar de calcular la referencia del punto de venta ' + ISNULL(CONVERT(VARCHAR,@p_CODIGOPUNTODEVENTA), '') + ' : El punto de venta no existe'
 		EXEC WSXML_SFG.SFGTMPTRACE_TraceLog_1 @msg, 'LOAD_SALES_FILES'
 		SET @p_result = NULL
-	  END
-	
+	END ELSE BEGIN
+		EXEC wsxml_sfg.sfgmaestrofacturacioncompconsi_getnumeroreferencia 3/*independiencia*/,@v_CODAGRUPACIONPUNTODEVENTA,@v_CODPUNTODEVENTA,@fechahoy,@result OUTPUT
+	END
+ 
+	END TRY
+	BEGIN CATCH
+		SET @msg = 'Error al tratar de calcular la referencia del punto de venta ' + @p_CODIGOPUNTODEVENTA + ' : ' + ERROR_MESSAGE ( )   + ';'
+		EXEC WSXML_SFG.SFGTMPTRACE_TraceLog_1 @msg, 'LOAD_SALES_FILES'
+	END CATCH
 END; 
 GO

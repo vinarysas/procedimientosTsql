@@ -12,8 +12,8 @@ GO
  
   SELECT @returnvalue = ID_TIPOPRODUCTO FROM WSXML_SFG.TIPOPRODUCTO WHERE NOMTIPOPRODUCTO = @p_NOMTIPOPRODUCTO;
   IF @@ROWCOUNT = 0 BEGIN
-  RETURN CAST('-20054 El tipo de producto no existe'AS INT);
-  --  RAISERROR('-20054 El tipo de producto no existe', 16, 1);
+	RETURN CAST('-20054 El tipo de producto no existe'AS INT);
+	--  RAISERROR('-20054 El tipo de producto no existe', 16, 1);
   END
   RETURN @returnvalue;
 END; 

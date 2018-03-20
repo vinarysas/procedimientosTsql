@@ -14,8 +14,8 @@ DECLARE @result NVARCHAR(255) = '';
   SELECT @result = RTRIM(LTRIM(P.CODIGOGTECHPRODUCTO)) FROM WSXML_SFG.PRODUCTO P WHERE P.ID_PRODUCTO = @pk_ID_PRODUCTO;
   
   IF @@ROWCOUNT = 0 BEGIN
-  --SFGTMPTRACE.TraceLog('No es posible encontrar el producto con identificador ' + ISNULL(@pk_ID_PRODUCTO, ''));
-  RETURN 0
+	--SFGTMPTRACE.TraceLog('No es posible encontrar el producto con identificador ' + ISNULL(@pk_ID_PRODUCTO, ''));
+	SET @result  = '';
   END
   RETURN @result;
 END; 

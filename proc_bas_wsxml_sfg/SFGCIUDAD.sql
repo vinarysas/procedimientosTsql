@@ -57,11 +57,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGCIUDAD_UpdateRecord(@pk_ID_CIUDAD             
            ACTIVE                 = @p_ACTIVE
      WHERE ID_CIUDAD = @pk_ID_CIUDAD;
 
+	 DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT
     -- Make sure only one record is affected
-    IF @@rowcount = 0 BEGIN
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
 

@@ -30,7 +30,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGCICLOFACTURACIONPDV_AddRecord(@p_FECHAEJECUCIO
 		  SET @cCODSECUENCIA = @cCODSECUENCIA + 1;
 		  
 		  IF @@ROWCOUNT = 0
-				SELECT @cCODSECUENCIA = 1;
+				SET @cCODSECUENCIA = 1;
 		END;
 	END CATCH
 
@@ -56,10 +56,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGCICLOFACTURACIONPDV_UpdateRecord(@pk_ID_CICLOF
            ACTIVE                 = @p_ACTIVE
      WHERE ID_CICLOFACTURACIONPDV = @pk_ID_CICLOFACTURACIONPDV;
 
-    IF @@rowcount = 0 BEGIN
+	 DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;

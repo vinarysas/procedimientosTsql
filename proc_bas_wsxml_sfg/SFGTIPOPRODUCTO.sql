@@ -44,10 +44,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGTIPOPRODUCTO_UpdateRecord(@pk_ID_TIPOPRODUCTO 
            ACTIVE                 = @p_ACTIVE
      WHERE ID_TIPOPRODUCTO = @pk_ID_TIPOPRODUCTO;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;

@@ -95,10 +95,10 @@ CREATE     PROCEDURE WSXML_SFG.SFGREPORTE_SetReportGenerated(@p_CODCICLOFACTURAC
       SET @xACTUALCYCLEID = WSXML_SFG.ULTIMO_CICLOFACTURACION(GETDATE());
     END 
     BEGIN
-      --SFGTMPTRACE.TraceLog('Reporte to set generated: ' || p_NOMREPORTE);
-      SELECT @cCODREPORTE = ID_REPORTE FROM WSXML_SFG.REPORTE WHERE NOMREPORTE = @p_NOMREPORTE;
+		--SFGTMPTRACE.TraceLog('Reporte to set generated: ' || p_NOMREPORTE);
+		SELECT @cCODREPORTE = ID_REPORTE FROM WSXML_SFG.REPORTE WHERE NOMREPORTE = @p_NOMREPORTE;
 		IF @@ROWCOUNT = 0 BEGIN
-		set @msg = '-20004 El reporte ' + ISNULL(@p_NOMREPORTE, '') + ' al que se esta haciendo referencia no existe'
+			SET @msg = '-20004 El reporte ' + ISNULL(@p_NOMREPORTE, '') + ' al que se esta haciendo referencia no existe'
 			RAISERROR(@msg, 16, 1);
 		END
     END;

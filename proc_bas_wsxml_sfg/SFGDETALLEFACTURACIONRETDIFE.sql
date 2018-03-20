@@ -50,24 +50,27 @@ CREATE     PROCEDURE WSXML_SFG.SFGDETALLEFACTURACIONRETDIFE_CrearRetencionTribut
        AND CODDETALLEFACTURACIONPDV      = @p_CODDETALLEFACTURACIONPDV
        AND CODRETENCIONTRIBUTARIA        = @p_CODRETENCIONTRIBUTARIA
        AND ACTIVE = 1;
-    -- Sumar retencion
-    UPDATE WSXML_SFG.DETALLEFACTURACIONRETDIFE SET VALORRETENCION = VALORRETENCION + @p_VALORRETENCION
-    WHERE ID_DETALLEFACTURACIONRETDIFE = @p_ID_DETALLEFACTRETENCION_out;
-
+	   
+		
   --  EXCEPTION WHEN OTHERS THEN
     -- Nueva retencion
 
 	
-      IF(@@rowcount = 0)
-	   BEGIN
-	          EXEC   WSXML_SFG.SFGDETALLEFACTURACIONRETDIFE_AddRecord
+	IF(@@rowcount = 0)
+	BEGIN
+		EXEC   WSXML_SFG.SFGDETALLEFACTURACIONRETDIFE_AddRecord
 		                                     @p_CODMAESTROFACTURACIONPDV,
                                              @p_CODDETALLEFACTURACIONPDV,
                                              @p_CODRETENCIONTRIBUTARIA,
                                              @p_VALORRETENCION,
                                              @p_CODUSUARIOMODIFICACION,
-                                             @p_ID_DETALLEFACTRETENCION_out;
-       END
+                                             @p_ID_DETALLEFACTRETENCION_out OUT;
+	END ELSE BEGIN
+		-- Sumar retencion
+		UPDATE WSXML_SFG.DETALLEFACTURACIONRETDIFE SET VALORRETENCION = VALORRETENCION + @p_VALORRETENCION
+		WHERE ID_DETALLEFACTURACIONRETDIFE = @p_ID_DETALLEFACTRETENCION_out;
+	END
+
     
   END;
 GO
@@ -92,10 +95,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGDETALLEFACTURACIONRETDIFE_UpdateRecord(@pk_ID_
            ACTIVE                        = @p_ACTIVE
      WHERE ID_DETALLEFACTURACIONRETDIFE = @pk_ID_DETALLEFACTRETENCION;
 
-    IF @@rowcount = 0 BEGIN
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
   END;

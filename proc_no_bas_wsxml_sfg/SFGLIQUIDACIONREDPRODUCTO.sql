@@ -41,7 +41,13 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONREDPRODUCTO_ReversarFacturacion(@pk
     FROM WSXML_SFG.LIQUIDACIONREDPRODUCTOHISTORIC
     WHERE CODLIQUIDACIONREDPRODUCTO = @pk_ID_LIQUIDACIONREDPRODUCTO
        AND CODCICLOFACTURACIONPDV = @xNewCurrentCy;
-    -- Update and delete
+    
+	IF @@ROWCOUNT = 0 BEGIN
+		RAISERROR('-20035 El ciclo ingresado no corresponde con el ciclo actual facturado', 16, 1);
+		RETURN 0
+	END
+		
+	-- Update and delete
     
 	UPDATE WSXML_SFG.LIQUIDACIONREDPRODUCTO
     SET CODLIQUIDACIONREDPRODUCTOHISTO = @xNewCurrentHs
@@ -54,8 +60,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONREDPRODUCTO_ReversarFacturacion(@pk
     WHERE ID_LIQUIDACIONREDPRODUCTOHISTO = @xCurrentHisto;
 	
 	
-	IF @@ROWCOUNT=0
-		RAISERROR('-20035 El ciclo ingresado no corresponde con el ciclo actual facturado', 16, 1);
+	
   END;
 GO
 
@@ -86,10 +91,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONREDPRODUCTO_EstablecerFacturacion(@
         FROM WSXML_SFG.LIQUIDACIONREDPRODUCTOHISTORIC
 		WHERE CODLIQUIDACIONREDPRODUCTO = @pk_ID_LIQUIDACIONREDPRODUCTO
 			AND CODCICLOFACTURACIONPDV = @p_CODCICLOFACTURACIONPDV;
-		RAISERROR(@msgraisor, 16, 1);
 		
-		IF @@ROWCOUNT=0
-			SELECT NULL;
+		IF @@ROWCOUNT > 0 BEGIN
+			RAISERROR(@msgraisor, 16, 1);
+			RETURN 0;
+		END	
     END;
     -- Check for concurrency (skip holes, check for higher value)
 	DECLARE @xCurrentHistoricRec NUMERIC(22,0);
@@ -107,6 +113,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONREDPRODUCTO_EstablecerFacturacion(@
  
 			IF @xCurrentHistoricSeq >= @xCycleSequence BEGIN
 				RAISERROR('-20031 No se puede facturar una semana anterior al actualmente facturado', 16, 1);
+				RETURN 0;
 			END 
 		END 
     END;
@@ -158,6 +165,7 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONREDPRODUCTO_EstablecerFacturacion(@
 		END
 		ELSE BEGIN
 			RAISERROR('-20032 Las descripciones de los ajustes no corresponden con los valores', 16, 1);
+			RETURN 0;
 		END 
     END 
     UPDATE WSXML_SFG.LIQUIDACIONREDPRODUCTO
@@ -193,14 +201,11 @@ CREATE     PROCEDURE WSXML_SFG.SFGLIQUIDACIONREDPRODUCTO_EstablecerFactEncabezad
 		WHERE CODLIQUIDACIONREDPRODUCTO = @pk_ID_LIQUIDACIONREDPRODUCTO
 			AND CODCICLOFACTURACIONPDV = @p_CODCICLOFACTURACIONPDV;
 		
-		SET @msgraisor = '-20030 Ya se ha facturado el ciclo ' + ISNULL(@xCycleSequence, '') + ' para este producto'
-		RAISERROR(@msgraisor, 16, 1);
-		
-		IF @@ROWCOUNT = 0 BEGIN
-			RETURN NULL;
+		IF @@ROWCOUNT > 0 BEGIN
+			SET @msgraisor = '-20030 Ya se ha facturado el ciclo ' + ISNULL(CONVERT(VARCHAR,@xCycleSequence), '') + ' para este producto'
+			RAISERROR(@msgraisor, 16, 1);
 		END
-		
-		
+
     END;
     -- Check for concurrency (skip holes, check for higher value)
     DECLARE @xCurrentHistoricRec NUMERIC(22,0);

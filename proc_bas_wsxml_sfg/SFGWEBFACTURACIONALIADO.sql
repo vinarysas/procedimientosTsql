@@ -125,11 +125,12 @@ CREATE     PROCEDURE WSXML_SFG.SFGWEBFACTURACIONALIADO_UpdateRecord(@pk_ID_FACTU
            TOTALAPAGAR              = @p_TOTALAPAGAR
      WHERE ID_FACTURACIONALIADO = @pk_ID_FACTURACIONALIADO;
 
+	DECLARE @rowcount NUMERIC(22,0) = @@ROWCOUNT;
     -- Make sure only one record is affected
-    IF @@rowcount = 0 BEGIN
+    IF @rowcount = 0 BEGIN
       RAISERROR('-20054 The record no longer exists.', 16, 1);
     END 
-    IF @@rowcount > 1 BEGIN
+    IF @rowcount > 1 BEGIN
       RAISERROR('-20053 Duplicate object instances.', 16, 1);
     END 
 

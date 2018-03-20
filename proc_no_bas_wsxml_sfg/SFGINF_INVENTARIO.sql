@@ -71,19 +71,20 @@ CREATE     PROCEDURE WSXML_SFG.SFGINF_INVENTARIO_GetInventarioDiario(
         WHILE (@@FETCH_STATUS = 0)
         BEGIN
 		
-		  SET @ProductName = CASE WHEN LEN(@VALUE) > 22 THEN SUBSTRING(@VALUE, 1, 22) ELSE @VALUE END;
+			SET @ProductName = CASE WHEN LEN(@VALUE) > 22 THEN SUBSTRING(@VALUE, 1, 22) ELSE @VALUE END;
 
+			SELECT @ConfigValue = CONFIGURACION FROM WSXML_SFG.CONFIGPRODUCTOINVENTARIO WHERE CODPRODUCTO = @ID;
 
-          SELECT @ConfigValue = CONFIGURACION FROM WSXML_SFG.CONFIGPRODUCTOINVENTARIO WHERE CODPRODUCTO = @ID;
-
-		 
-          SET @Header = Isnull(@Header, '') + ', SUM(CASE WHEN INV.CODPRODUCTO = ' + ISNULL(convert(varchar,@ID), '') + ' THEN ' + ISNULL(CASE WHEN @ConfigValue = 'D' THEN 'INV.CANTIDADSALDOINICIAL' ELSE 'INV.VALORSALDOINICIAL' END, '') + ' ELSE 0 END) AS "Inicial ' + ISNULL(@ProductName, '') + '"' +
-                              ', SUM(CASE WHEN INV.CODPRODUCTO = ' + ISNULL(convert(varchar,@ID), '') + ' THEN ' + ISNULL(CASE WHEN @ConfigValue = 'D' THEN 'INV.CANTIDADVENTAS'       ELSE 'INV.VALORVENTAS'       END, '') + ' ELSE 0 END) AS "Ventas '  + ISNULL(@ProductName, '') + '"' +
-                              ', SUM(CASE WHEN INV.CODPRODUCTO = ' + ISNULL(convert(varchar,@ID), '') + ' THEN ' + ISNULL(CASE WHEN @ConfigValue = 'D' THEN 'INV.CANTIDADCARGAS'       ELSE 'INV.VALORCARGAS'       END, '') + ' ELSE 0 END) AS "Cargas '  + ISNULL(@ProductName, '') + '"' +
-                              ', SUM(CASE WHEN INV.CODPRODUCTO = ' + ISNULL(convert(varchar,@ID), '') + ' THEN ' + ISNULL(CASE WHEN @ConfigValue = 'D' THEN 'INV.CANTIDADSALDOFINAL'   ELSE 'INV.VALORSALDOFINAL'   END, '') + ' ELSE 0 END) AS "Final '   + ISNULL(@ProductName, '') + '"';
-        
-			IF @@ROWCOUNT = 0
-				SELECT NULL; /* No existe configuracion de inventario */
+			IF @@ROWCOUNT > 0 BEGIN
+			  SET @Header = Isnull(@Header, '') + ', SUM(CASE WHEN INV.CODPRODUCTO = ' + ISNULL(convert(varchar,@ID), '') + ' THEN ' + ISNULL(CASE WHEN @ConfigValue = 'D' THEN 'INV.CANTIDADSALDOINICIAL' ELSE 'INV.VALORSALDOINICIAL' END, '') + ' ELSE 0 END) AS "Inicial ' + ISNULL(@ProductName, '') + '"' +
+							  ', SUM(CASE WHEN INV.CODPRODUCTO = ' + ISNULL(convert(varchar,@ID), '') + ' THEN ' + ISNULL(CASE WHEN @ConfigValue = 'D' THEN 'INV.CANTIDADVENTAS'       ELSE 'INV.VALORVENTAS'       END, '') + ' ELSE 0 END) AS "Ventas '  + ISNULL(@ProductName, '') + '"' +
+							  ', SUM(CASE WHEN INV.CODPRODUCTO = ' + ISNULL(convert(varchar,@ID), '') + ' THEN ' + ISNULL(CASE WHEN @ConfigValue = 'D' THEN 'INV.CANTIDADCARGAS'       ELSE 'INV.VALORCARGAS'       END, '') + ' ELSE 0 END) AS "Cargas '  + ISNULL(@ProductName, '') + '"' +
+						  ', SUM(CASE WHEN INV.CODPRODUCTO = ' + ISNULL(convert(varchar,@ID), '') + ' THEN ' + ISNULL(CASE WHEN @ConfigValue = 'D' THEN 'INV.CANTIDADSALDOFINAL'   ELSE 'INV.VALORSALDOFINAL'   END, '') + ' ELSE 0 END) AS "Final '   + ISNULL(@ProductName, '') + '"';
+			END 
+			--ELSE 
+			--SELECT NULL; /* No existe configuracion de inventario */
+			
+			
 			FETCH NEXT FROM ipx INTO @ID,@VALUE
         END
         

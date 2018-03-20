@@ -11,7 +11,7 @@ GO
  
   SELECT @returnvalue = ID_RANGOCOMISION FROM WSXML_SFG.RANGOCOMISION WHERE NOMRANGOCOMISION = @p_NOMRANGOCOMISION;
   IF @@ROWCOUNT = 0 BEGIN
-  RETURN CAST('-20054 La comision especificada no existe' AS INT);
+	RETURN CAST('-20054 La comision especificada no existe' AS INT);
   END
     RETURN @returnvalue;
 
